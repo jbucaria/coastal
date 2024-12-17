@@ -9,16 +9,16 @@ import {
   Modal,
   View,
   TextInput,
-  Platform,
 } from 'react-native'
 import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
-import { firestore } from '@/firebaseConfig'
-import { ThemedText } from '@/components/ThemedText' // Adjust the path to where your components are located
-import { ThemedView } from '@/components/ThemedView' // Adjust the path to where your components are located
+import { ThemedText } from '@/components/ThemedText' // Adjusted to match your component import
+import { ThemedView } from '@/components/ThemedView' // Adjusted to match your component import
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { useThemeColor } from '@/hooks/useThemeColor'
-import Linking from 'expo-linking'
+import * as Linking from 'expo-linking'
+import { getDownloadURL, ref } from 'firebase/storage'
+import { storage, firestore } from '@/firebaseConfig'
 
 const ReportsPage = () => {
   const [reports, setReports] = useState([])
@@ -27,6 +27,7 @@ const ReportsPage = () => {
   const [modalVisible, setModalVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedReport, setSelectedReport] = useState(null)
+
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(firestore, 'inspectionReports'),
@@ -56,71 +57,37 @@ const ReportsPage = () => {
   )
 
   const handleViewReport = async () => {
+    if (!selectedReport || !selectedReport.pdfDownloadURL) {
+      Alert.alert('Error', 'No PDF URL available for this report')
+      return
+    }
     try {
-      if (!selectedReport) return
-
-      const fileUri = `${FileSystem.cacheDirectory}${selectedReport.pdfFileName}`
-      const fileInfo = await FileSystem.getInfoAsync(fileUri)
-      if (!fileInfo.exists) {
-        Alert.alert('Error', 'File not found in local storage')
-        return
-      }
-
-      await Linking.openURL(`file://${fileUri}`)
+      console.log('Opening URL:', selectedReport.pdfDownloadURL)
+      await Linking.openURL(selectedReport.pdfDownloadURL)
     } catch (error) {
-      console.error('Error opening file:', error)
-      Alert.alert('Error', 'Failed to open the report')
+      console.error('Error opening report:', error)
+      Alert.alert('Error', `Failed to open the report: ${error.message}`)
     }
     setModalVisible(false)
   }
 
-  const handleSaveReport = async () => {
+  const handleDownloadReport = async () => {
+    if (!selectedReport || !selectedReport.pdfDownloadURL) return
     try {
-      if (!selectedReport) return
-
-      // Check if the file exists in cache
-      const fileUri = `${FileSystem.cacheDirectory}${selectedReport.pdfFileName}`
-      const fileInfo = await FileSystem.getInfoAsync(fileUri)
-      if (!fileInfo.exists) {
-        Alert.alert('Error', 'File not found in local storage')
-        return
-      }
-
-      // Define the destination path in document directory
-      const documentDir = FileSystem.documentDirectory
-      const destinationUri = `${documentDir}${selectedReport.pdfFileName}`
-
-      // Check permissions (Android only)
-      if (Platform.OS === 'android') {
-        const { status } = await Permissions.askAsync(
-          Permissions.MEDIA_LIBRARY_WRITE_ONLY
-        )
-        if (status !== 'granted') {
-          Alert.alert(
-            'Permission Denied',
-            'We need permission to save files on your device.'
-          )
-          return
-        }
-      }
-
-      // Copy file from cache to document directory
-      await FileSystem.copyAsync({
-        from: fileUri,
-        to: destinationUri,
+      const fileUri = `${FileSystem.documentDirectory}${selectedReport.pdfFileName}`
+      await FileSystem.downloadAsync(selectedReport.pdfDownloadURL, fileUri)
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Share Report',
       })
-
-      Alert.alert('Success', 'Report has been saved to your device.')
     } catch (error) {
-      console.error('Error saving report:', error)
-      Alert.alert('Error', 'Failed to save the report')
-    } finally {
-      setModalVisible(false)
+      console.error('Error downloading report:', error)
+      Alert.alert('Error', 'Failed to download the report')
     }
+    setModalVisible(false)
   }
 
   const handleDeleteReport = async () => {
-    // Show confirmation dialog before deleting
     Alert.alert(
       'Confirm Deletion',
       'Are you sure you want to delete this report?',
@@ -135,10 +102,10 @@ const ReportsPage = () => {
           onPress: async () => {
             try {
               if (!selectedReport) return
-
               await deleteDoc(
                 doc(firestore, 'inspectionReports', selectedReport.id)
               )
+              // Note: You might want to delete corresponding files from Firebase Storage here if needed
               Alert.alert('Success', 'Report has been deleted')
               setModalVisible(false)
             } catch (error) {
@@ -210,9 +177,9 @@ const ReportsPage = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.button}
-                onPress={handleSaveReport}
+                onPress={handleDownloadReport}
               >
-                <ThemedText>Save Report</ThemedText>
+                <ThemedText>Download Report</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.button}

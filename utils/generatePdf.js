@@ -2,7 +2,7 @@ import { collection, addDoc } from 'firebase/firestore'
 import { storage, firestore } from '../firebaseConfig'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
-import * as Permissions from 'expo-permissions'
+// import * as Permissions from 'expo-permissions'
 import { Alert, Platform } from 'react-native'
 import { generateReportHTML } from '../components/ReportTemplate' // Adjust path if necessary
 

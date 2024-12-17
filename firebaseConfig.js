@@ -10,7 +10,7 @@ const firebaseConfig = {
   apiKey: 'AIzaSyCnyLTERgNd1i4Y3Y2kR-ETJu2f545wwsg',
   authDomain: 'coastal-cce38.firebaseapp.com',
   projectId: 'coastal-cce38',
-  storageBucket: 'coastal-cce38.appspot.com',
+  storageBucket: 'coastal-cce38.firebasestorage.app',
   messagingSenderId: '867908177885',
   appId: '1:867908177885:ios:6d44768272781a78577034',
 }

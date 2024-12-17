@@ -21,12 +21,15 @@ import * as Print from 'expo-print'
 import * as ImagePicker from 'expo-image-picker'
 import * as Sharing from 'expo-sharing'
 import * as FileSystem from 'expo-file-system'
+import * as Linking from 'expo-linking'
+
 import DateTimePicker from '@react-native-community/datetimepicker'
 import IconSymbol from '@/components/ui/IconSymbol'
 import { generateReportHTML } from '@/components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc } from 'firebase/firestore'
 import { storage, firestore } from '../../firebaseConfig'
+import { handleGeneratePdf } from '../../utils/generatePdf'
 
 export default function App() {
   const [customer, setCustomer] = useState('')
@@ -128,6 +131,100 @@ export default function App() {
     }
   }
 
+  // const handleGeneratePdf = async () => {
+  //   const formData = {
+  //     customer,
+  //     address,
+  //     date: date.toLocaleDateString(),
+  //     reason,
+  //     inspectorName,
+  //     hours,
+  //     equipment: selectedEquipmentDisplay,
+  //     inspectionResults,
+  //     recommendedActions,
+  //     photos: photos.map(photo => ({
+  //       uri: photo.uri,
+  //       label: photo.label,
+  //     })),
+  //   }
+
+  //   try {
+  //     // Generate HTML and PDF
+  //     const html = await generateReportHTML(formData)
+
+  //     const sanitizedAddress = address
+  //       .replace(/[^a-zA-Z0-9]/g, '_')
+  //       .replace(/_+/g, '_')
+  //       .substring(0, 50)
+
+  //     const fileName = sanitizedAddress
+  //       ? `${sanitizedAddress}_Inspection_Report.pdf`
+  //       : 'Inspection_Report.pdf'
+
+  //     const { uri } = await Print.printToFileAsync({ html })
+
+  //     // Save PDF to device's document directory
+  //     const documentDir = FileSystem.documentDirectory
+  //     const savePath = `${documentDir}/${fileName}`
+
+  //     // Move the file to the document directory
+  //     await FileSystem.moveAsync({
+  //       from: uri,
+  //       to: savePath,
+  //     })
+
+  //     // Check and request permission to write to external storage for Android
+  //     if (Platform.OS === 'android') {
+  //       const { status } = await Permissions.askAsync(
+  //         Permissions.MEDIA_LIBRARY_WRITE_ONLY
+  //       )
+  //       if (status !== 'granted') {
+  //         alert('Sorry, we need storage permissions to save the file.')
+  //         return
+  //       }
+  //     }
+
+  //     const docRef = await addDoc(collection(firestore, 'inspectionReports'), {
+  //       ...formData,
+  //       timestamp: new Date(),
+  //       pdfFileName: fileName,
+  //       pdfUri: savePath, // Store the path where the PDF is saved
+  //     })
+  //     console.log('Document written with ID: ', docRef.id)
+
+  //     // Ask user if they want to share the file
+  //     Alert.alert(
+  //       'File Saved',
+  //       'Do you want to share the report?',
+  //       [
+  //         {
+  //           text: 'Cancel',
+  //           style: 'cancel',
+  //         },
+  //         {
+  //           text: 'Share',
+  //           onPress: async () => {
+  //             try {
+  //               await Sharing.shareAsync(savePath, {
+  //                 dialogTitle: 'Share Inspection Report',
+  //                 mimeType: 'application/pdf',
+  //                 UTI: 'public.content',
+  //               })
+  //             } catch (error) {
+  //               console.error('Error sharing file:', error)
+  //               alert('Failed to share the report')
+  //             }
+  //           },
+  //         },
+  //       ],
+  //       { cancelable: false }
+  //     )
+  //   } catch (err) {
+  //     console.error('Error generating PDF or saving to Firestore:', err)
+  //     alert('An error occurred while generating or saving the report')
+  //   }
+  // }
+
   const handleGeneratePdf = async () => {
     const formData = {
       customer,
@@ -139,13 +236,27 @@ export default function App() {
       equipment: selectedEquipmentDisplay,
       inspectionResults,
       recommendedActions,
-      photos: photos.map(photo => ({
-        uri: photo.uri,
-        label: photo.label,
-      })), // Only save URI and label, not the base64 data for size efficiency
+      photos: [], // This will be populated with URLs from Firebase Storage
     }
 
     try {
+      // Upload photos to Cloud Storage
+      const photoUrls = await Promise.all(
+        photos.map(async (photo, index) => {
+          const storageRef = ref(
+            storage,
+            `inspectionPhotos/${Date.now()}_${index}`
+          )
+          const img = await fetch(photo.uri)
+          const blob = await img.blob()
+          const snapshot = await uploadBytes(storageRef, blob)
+          const downloadURL = await getDownloadURL(snapshot.ref)
+          return { uri: downloadURL, label: photo.label }
+        })
+      )
+
+      formData.photos = photoUrls
+
       // Generate HTML and PDF
       const html = await generateReportHTML(formData)
 
@@ -160,57 +271,39 @@ export default function App() {
 
       const { uri } = await Print.printToFileAsync({ html })
 
-      // Save PDF to device's document directory
-      const documentDir = FileSystem.documentDirectory
-      const savePath = `${documentDir}/${fileName}`
+      // Upload PDF to Firebase Storage
+      const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
+      const response = await fetch(uri)
+      const blob = await response.blob()
+      const pdfSnapshot = await uploadBytes(pdfStorageRef, blob)
+      const pdfDownloadURL = await getDownloadURL(pdfSnapshot.ref)
 
-      // Move the file to the document directory
-      await FileSystem.moveAsync({
-        from: uri,
-        to: savePath,
-      })
-
-      // Check and request permission to write to external storage for Android
-      if (Platform.OS === 'android') {
-        const { status } = await Permissions.askAsync(
-          Permissions.MEDIA_LIBRARY_WRITE_ONLY
-        )
-        if (status !== 'granted') {
-          alert('Sorry, we need storage permissions to save the file.')
-          return
-        }
-      }
-
-      // Save to Firestore
+      // Add report data to Firestore
       const docRef = await addDoc(collection(firestore, 'inspectionReports'), {
         ...formData,
         timestamp: new Date(),
         pdfFileName: fileName,
-        pdfUri: savePath, // Store the path where the PDF is saved
+        pdfDownloadURL: pdfDownloadURL, // Store the download URL from storage
       })
       console.log('Document written with ID: ', docRef.id)
 
-      // Ask user if they want to share the file
       Alert.alert(
         'File Saved',
-        'Do you want to share the report?',
+        'The report has been saved and shared. Would you like to view it now?',
         [
           {
             text: 'Cancel',
             style: 'cancel',
           },
           {
-            text: 'Share',
+            text: 'View',
             onPress: async () => {
               try {
-                await Sharing.shareAsync(savePath, {
-                  dialogTitle: 'Share Inspection Report',
-                  mimeType: 'application/pdf',
-                  UTI: 'public.content',
-                })
+                // Use expo-linking to open the PDF in an external viewer
+                await Linking.openURL(pdfDownloadURL)
               } catch (error) {
-                console.error('Error sharing file:', error)
-                alert('Failed to share the report')
+                console.error('Error opening PDF:', error)
+                alert('Failed to open the PDF. Please try again.')
               }
             },
           },

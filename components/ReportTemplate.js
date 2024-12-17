@@ -12,14 +12,13 @@ export const generateReportHTML = async formData => {
           }
           h1, h2 {
             color: #333;
-    
           }
           h1 {
             text-align: center;
             margin-bottom: 10px;
           }
           h2 {
-          font-weight: bold;
+            font-weight: bold;
           }
           .sub-header {
             text-align: center;
@@ -141,9 +140,7 @@ export const generateReportHTML = async formData => {
                   .map(
                     photo => `
                   <div class="photo">
-                    <img src="data:image/jpeg;base64,${
-                      photo.base64
-                    }" alt="Photo" />
+                    <img src="${photo.uri}" alt="${photo.label || 'Photo'}" />
                     <div class="photo-label bold-label">Label: ${
                       photo.label || 'No label'
                     }</div>
