@@ -15,6 +15,7 @@ import {
   TouchableWithoutFeedback,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native'
 import Checkbox from 'expo-checkbox'
 import * as Print from 'expo-print'
@@ -37,6 +38,7 @@ export default function App() {
   const [date, setDate] = useState(new Date()) // Date of inspection
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [reason, setReason] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   // Inspector selection
   const [inspectorName, setInspectorName] = useState('')
@@ -97,7 +99,12 @@ export default function App() {
     }
   }
 
-  // Pick image from library
+  const handleRemovePhoto = index => {
+    const updatedPhotos = [...photos]
+    updatedPhotos.splice(index, 1)
+    setPhotos(updatedPhotos)
+  }
+
   const pickImageAsync = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
@@ -107,14 +114,14 @@ export default function App() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: false,
+      allowsMultipleSelection: true, // Enable multiple selection
       allowsEditing: true,
       quality: 1,
     })
 
     if (!result.canceled) {
       const selectedAssets = await Promise.all(
-        (result.assets || [result]).map(async asset => {
+        result.assets.map(async asset => {
           const base64 = await FileSystem.readAsStringAsync(asset.uri, {
             encoding: FileSystem.EncodingType.Base64,
           })
@@ -226,6 +233,7 @@ export default function App() {
   // }
 
   const handleGeneratePdf = async () => {
+    setIsSaving(true) // Start showing indicator
     const formData = {
       customer,
       address,
@@ -289,11 +297,12 @@ export default function App() {
 
       Alert.alert(
         'File Saved',
-        'The report has been saved and shared. Would you like to view it now?',
+        'The report has been saved and shared. What would you like to do?',
         [
           {
             text: 'Cancel',
             style: 'cancel',
+            onPress: () => setIsSaving(false),
           },
           {
             text: 'View',
@@ -303,7 +312,29 @@ export default function App() {
                 await Linking.openURL(pdfDownloadURL)
               } catch (error) {
                 console.error('Error opening PDF:', error)
-                alert('Failed to open the PDF. Please try again.')
+                Alert.alert(
+                  'Error',
+                  'Failed to open the PDF. Please try again.'
+                )
+              } finally {
+                setIsSaving(false)
+              }
+            },
+          },
+          {
+            text: 'Share',
+            onPress: async () => {
+              try {
+                await Sharing.shareAsync(uri, {
+                  dialogTitle: 'Share Inspection Report',
+                  mimeType: 'application/pdf',
+                  UTI: 'public.content',
+                })
+              } catch (error) {
+                console.error('Error sharing file:', error)
+                Alert.alert('Error', 'Failed to share the report')
+              } finally {
+                setIsSaving(false)
               }
             },
           },
@@ -312,7 +343,11 @@ export default function App() {
       )
     } catch (err) {
       console.error('Error generating PDF or saving to Firestore:', err)
-      alert('An error occurred while generating or saving the report')
+      Alert.alert(
+        'Error',
+        'An error occurred while generating or saving the report'
+      )
+      setIsSaving(false) // Ensure loading stops in case of an error
     }
   }
   return (
@@ -528,14 +563,20 @@ export default function App() {
                     onChangeText={text => handlePhotoLabelChange(text, index)}
                     placeholder="Label this photo"
                   />
+                  <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
+                    <Text style={{ color: 'red', marginLeft: 10 }}>Remove</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
-
               <View className="mt-8">
-                <Button
-                  title="Generate PDF & Send Email"
-                  onPress={handleGeneratePdf}
-                />
+                {isSaving ? (
+                  <ActivityIndicator size="large" color="#0000ff" /> // or any loading component
+                ) : (
+                  <Button
+                    title="Generate PDF & Send Email"
+                    onPress={handleGeneratePdf}
+                  />
+                )}
               </View>
             </ScrollView>
           </View>
