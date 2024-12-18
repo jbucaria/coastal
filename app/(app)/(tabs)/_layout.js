@@ -14,15 +14,25 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
+        headerShown: false, // Keep this if you don't want headers for tabs
         tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
-          default: {},
-        }),
+        tabBarStyle: {
+          backgroundColor: 'rgba(44, 62, 80, 0.8)', // Dark blue with transparency
+          borderTopWidth: 0, // Removes the default border
+          elevation: 0, // Removes shadow on Android
+          position: 'absolute', // Position at the bottom for both platforms
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: Platform.OS === 'ios' ? 83 : 56, // iOS tab bar height, adjust for Android
+        },
+        tabBarLabelStyle: {
+          // Match the styling of the home header bar
+          fontWeight: 'bold',
+          fontSize: 12,
+          textTransform: 'uppercase',
+          letterSpacing: 1,
+        },
       }}
     >
       <Tabs.Screen
@@ -46,7 +56,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'settings',
+          title: 'Settings',
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="gear" color={color} />
           ),

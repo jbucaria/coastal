@@ -25,12 +25,15 @@ import * as FileSystem from 'expo-file-system'
 import * as Linking from 'expo-linking'
 
 import DateTimePicker from '@react-native-community/datetimepicker'
-import IconSymbol from '@/components/ui/IconSymbol'
+import { IconSymbol } from '@/components/ui/IconSymbol'
 import { generateReportHTML } from '@/components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc } from 'firebase/firestore'
 import { storage, firestore } from '../../firebaseConfig'
 import { handleGeneratePdf } from '../../utils/generatePdf'
+import { ThemedText } from '@/components/ThemedText'
+import { ThemedView } from '@/components/ThemedView'
+import { Link } from 'expo-router'
 
 export default function App() {
   const [customer, setCustomer] = useState('')
@@ -47,33 +50,11 @@ export default function App() {
 
   const [hours, setHours] = useState('')
 
-  // Equipment modal states
-  const [equipmentModalVisible, setEquipmentModalVisible] = useState(false)
-  const [selectedEquipment, setSelectedEquipment] = useState({
-    flirCamera: false,
-    moistureMeter: false,
-  })
-
   const [inspectionResults, setInspectionResults] = useState('')
   const [recommendedActions, setRecommendedActions] = useState('')
 
   // Photos (from image picker)
   const [photos, setPhotos] = useState([]) // Each item: { uri: string, label: string, base64: string }
-
-  const toggleEquipment = key => {
-    setSelectedEquipment(prev => ({
-      ...prev,
-      [key]: !prev[key],
-    }))
-  }
-
-  const finalizeEquipmentSelection = () => {
-    setEquipmentModalVisible(false)
-  }
-
-  const selectedEquipmentDisplay = Object.entries(selectedEquipment)
-    .filter(([, selected]) => selected)
-    .map(([key]) => (key === 'flirCamera' ? 'Flir Camera' : 'Moisture Meter'))
 
   const finalizeInspectorSelection = () => {
     setInspectorModalVisible(false)
@@ -351,186 +332,184 @@ export default function App() {
     }
   }
   return (
-    <SafeAreaView className="flex-1 bg-gray-100">
+    <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAvoidingView
-        className="flex-1"
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={100}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View className="flex-1">
+          <ThemedView style={{ flex: 1 }}>
             <ScrollView
-              className="p-4"
-              contentContainerStyle={{ paddingBottom: 100 }}
+              contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
               keyboardShouldPersistTaps="handled"
             >
-              <Text className="text-xl font-bold mb-4">Inspection Report</Text>
-
               {/* Customer Field */}
-              <Text className="mb-2 font-semibold">Customer</Text>
+              <ThemedText type="subtitle">Customer</ThemedText>
               <TextInput
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
+                }}
                 value={customer}
                 onChangeText={setCustomer}
                 placeholder="Enter customer name"
               />
 
               {/* Address Field */}
-              <Text className="mb-2 font-semibold">Address</Text>
+              <ThemedText type="subtitle">Address</ThemedText>
               <TextInput
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
+                }}
                 value={address}
                 onChangeText={setAddress}
                 placeholder="Enter property address"
               />
 
               {/* Date of Inspection */}
-              <Text style={{ marginBottom: 8, fontWeight: 'bold' }}>
-                Date of Inspection
-              </Text>
+              <ThemedText type="subtitle">Date of Inspection</ThemedText>
               <Pressable
                 style={{
                   borderWidth: 1,
                   borderColor: '#ccc',
                   borderRadius: 8,
-                  padding: 8,
-                  marginBottom: 16,
-                  backgroundColor: '#fff',
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
                 }}
-                onPress={() => setShowDatePicker(true)} // Show the date picker when pressed
+                onPress={() => setShowDatePicker(true)}
               >
-                <Text>{date ? date.toLocaleDateString() : 'Select Date'}</Text>
+                <ThemedText>
+                  {date ? date.toLocaleDateString() : 'Select Date'}
+                </ThemedText>
               </Pressable>
-
-              {/* Date Picker */}
               {showDatePicker && (
                 <DateTimePicker
-                  value={date} // Use the current date as default
+                  value={date}
                   mode="date"
-                  display="default" // Display a calendar-style picker
-                  onChange={handleDateChange} // Handle the selected date
+                  display="default"
+                  onChange={handleDateChange}
                 />
               )}
 
               {/* Reason for Inspection */}
-              <Text className="mb-2 font-semibold">Reason for Inspection</Text>
+              <ThemedText type="subtitle">Reason for Inspection</ThemedText>
               <TextInput
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
+                }}
                 value={reason}
                 onChangeText={setReason}
                 placeholder="Enter reason"
               />
 
               {/* Inspector's Name (Modal Selection) */}
-              <Text className="mb-2 font-semibold">Inspector's Name</Text>
+              <ThemedText type="subtitle">Inspector's Name</ThemedText>
               <Pressable
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
+                }}
                 onPress={() => setInspectorModalVisible(true)}
               >
-                <Text>{inspectorName || 'Select Inspector'}</Text>
+                <ThemedText>{inspectorName || 'Select Inspector'}</ThemedText>
               </Pressable>
 
+              {/* Modal for selecting inspector */}
               <Modal
                 transparent={true}
                 visible={inspectorModalVisible}
                 animationType="slide"
               >
-                <View className="flex-1 justify-center bg-black/50">
-                  <View className="bg-white mx-4 p-4 rounded">
-                    <Text className="text-lg font-semibold mb-4">
-                      Select Inspector
-                    </Text>
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                  }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: 'white',
+                      margin: 20,
+                      padding: 20,
+                      borderRadius: 10,
+                    }}
+                  >
+                    <ThemedText type="subtitle">Select Inspector</ThemedText>
                     {inspectors.map((inspector, idx) => (
                       <TouchableOpacity
                         key={idx}
-                        className={`p-2 ${
-                          idx < inspectors.length - 1
-                            ? 'border-b border-gray-200'
-                            : ''
-                        }`}
+                        style={{
+                          padding: 10,
+                          borderBottomWidth:
+                            idx < inspectors.length - 1 ? 1 : 0,
+                          borderBottomColor: '#ccc',
+                        }}
                         onPress={() => setInspectorName(inspector)}
                       >
-                        <Text
-                          className={`text-base ${
-                            inspectorName === inspector ? 'font-bold' : ''
-                          }`}
-                        >
-                          {inspector}
-                        </Text>
+                        <ThemedText>{inspector}</ThemedText>
                       </TouchableOpacity>
                     ))}
-                    <Button title="Done" onPress={finalizeInspectorSelection} />
+                    <Button
+                      title="Done"
+                      onPress={() => setInspectorModalVisible(false)}
+                    />
                   </View>
                 </View>
               </Modal>
 
               {/* Hours to Complete Inspection */}
-              <Text className="mb-2 font-semibold">
+              <ThemedText type="subtitle">
                 Hours to Complete Inspection
-              </Text>
+              </ThemedText>
               <TextInput
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
+                }}
                 value={hours}
                 onChangeText={setHours}
                 placeholder="Enter hours"
                 keyboardType="numeric"
               />
 
-              {/* Equipment Used (Multi-Select) */}
-              <Text className="mb-2 font-semibold">Equipment Used</Text>
-              <Pressable
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
-                onPress={() => setEquipmentModalVisible(true)}
-              >
-                <Text>
-                  {selectedEquipmentDisplay.join(', ') || 'Select equipment'}
-                </Text>
-              </Pressable>
-
-              <Modal
-                transparent={true}
-                visible={equipmentModalVisible}
-                animationType="slide"
-              >
-                <View className="flex-1 justify-center bg-black/50">
-                  <View className="bg-white mx-4 p-4 rounded">
-                    <Text className="text-lg font-semibold mb-4">
-                      Select Equipment
-                    </Text>
-
-                    <View className="flex-row items-center mb-2">
-                      <Checkbox
-                        value={selectedEquipment.flirCamera}
-                        onValueChange={() => toggleEquipment('flirCamera')}
-                        color={
-                          selectedEquipment.flirCamera ? '#4630EB' : undefined
-                        }
-                      />
-                      <Text className="ml-2">Flir Camera</Text>
-                    </View>
-
-                    <View className="flex-row items-center mb-4">
-                      <Checkbox
-                        value={selectedEquipment.moistureMeter}
-                        onValueChange={() => toggleEquipment('moistureMeter')}
-                        color={
-                          selectedEquipment.moistureMeter
-                            ? '#4630EB'
-                            : undefined
-                        }
-                      />
-                      <Text className="ml-2">Moisture Meter</Text>
-                    </View>
-
-                    <Button title="Done" onPress={finalizeEquipmentSelection} />
-                  </View>
-                </View>
-              </Modal>
-
               {/* Inspection Results */}
-              <Text className="mb-2 font-semibold">Inspection Results</Text>
+              <ThemedText type="subtitle">Inspection Results</ThemedText>
               <TextInput
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
+                  height: 100,
+                  textAlignVertical: 'top',
+                }}
                 value={inspectionResults}
                 onChangeText={setInspectionResults}
                 placeholder="Enter inspection results"
@@ -538,48 +517,84 @@ export default function App() {
               />
 
               {/* Recommended Actions */}
-              <Text className="mb-2 font-semibold">Recommended Actions</Text>
+              <ThemedText type="subtitle">Recommended Actions</ThemedText>
               <TextInput
-                className="border border-gray-300 rounded p-2 mb-4 bg-white"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ccc',
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 20,
+                  backgroundColor: 'white',
+                  height: 100,
+                  textAlignVertical: 'top',
+                }}
                 value={recommendedActions}
                 onChangeText={setRecommendedActions}
                 placeholder="Enter recommended actions"
                 multiline
               />
 
-              {/* Attach Photos */}
-              <Text className="mb-2 font-semibold">Photos</Text>
-              <Button title="Attach Photos" onPress={pickImageAsync} />
-
+              {/* Photos */}
+              <ThemedView className="flex-1 justify-center items-center">
+                <View className="flex-row justify-between w-full items-center p-4">
+                  <ThemedText type="subtitle">Photos</ThemedText>
+                  <Pressable onPress={pickImageAsync}>
+                    <IconSymbol
+                      name="photo.badge.plus"
+                      size={70}
+                      color="#008000"
+                    />
+                  </Pressable>
+                </View>
+              </ThemedView>
               {photos.map((photo, index) => (
-                <View key={index} className="flex flex-row items-center mt-4">
+                <View
+                  key={index}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginTop: 10,
+                  }}
+                >
                   <Image
                     source={{ uri: photo.uri }}
-                    style={{ width: 50, height: 50, marginRight: 8 }}
+                    style={{ width: 50, height: 50, marginRight: 10 }}
                   />
                   <TextInput
-                    className="border border-gray-300 rounded p-2 bg-white flex-1"
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: '#ccc',
+                      borderRadius: 8,
+                      padding: 10,
+                      backgroundColor: 'white',
+                    }}
                     value={photo.label}
                     onChangeText={text => handlePhotoLabelChange(text, index)}
                     placeholder="Label this photo"
                   />
                   <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
-                    <Text style={{ color: 'red', marginLeft: 10 }}>Remove</Text>
+                    <ThemedText style={{ color: 'red', marginLeft: 10 }}>
+                      Remove
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
               ))}
-              <View className="mt-8">
+
+              {/* Button for generating PDF */}
+              <ThemedView style={{ marginTop: 20 }}>
                 {isSaving ? (
-                  <ActivityIndicator size="large" color="#0000ff" /> // or any loading component
+                  <ActivityIndicator size="large" color="#0000ff" />
                 ) : (
                   <Button
                     title="Generate PDF & Send Email"
                     onPress={handleGeneratePdf}
                   />
                 )}
-              </View>
+              </ThemedView>
             </ScrollView>
-          </View>
+          </ThemedView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
