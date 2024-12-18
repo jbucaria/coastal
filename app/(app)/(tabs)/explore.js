@@ -12,6 +12,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native'
 import {
   collection,
@@ -30,6 +31,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { storage, firestore } from '@/firebaseConfig'
 import { generateReportHTML } from '@/components/ReportTemplate'
 import * as Print from 'expo-print'
+import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const ReportsPage = () => {
   const [reports, setReports] = useState([])
@@ -40,6 +42,8 @@ const ReportsPage = () => {
   const [selectedReport, setSelectedReport] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editedReport, setEditedReport] = useState({})
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -139,6 +143,8 @@ const ReportsPage = () => {
   }
 
   const handleSaveEdit = async () => {
+    setIsSaving(true) // Start showing loading indicator
+    setUploadProgress(0) // Reset progress
     try {
       const reportRef = doc(firestore, 'inspectionReports', selectedReport.id)
 
@@ -146,7 +152,7 @@ const ReportsPage = () => {
       await updateDoc(reportRef, editedReport)
 
       // Generate new PDF with updated data
-      const newHtml = await generateReportHTML(editedReport) // Assuming you have this function
+      const newHtml = await generateReportHTML(editedReport)
       const sanitizedAddress = editedReport.address
         .replace(/[^a-zA-Z0-9]/g, '_')
         .replace(/_+/g, '_')
@@ -156,12 +162,20 @@ const ReportsPage = () => {
         : 'Inspection_Report.pdf'
       const { uri: newUri } = await Print.printToFileAsync({ html: newHtml })
 
-      // Upload new PDF to Firebase Storage
+      // Upload new PDF to Firebase Storage with progress tracking
       const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
       const response = await fetch(newUri)
       const blob = await response.blob()
-      const pdfSnapshot = await uploadBytes(pdfStorageRef, blob)
-      const newPdfDownloadURL = await getDownloadURL(pdfSnapshot.ref)
+
+      await uploadBytes(pdfStorageRef, blob, {
+        onUploadProgress: snapshot => {
+          const progress =
+            (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          setUploadProgress(progress)
+        },
+      })
+
+      const newPdfDownloadURL = await getDownloadURL(pdfStorageRef)
 
       // Update Firestore with new PDF URL
       await updateDoc(reportRef, {
@@ -170,11 +184,13 @@ const ReportsPage = () => {
       })
 
       Alert.alert('Success', 'Report and PDF have been updated')
-      setIsEditing(false)
-      // Optionally refresh the list of reports
+      setIsEditing(false) // Close editing mode
     } catch (error) {
       console.error('Error updating report and PDF:', error)
       Alert.alert('Error', 'Failed to update the report or regenerate the PDF')
+    } finally {
+      setIsSaving(false) // Stop showing loading indicator regardless of success or failure
+      setUploadProgress(0) // Reset progress bar
     }
   }
 
@@ -200,7 +216,6 @@ const ReportsPage = () => {
       </ThemedView>
     </TouchableOpacity>
   )
-
   return (
     <SafeAreaView style={styles.container}>
       <ThemedView style={styles.container}>
@@ -224,11 +239,10 @@ const ReportsPage = () => {
           onRequestClose={() => {
             setModalVisible(!modalVisible)
           }}
+          presentationStyle="pageSheet"
         >
           <View style={styles.centeredView}>
-            <View
-              style={[styles.modalView, isEditing ? { paddingBottom: 0 } : {}]}
-            >
+            <View style={styles.modalView}>
               {isEditing ? (
                 <KeyboardAvoidingView
                   style={{ flex: 1, width: '100%' }}
@@ -342,16 +356,31 @@ const ReportsPage = () => {
                       multiline
                     />
 
+                    {isSaving && (
+                      <View style={styles.progressBarContainer}>
+                        <View
+                          style={[
+                            styles.progressBar,
+                            { width: `${uploadProgress}%` },
+                          ]}
+                        />
+                      </View>
+                    )}
+
                     <TouchableOpacity
                       style={styles.saveButton}
                       onPress={handleSaveEdit}
+                      disabled={isSaving}
                     >
-                      <ThemedText>Save Changes</ThemedText>
+                      {isSaving ? (
+                        <ActivityIndicator size="small" color="white" />
+                      ) : (
+                        <ThemedText>Save Changes</ThemedText>
+                      )}
                     </TouchableOpacity>
 
-                    {/* Move Close button here to make it scrollable */}
                     <TouchableOpacity
-                      style={[styles.saveButton]}
+                      style={styles.saveButton}
                       onPress={() => {
                         setIsEditing(false)
                         setModalVisible(false)
@@ -362,42 +391,56 @@ const ReportsPage = () => {
                   </ScrollView>
                 </KeyboardAvoidingView>
               ) : (
-                // Non-editing view content
-                <>
+                // Non-editing view content with icons
+                <View style={styles.optionContainer}>
+                  <View style={styles.iconRow}>
+                    <TouchableOpacity
+                      style={styles.iconOption}
+                      onPress={handleViewReport}
+                    >
+                      <IconSymbol name="doc.text" size={50} color="#2C3E50" />
+                      <ThemedText style={styles.iconLabel}>View</ThemedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.iconOption}
+                      onPress={handleDownloadReport}
+                    >
+                      <IconSymbol
+                        name="arrow.down.doc"
+                        size={50}
+                        color="#2C3E50"
+                      />
+                      <ThemedText style={styles.iconLabel}>Download</ThemedText>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.iconRow}>
+                    <TouchableOpacity
+                      style={styles.iconOption}
+                      onPress={handleEditReport}
+                    >
+                      <IconSymbol name="pencil" size={50} color="#2C3E50" />
+                      <ThemedText style={styles.iconLabel}>Edit</ThemedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.iconOption}
+                      onPress={handleDeleteReport}
+                    >
+                      <IconSymbol name="trash" size={50} color="#2C3E50" />
+                      <ThemedText style={styles.iconLabel}>Delete</ThemedText>
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity
-                    style={styles.button}
-                    onPress={handleViewReport}
-                  >
-                    <ThemedText>View Report</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.button}
-                    onPress={handleDownloadReport}
-                  >
-                    <ThemedText>Download Report</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.button}
-                    onPress={handleEditReport}
-                  >
-                    <ThemedText>Edit Report</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.button}
-                    onPress={handleDeleteReport}
-                  >
-                    <ThemedText>Delete Report</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.saveButton]}
+                    style={styles.closeButton}
                     onPress={() => {
                       setIsEditing(false)
                       setModalVisible(false)
                     }}
                   >
-                    <ThemedText>Close</ThemedText>
+                    <ThemedText style={styles.closeButtonText}>
+                      Close
+                    </ThemedText>
                   </TouchableOpacity>
-                </>
+                </View>
               )}
             </View>
           </View>
@@ -408,70 +451,10 @@ const ReportsPage = () => {
 }
 
 const styles = StyleSheet.create({
-  modalContent: {
-    maxHeight: '80%', // Adjust this value based on how much space you want for scrolling
-  },
-  editContent: {
-    paddingBottom: 20, // Add some padding at the bottom of the scroll view
-  },
-  centeredView: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 22,
-  },
-  modalView: {
-    margin: 20,
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20, // Reduced padding to give more space for content
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: '90%',
-    maxHeight: '80%', // Adjust this value based on how much space you want for scrolling
-  },
-  modalContent: {
-    width: '100%', // Ensure scroll view takes full width of modalView
-  },
-  modalTitle: {
-    fontSize: 24,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    marginBottom: 5,
-  },
-  editInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 15,
-    width: '100%',
-    backgroundColor: 'white',
-  },
-  multilineInput: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-    marginTop: 10,
-    width: '100%',
-    alignItems: 'center',
-  },
   container: {
     flex: 1,
     padding: 20,
+    backgroundColor: '#f0f0f0', // Light gray background
   },
   title: {
     marginBottom: 20,
@@ -494,7 +477,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flexDirection: 'row',
-    backgroundColor: 'white', // or use a theme color
+    backgroundColor: 'white',
     borderRadius: 10,
     overflow: 'hidden',
   },
@@ -514,15 +497,12 @@ const styles = StyleSheet.create({
   },
   centeredView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 22,
   },
   modalView: {
-    margin: 20,
     backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 35,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -532,16 +512,60 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
   },
-  button: {
+  modalContent: {
+    flex: 1,
+    width: '100%',
+  },
+  modalTitle: {
+    fontSize: 24,
+    marginBottom: 20,
+    color: '#2C3E50', // Dark blue title color
+  },
+  sectionTitle: {
+    marginBottom: 5,
+    width: '100%',
+    color: '#2C3E50', // Dark blue for section titles
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 15,
+    width: '100%',
+    backgroundColor: 'white',
+  },
+  multilineInput: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  saveButton: {
+    backgroundColor: '#2C3E50', // Dark blue background for buttons
     borderRadius: 10,
     padding: 10,
     elevation: 2,
     marginTop: 10,
     width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonClose: {
-    backgroundColor: '#2196F3',
+  progressBarContainer: {
+    height: 20,
+    backgroundColor: '#e0e0e0',
+    width: '100%',
+    marginTop: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#2C3E50', // Dark blue for progress bar
   },
   searchBar: {
     height: 40,
@@ -550,6 +574,43 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingHorizontal: 10,
     borderRadius: 5,
+  },
+  editContent: {
+    paddingBottom: 20,
+  },
+  optionContainer: {
+    padding: 20,
+    width: '100%',
+    backgroundColor: '#f0f0f0', // Light gray background for better contrast
+  },
+  iconRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 20,
+  },
+  iconOption: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconLabel: {
+    marginTop: 5,
+    color: '#2C3E50', // Dark blue text
+  },
+  closeButton: {
+    backgroundColor: '#2C3E50', // Dark blue for close button
+    borderRadius: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    elevation: 2,
+    marginTop: 20,
+    alignSelf: 'center', // Center the button
+    width: '90%', // Ensure it fits well on screen
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 })
 
