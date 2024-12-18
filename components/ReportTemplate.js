@@ -55,25 +55,34 @@ export const generateReportHTML = async formData => {
             font-weight: bold;
           }
           .photo-section {
-            padding-top: 30px; /* Added padding to top */
+            padding-top: 30px;
           }
-          .photo-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
+          .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
           }
           .photo {
-            width: 48%; /* Adjust to fit two in a row */
             text-align: center;
           }
           .photo img {
-            max-width: 100%;
-            height: auto;
-            margin-bottom: 10px;
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
           }
           .photo-label {
             font-style: italic;
             font-weight: bold;
+            margin-top: 5px;
+          }
+          .page-break {
+            page-break-after: always;
+          }
+
+          @media (max-width: 600px) {
+            .photo-grid {
+              grid-template-columns: 1fr;
+            }
           }
         </style>
       </head>
@@ -131,28 +140,31 @@ export const generateReportHTML = async formData => {
 
         <!-- Photos -->
         <div class="section photo-section">
-       
+          <h2 class="section-title">Photos</h2>
+          <div class="photo-grid">
+            ${formData.photos
+              .map((photo, index) => {
+                let pageBreak = ''
+                if (index === 2) {
+                  // Assuming the first row has 2 photos
+                  pageBreak = '<div class="page-break"></div>'
+                }
+                return `
+                  ${pageBreak}
+                  <div class="photo">
+                    <img src="${photo.uri}" alt="${photo.label || 'Photo'}" />
+                    <div class="photo-label bold-label">Label: ${
+                      photo.label || 'No label'
+                    }</div>
+                  </div>
+                `
+              })
+              .join('')}
+          </div>
           ${
-            formData.photos.length > 0
-              ? formData.photos.reduce((html, photo, index, array) => {
-                  // Start a new row every two photos or if it's the last photo
-                  if (index % 2 === 0) html += '<div class="photo-row">'
-
-                  html += `
-                    <div class="photo">
-                      <img src="${photo.uri}" alt="${photo.label || 'Photo'}" />
-                      <div class="photo-label bold-label">Label: ${
-                        photo.label || 'No label'
-                      }</div>
-                    </div>
-                  `
-
-                  // Close the row after two photos or if it's the last photo
-                  if (index % 2 !== 0 || index === array.length - 1)
-                    html += '</div>'
-                  return html
-                }, '')
-              : '<p class="bold-label">No photos attached.</p>'
+            formData.photos.length === 0
+              ? '<p class="bold-label">No photos attached.</p>'
+              : ''
           }
         </div>
       </body>

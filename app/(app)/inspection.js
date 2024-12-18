@@ -97,12 +97,13 @@ export default function App() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true, // Enable multiple selection
       allowsEditing: false,
-      quality: 1,
+      quality: 0.5, // Lower quality (0.5 is 50%, adjust as needed)
     })
 
     if (!result.canceled) {
       const selectedAssets = await Promise.all(
         result.assets.map(async asset => {
+          // Optionally, you could resize here, but it's more complex and might not be necessary if quality reduction suffices
           const base64 = await FileSystem.readAsStringAsync(asset.uri, {
             encoding: FileSystem.EncodingType.Base64,
           })
