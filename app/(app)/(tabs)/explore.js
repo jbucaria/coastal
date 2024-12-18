@@ -9,16 +9,27 @@ import {
   Modal,
   View,
   TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
-import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
-import { ThemedText } from '@/components/ThemedText' // Adjusted to match your component import
-import { ThemedView } from '@/components/ThemedView' // Adjusted to match your component import
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from 'firebase/firestore'
+import { ThemedText } from '@/components/ThemedText'
+import { ThemedView } from '@/components/ThemedView'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { useThemeColor } from '@/hooks/useThemeColor'
 import * as Linking from 'expo-linking'
-import { getDownloadURL, ref } from 'firebase/storage'
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { storage, firestore } from '@/firebaseConfig'
+import { generateReportHTML } from '@/components/ReportTemplate'
+import * as Print from 'expo-print'
 
 const ReportsPage = () => {
   const [reports, setReports] = useState([])
@@ -27,6 +38,8 @@ const ReportsPage = () => {
   const [modalVisible, setModalVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedReport, setSelectedReport] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedReport, setEditedReport] = useState({})
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -49,6 +62,7 @@ const ReportsPage = () => {
 
   const handleReportPress = report => {
     setSelectedReport(report)
+    setEditedReport({ ...report }) // Initialize editedReport with current report data
     setModalVisible(true)
   }
 
@@ -62,13 +76,11 @@ const ReportsPage = () => {
       return
     }
     try {
-      console.log('Opening URL:', selectedReport.pdfDownloadURL)
       await Linking.openURL(selectedReport.pdfDownloadURL)
     } catch (error) {
       console.error('Error opening report:', error)
       Alert.alert('Error', `Failed to open the report: ${error.message}`)
     }
-    setModalVisible(false)
   }
 
   const handleDownloadReport = async () => {
@@ -84,7 +96,10 @@ const ReportsPage = () => {
       console.error('Error downloading report:', error)
       Alert.alert('Error', 'Failed to download the report')
     }
-    setModalVisible(false)
+  }
+
+  const handleFieldChange = (field, value) => {
+    setEditedReport(prev => ({ ...prev, [field]: value }))
   }
 
   const handleDeleteReport = async () => {
@@ -105,7 +120,6 @@ const ReportsPage = () => {
               await deleteDoc(
                 doc(firestore, 'inspectionReports', selectedReport.id)
               )
-              // Note: You might want to delete corresponding files from Firebase Storage here if needed
               Alert.alert('Success', 'Report has been deleted')
               setModalVisible(false)
             } catch (error) {
@@ -118,6 +132,50 @@ const ReportsPage = () => {
       ],
       { cancelable: false }
     )
+  }
+
+  const handleEditReport = () => {
+    setIsEditing(true)
+  }
+
+  const handleSaveEdit = async () => {
+    try {
+      const reportRef = doc(firestore, 'inspectionReports', selectedReport.id)
+
+      // Update Firestore
+      await updateDoc(reportRef, editedReport)
+
+      // Generate new PDF with updated data
+      const newHtml = await generateReportHTML(editedReport) // Assuming you have this function
+      const sanitizedAddress = editedReport.address
+        .replace(/[^a-zA-Z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .substring(0, 50)
+      const fileName = sanitizedAddress
+        ? `${sanitizedAddress}_Inspection_Report.pdf`
+        : 'Inspection_Report.pdf'
+      const { uri: newUri } = await Print.printToFileAsync({ html: newHtml })
+
+      // Upload new PDF to Firebase Storage
+      const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
+      const response = await fetch(newUri)
+      const blob = await response.blob()
+      const pdfSnapshot = await uploadBytes(pdfStorageRef, blob)
+      const newPdfDownloadURL = await getDownloadURL(pdfSnapshot.ref)
+
+      // Update Firestore with new PDF URL
+      await updateDoc(reportRef, {
+        pdfFileName: fileName,
+        pdfDownloadURL: newPdfDownloadURL,
+      })
+
+      Alert.alert('Success', 'Report and PDF have been updated')
+      setIsEditing(false)
+      // Optionally refresh the list of reports
+    } catch (error) {
+      console.error('Error updating report and PDF:', error)
+      Alert.alert('Error', 'Failed to update the report or regenerate the PDF')
+    }
   }
 
   const renderItem = ({ item }) => (
@@ -168,31 +226,179 @@ const ReportsPage = () => {
           }}
         >
           <View style={styles.centeredView}>
-            <View style={styles.modalView}>
-              <TouchableOpacity
-                style={styles.button}
-                onPress={handleViewReport}
-              >
-                <ThemedText>View Report</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.button}
-                onPress={handleDownloadReport}
-              >
-                <ThemedText>Download Report</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.button}
-                onPress={handleDeleteReport}
-              >
-                <ThemedText>Delete Report</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonClose]}
-                onPress={() => setModalVisible(false)}
-              >
-                <ThemedText>Close</ThemedText>
-              </TouchableOpacity>
+            <View
+              style={[styles.modalView, isEditing ? { paddingBottom: 0 } : {}]}
+            >
+              {isEditing ? (
+                <KeyboardAvoidingView
+                  style={{ flex: 1, width: '100%' }}
+                  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                  keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+                >
+                  <ScrollView
+                    style={styles.modalContent}
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={isEditing ? styles.editContent : {}}
+                  >
+                    <ThemedText type="title" style={styles.modalTitle}>
+                      Edit Report
+                    </ThemedText>
+
+                    {/* Customer */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Customer
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.customer}
+                      onChangeText={text => handleFieldChange('customer', text)}
+                      placeholder="Customer"
+                      style={styles.editInput}
+                    />
+
+                    {/* Address */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Address
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.address}
+                      onChangeText={text => handleFieldChange('address', text)}
+                      placeholder="Address"
+                      style={styles.editInput}
+                    />
+
+                    {/* Date */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Date of Inspection
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.date}
+                      onChangeText={text => handleFieldChange('date', text)}
+                      placeholder="Date"
+                      style={styles.editInput}
+                    />
+
+                    {/* Reason for Inspection */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Reason for Inspection
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.reason}
+                      onChangeText={text => handleFieldChange('reason', text)}
+                      placeholder="Reason"
+                      style={styles.editInput}
+                      multiline
+                    />
+
+                    {/* Inspector's Name */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Inspector's Name
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.inspectorName}
+                      onChangeText={text =>
+                        handleFieldChange('inspectorName', text)
+                      }
+                      placeholder="Inspector's Name"
+                      style={styles.editInput}
+                    />
+
+                    {/* Hours to Complete Inspection */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Hours to Complete Inspection
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.hours}
+                      onChangeText={text => handleFieldChange('hours', text)}
+                      placeholder="Hours"
+                      style={styles.editInput}
+                      keyboardType="numeric"
+                    />
+
+                    {/* Inspection Results */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Inspection Results
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.inspectionResults}
+                      onChangeText={text =>
+                        handleFieldChange('inspectionResults', text)
+                      }
+                      placeholder="Inspection Results"
+                      style={[styles.editInput, styles.multilineInput]}
+                      multiline
+                    />
+
+                    {/* Recommended Actions */}
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>
+                      Recommended Actions
+                    </ThemedText>
+                    <TextInput
+                      value={editedReport.recommendedActions}
+                      onChangeText={text =>
+                        handleFieldChange('recommendedActions', text)
+                      }
+                      placeholder="Recommended Actions"
+                      style={[styles.editInput, styles.multilineInput]}
+                      multiline
+                    />
+
+                    <TouchableOpacity
+                      style={styles.saveButton}
+                      onPress={handleSaveEdit}
+                    >
+                      <ThemedText>Save Changes</ThemedText>
+                    </TouchableOpacity>
+
+                    {/* Move Close button here to make it scrollable */}
+                    <TouchableOpacity
+                      style={[styles.saveButton]}
+                      onPress={() => {
+                        setIsEditing(false)
+                        setModalVisible(false)
+                      }}
+                    >
+                      <ThemedText>Close</ThemedText>
+                    </TouchableOpacity>
+                  </ScrollView>
+                </KeyboardAvoidingView>
+              ) : (
+                // Non-editing view content
+                <>
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={handleViewReport}
+                  >
+                    <ThemedText>View Report</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={handleDownloadReport}
+                  >
+                    <ThemedText>Download Report</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={handleEditReport}
+                  >
+                    <ThemedText>Edit Report</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={handleDeleteReport}
+                  >
+                    <ThemedText>Delete Report</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.saveButton]}
+                    onPress={() => {
+                      setIsEditing(false)
+                      setModalVisible(false)
+                    }}
+                  >
+                    <ThemedText>Close</ThemedText>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </Modal>
@@ -202,6 +408,67 @@ const ReportsPage = () => {
 }
 
 const styles = StyleSheet.create({
+  modalContent: {
+    maxHeight: '80%', // Adjust this value based on how much space you want for scrolling
+  },
+  editContent: {
+    paddingBottom: 20, // Add some padding at the bottom of the scroll view
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 22,
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20, // Reduced padding to give more space for content
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '90%',
+    maxHeight: '80%', // Adjust this value based on how much space you want for scrolling
+  },
+  modalContent: {
+    width: '100%', // Ensure scroll view takes full width of modalView
+  },
+  modalTitle: {
+    fontSize: 24,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    marginBottom: 5,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 15,
+    width: '100%',
+    backgroundColor: 'white',
+  },
+  multilineInput: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  saveButton: {
+    backgroundColor: '#2196F3',
+    borderRadius: 10,
+    padding: 10,
+    elevation: 2,
+    marginTop: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
   container: {
     flex: 1,
     padding: 20,

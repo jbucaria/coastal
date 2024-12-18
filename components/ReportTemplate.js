@@ -54,14 +54,22 @@ export const generateReportHTML = async formData => {
           .bold-label {
             font-weight: bold;
           }
-          .photo {
+          .photo-section {
+            padding-top: 30px; /* Added padding to top */
+          }
+          .photo-row {
+            display: flex;
+            justify-content: space-between;
             margin-bottom: 20px;
+          }
+          .photo {
+            width: 48%; /* Adjust to fit two in a row */
             text-align: center;
           }
           .photo img {
-            max-width: 300px;
+            max-width: 100%;
             height: auto;
-            margin-top: 10px;
+            margin-bottom: 10px;
           }
           .photo-label {
             font-style: italic;
@@ -105,16 +113,6 @@ export const generateReportHTML = async formData => {
           </table>
         </div>
 
-        <!-- Equipment Used -->
-        <div class="section">
-          <h2 class="section-title">Equipment Used</h2>
-          <p class="bold-label">${
-            formData.equipment.length > 0
-              ? formData.equipment.join(', ')
-              : 'No equipment used.'
-          }</p>
-        </div>
-
         <!-- Inspection Results -->
         <div class="section">
           <h2 class="section-title">Inspection Results</h2>
@@ -132,22 +130,28 @@ export const generateReportHTML = async formData => {
         </div>
 
         <!-- Photos -->
-        <div class="section">
-          <h2 class="section-title">Photos</h2>
+        <div class="section photo-section">
+       
           ${
             formData.photos.length > 0
-              ? formData.photos
-                  .map(
-                    photo => `
-                  <div class="photo">
-                    <img src="${photo.uri}" alt="${photo.label || 'Photo'}" />
-                    <div class="photo-label bold-label">Label: ${
-                      photo.label || 'No label'
-                    }</div>
-                  </div>
-                `
-                  )
-                  .join('')
+              ? formData.photos.reduce((html, photo, index, array) => {
+                  // Start a new row every two photos or if it's the last photo
+                  if (index % 2 === 0) html += '<div class="photo-row">'
+
+                  html += `
+                    <div class="photo">
+                      <img src="${photo.uri}" alt="${photo.label || 'Photo'}" />
+                      <div class="photo-label bold-label">Label: ${
+                        photo.label || 'No label'
+                      }</div>
+                    </div>
+                  `
+
+                  // Close the row after two photos or if it's the last photo
+                  if (index % 2 !== 0 || index === array.length - 1)
+                    html += '</div>'
+                  return html
+                }, '')
               : '<p class="bold-label">No photos attached.</p>'
           }
         </div>

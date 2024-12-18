@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native'
 import { auth } from '../../../firebaseConfig' // Adjust this import based on your firebase setup
 import { signOut } from 'firebase/auth'
 import { useRouter } from 'expo-router'
+import { IconSymbol } from '@/components/ui/IconSymbol' // Adjust the import path as needed
 
 const settings = () => {
   const router = useRouter()
@@ -29,11 +30,16 @@ const settings = () => {
       )}
 
       {user && (
-        <TouchableOpacity
-          onPress={handleLogout}
-          className="bg-red-400 border-2 border-red-600 px-4 py-2 rounded"
-        >
-          <Text className="text-white font-bold text-center">Logout</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <View className="px-4 py-2 bg-[#2C3E50] rounded-full flex-row items-center">
+            <IconSymbol
+              name="folder.badge.plus"
+              size={24}
+              color="white"
+              className="mr-2"
+            />
+            <Text className="mx-2 text-lg text-white">Logout</Text>
+          </View>
         </TouchableOpacity>
       )}
     </View>

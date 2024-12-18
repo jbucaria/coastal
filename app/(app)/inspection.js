@@ -96,7 +96,7 @@ export default function App() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true, // Enable multiple selection
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 1,
     })
 
@@ -222,7 +222,6 @@ export default function App() {
       reason,
       inspectorName,
       hours,
-      equipment: selectedEquipmentDisplay,
       inspectionResults,
       recommendedActions,
       photos: [], // This will be populated with URLs from Firebase Storage
