@@ -1,23 +1,27 @@
-import React from 'react'
-import { Button, Text, View } from 'react-native'
-import pickAndUploadImage from '@/components/imagePicker'
+import { StatusBar } from 'expo-status-bar'
+import { StyleSheet, Text, View } from 'react-native'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 export default function App() {
-  const handleUpload = async () => {
-    try {
-      const url = await pickAndUploadImage()
-      if (url) {
-        console.log('Uploaded image URL:', url)
-      }
-    } catch (error) {
-      console.error('Error uploading image:', error)
-    }
-  }
+  const { expoPushToken, notification } = usePushNotifications()
+  const data = JSON.stringify(notification, null, 2)
 
   return (
-    <View className="flex-1 items-center justify-center bg-white">
-      <Text className="text-2xl font-bold mb-4">Upload a Photo</Text>
-      <Button title="Pick and Upload Image" onPress={handleUpload} />
+    <View style={styles.container}>
+      <Text>
+        Token: {expoPushToken && expoPushToken.data ? expoPushToken.data : ''}
+      </Text>
+      <Text>Notification: {data}</Text>
+      <StatusBar style="auto" />
     </View>
   )
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+})

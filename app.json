@@ -16,8 +16,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#ffffff",
+        "googleServicesFile": "./GoogleService-Info.plist"
+      },
+      "permissions": ["android.permission.RECORD_AUDIO"],
+      "package": "com.jbucaria.coastal1"
     },
     "web": {
       "bundler": "metro",
@@ -45,6 +48,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "618e04fc-22cb-4d24-9bf7-530fb7444d97"
+      }
+    },
+    "owner": "jbucaria"
   }
 }
