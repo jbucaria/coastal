@@ -94,7 +94,7 @@ export default function App() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true, // Enable multiple selection
       allowsEditing: false,
       quality: 0.5, // Lower quality (0.5 is 50%, adjust as needed)

@@ -239,7 +239,7 @@ const ReportsPage = () => {
           onRequestClose={() => {
             setModalVisible(!modalVisible)
           }}
-          presentationStyle="pageSheet"
+          // presentationStyle="pageSheet"
         >
           <View style={styles.centeredView}>
             <View style={styles.modalView}>
