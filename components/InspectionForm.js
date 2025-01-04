@@ -100,17 +100,6 @@ const InspectionForm = ({
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Customer Field */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Customer
-      </ThemedText>
-      <TextInput
-        style={styles.input}
-        value={customer}
-        onChangeText={setCustomer}
-        placeholder="Enter customer name"
-      />
-
       {/* Address Field */}
       <ThemedText style={styles.subtitle} type="subtitle">
         Address
@@ -120,6 +109,17 @@ const InspectionForm = ({
         value={address}
         onChangeText={setAddress}
         placeholder="Enter property address"
+      />
+
+      {/* Customer Field */}
+      <ThemedText style={styles.subtitle} type="subtitle">
+        Customer
+      </ThemedText>
+      <TextInput
+        style={styles.input}
+        value={customer}
+        onChangeText={setCustomer}
+        placeholder="Enter customer name"
       />
 
       {/* Date of Inspection */}

@@ -7,6 +7,7 @@ import {
   Platform,
   Keyboard,
   TouchableWithoutFeedback,
+  Alert,
 } from 'react-native'
 import InspectionForm from '@/components/InspectionForm'
 import { handleGeneratePdf } from '@/utils/generatePdf'
@@ -31,19 +32,75 @@ export default function App() {
     }
   }
 
-  const handleGeneratePdfLocal = async () => {
-    const formData = {
-      customer,
-      address,
-      date: date.toLocaleDateString(),
-      reason,
-      inspectorName,
-      hours,
-      inspectionResults,
-      recommendedActions,
-      photos: photos,
+  const validateForm = () => {
+    const fields = {
+      Customer: customer,
+      Address: address,
+      'Date of Inspection': date,
+      'Reason for Inspection': reason,
+      "Inspector's Name": inspectorName,
+      'Hours to Complete Inspection': hours,
+      'Inspection Results': inspectionResults,
+      'Recommended Actions': recommendedActions,
     }
-    await handleGeneratePdf(formData, setIsSaving)
+
+    const missingFields = Object.entries(fields)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key)
+
+    if (missingFields.length > 0) {
+      Alert.alert(
+        'Form Incomplete',
+        'Please complete the following fields:\n' + missingFields.join('\n'),
+        [{ text: 'OK', onPress: () => {} }]
+      )
+      return false
+    }
+
+    if (photos.length === 0) {
+      return new Promise(resolve => {
+        Alert.alert(
+          'No Photos',
+          'You have not added any photos to the report. Are you sure you want to continue without photos?',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => resolve(false),
+            },
+            {
+              text: 'OK',
+              onPress: () => resolve(true),
+            },
+          ],
+          { cancelable: false }
+        )
+      })
+    }
+
+    return true
+  }
+
+  const handleGeneratePdfLocal = async () => {
+    try {
+      const validationResult = await validateForm()
+      if (!validationResult) return
+
+      const formData = {
+        customer,
+        address,
+        date: date.toLocaleDateString(),
+        reason,
+        inspectorName,
+        hours,
+        inspectionResults,
+        recommendedActions,
+        photos: photos,
+      }
+      await handleGeneratePdf(formData, setIsSaving)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+    }
   }
 
   return (
