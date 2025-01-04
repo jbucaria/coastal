@@ -29,8 +29,8 @@ import { IconSymbol } from '@/components/ui/IconSymbol'
 import { generateReportHTML } from '@/components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc } from 'firebase/firestore'
-import { storage, firestore } from '../../firebaseConfig'
-import { handleGeneratePdf } from '../../utils/generatePdf'
+import { storage, firestore } from '@/firebaseConfig'
+import { handleGeneratePdf } from '@/utils/generatePdf'
 import { ThemedText } from '@/components/ThemedText'
 import { ThemedView } from '@/components/ThemedView'
 import { Link } from 'expo-router'
@@ -120,102 +120,7 @@ export default function App() {
     }
   }
 
-  // const handleGeneratePdf = async () => {
-  //   const formData = {
-  //     customer,
-  //     address,
-  //     date: date.toLocaleDateString(),
-  //     reason,
-  //     inspectorName,
-  //     hours,
-  //     equipment: selectedEquipmentDisplay,
-  //     inspectionResults,
-  //     recommendedActions,
-  //     photos: photos.map(photo => ({
-  //       uri: photo.uri,
-  //       label: photo.label,
-  //     })),
-  //   }
-
-  //   try {
-  //     // Generate HTML and PDF
-  //     const html = await generateReportHTML(formData)
-
-  //     const sanitizedAddress = address
-  //       .replace(/[^a-zA-Z0-9]/g, '_')
-  //       .replace(/_+/g, '_')
-  //       .substring(0, 50)
-
-  //     const fileName = sanitizedAddress
-  //       ? `${sanitizedAddress}_Inspection_Report.pdf`
-  //       : 'Inspection_Report.pdf'
-
-  //     const { uri } = await Print.printToFileAsync({ html })
-
-  //     // Save PDF to device's document directory
-  //     const documentDir = FileSystem.documentDirectory
-  //     const savePath = `${documentDir}/${fileName}`
-
-  //     // Move the file to the document directory
-  //     await FileSystem.moveAsync({
-  //       from: uri,
-  //       to: savePath,
-  //     })
-
-  //     // Check and request permission to write to external storage for Android
-  //     if (Platform.OS === 'android') {
-  //       const { status } = await Permissions.askAsync(
-  //         Permissions.MEDIA_LIBRARY_WRITE_ONLY
-  //       )
-  //       if (status !== 'granted') {
-  //         alert('Sorry, we need storage permissions to save the file.')
-  //         return
-  //       }
-  //     }
-
-  //     const docRef = await addDoc(collection(firestore, 'inspectionReports'), {
-  //       ...formData,
-  //       timestamp: new Date(),
-  //       pdfFileName: fileName,
-  //       pdfUri: savePath, // Store the path where the PDF is saved
-  //     })
-  //     console.log('Document written with ID: ', docRef.id)
-
-  //     // Ask user if they want to share the file
-  //     Alert.alert(
-  //       'File Saved',
-  //       'Do you want to share the report?',
-  //       [
-  //         {
-  //           text: 'Cancel',
-  //           style: 'cancel',
-  //         },
-  //         {
-  //           text: 'Share',
-  //           onPress: async () => {
-  //             try {
-  //               await Sharing.shareAsync(savePath, {
-  //                 dialogTitle: 'Share Inspection Report',
-  //                 mimeType: 'application/pdf',
-  //                 UTI: 'public.content',
-  //               })
-  //             } catch (error) {
-  //               console.error('Error sharing file:', error)
-  //               alert('Failed to share the report')
-  //             }
-  //           },
-  //         },
-  //       ],
-  //       { cancelable: false }
-  //     )
-  //   } catch (err) {
-  //     console.error('Error generating PDF or saving to Firestore:', err)
-  //     alert('An error occurred while generating or saving the report')
-  //   }
-  // }
-
-  const handleGeneratePdf = async () => {
-    setIsSaving(true) // Start showing indicator
+  const handleGeneratePdfLocal = async () => {
     const formData = {
       customer,
       address,
@@ -225,112 +130,11 @@ export default function App() {
       hours,
       inspectionResults,
       recommendedActions,
-      photos: [], // This will be populated with URLs from Firebase Storage
+      photos: photos, // Sending the original photos array here
     }
-
-    try {
-      // Upload photos to Cloud Storage
-      const photoUrls = await Promise.all(
-        photos.map(async (photo, index) => {
-          const storageRef = ref(
-            storage,
-            `inspectionPhotos/${Date.now()}_${index}`
-          )
-          const img = await fetch(photo.uri)
-          const blob = await img.blob()
-          const snapshot = await uploadBytes(storageRef, blob)
-          const downloadURL = await getDownloadURL(snapshot.ref)
-          return { uri: downloadURL, label: photo.label }
-        })
-      )
-
-      formData.photos = photoUrls
-
-      // Generate HTML and PDF
-      const html = await generateReportHTML(formData)
-
-      const sanitizedAddress = address
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .substring(0, 50)
-
-      const fileName = sanitizedAddress
-        ? `${sanitizedAddress}_Inspection_Report.pdf`
-        : 'Inspection_Report.pdf'
-
-      const { uri } = await Print.printToFileAsync({ html })
-
-      // Upload PDF to Firebase Storage
-      const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
-      const response = await fetch(uri)
-      const blob = await response.blob()
-      const pdfSnapshot = await uploadBytes(pdfStorageRef, blob)
-      const pdfDownloadURL = await getDownloadURL(pdfSnapshot.ref)
-
-      // Add report data to Firestore
-      const docRef = await addDoc(collection(firestore, 'inspectionReports'), {
-        ...formData,
-        timestamp: new Date(),
-        pdfFileName: fileName,
-        pdfDownloadURL: pdfDownloadURL, // Store the download URL from storage
-      })
-      console.log('Document written with ID: ', docRef.id)
-
-      Alert.alert(
-        'File Saved',
-        'The report has been saved and shared. What would you like to do?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setIsSaving(false),
-          },
-          {
-            text: 'View',
-            onPress: async () => {
-              try {
-                // Use expo-linking to open the PDF in an external viewer
-                await Linking.openURL(pdfDownloadURL)
-              } catch (error) {
-                console.error('Error opening PDF:', error)
-                Alert.alert(
-                  'Error',
-                  'Failed to open the PDF. Please try again.'
-                )
-              } finally {
-                setIsSaving(false)
-              }
-            },
-          },
-          {
-            text: 'Share',
-            onPress: async () => {
-              try {
-                await Sharing.shareAsync(uri, {
-                  dialogTitle: 'Share Inspection Report',
-                  mimeType: 'application/pdf',
-                  UTI: 'public.content',
-                })
-              } catch (error) {
-                console.error('Error sharing file:', error)
-                Alert.alert('Error', 'Failed to share the report')
-              } finally {
-                setIsSaving(false)
-              }
-            },
-          },
-        ],
-        { cancelable: false }
-      )
-    } catch (err) {
-      console.error('Error generating PDF or saving to Firestore:', err)
-      Alert.alert(
-        'Error',
-        'An error occurred while generating or saving the report'
-      )
-      setIsSaving(false) // Ensure loading stops in case of an error
-    }
+    await handleGeneratePdf(formData, setIsSaving)
   }
+
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAvoidingView
@@ -589,7 +393,7 @@ export default function App() {
                 ) : (
                   <Button
                     title="Generate PDF & Send Email"
-                    onPress={handleGeneratePdf}
+                    onPress={handleGeneratePdfLocal}
                   />
                 )}
               </ThemedView>

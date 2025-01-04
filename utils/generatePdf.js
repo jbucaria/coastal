@@ -1,13 +1,36 @@
-import { collection, addDoc } from 'firebase/firestore'
-import { storage, firestore } from '../firebaseConfig'
+// utils/generatePdf.js
+
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
-// import * as Permissions from 'expo-permissions'
+import * as Print from 'expo-print'
+import * as Linking from 'expo-linking'
 import { Alert, Platform } from 'react-native'
-import { generateReportHTML } from '../components/ReportTemplate' // Adjust path if necessary
+import { generateReportHTML } from '../components/ReportTemplate'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { collection, addDoc } from 'firebase/firestore'
+import { storage, firestore } from '@/firebaseConfig'
 
-export const handleGeneratePdf = async formData => {
+export const handleGeneratePdf = async (formData, setIsSaving) => {
+  setIsSaving(true) // Start showing indicator
+
   try {
+    // Upload photos to Cloud Storage
+    const photoUrls = await Promise.all(
+      formData.photos.map(async (photo, index) => {
+        const storageRef = ref(
+          storage,
+          `inspectionPhotos/${Date.now()}_${index}`
+        )
+        const img = await fetch(photo.uri)
+        const blob = await img.blob()
+        const snapshot = await uploadBytes(storageRef, blob)
+        const downloadURL = await getDownloadURL(snapshot.ref)
+        return { uri: downloadURL, label: photo.label }
+      })
+    )
+
+    formData.photos = photoUrls
+
     // Generate HTML and PDF
     const html = await generateReportHTML(formData)
 
@@ -22,57 +45,59 @@ export const handleGeneratePdf = async formData => {
 
     const { uri } = await Print.printToFileAsync({ html })
 
-    // Save PDF to device's document directory
-    const documentDir = FileSystem.documentDirectory
-    const savePath = `${documentDir}/${fileName}`
+    // Upload PDF to Firebase Storage
+    const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
+    const response = await fetch(uri)
+    const blob = await response.blob()
+    const pdfSnapshot = await uploadBytes(pdfStorageRef, blob)
+    const pdfDownloadURL = await getDownloadURL(pdfSnapshot.ref)
 
-    // Move the file to the document directory
-    await FileSystem.moveAsync({
-      from: uri,
-      to: savePath,
-    })
-
-    // Check and request permission to write to external storage for Android
-    if (Platform.OS === 'android') {
-      const { status } = await Permissions.askAsync(
-        Permissions.MEDIA_LIBRARY_WRITE_ONLY
-      )
-      if (status !== 'granted') {
-        alert('Sorry, we need storage permissions to save the file.')
-        return
-      }
-    }
-
-    // Save to Firestore
+    // Add report data to Firestore
     const docRef = await addDoc(collection(firestore, 'inspectionReports'), {
       ...formData,
       timestamp: new Date(),
       pdfFileName: fileName,
-      pdfUri: savePath, // Store the path where the PDF is saved
+      pdfDownloadURL: pdfDownloadURL, // Store the download URL from storage
     })
     console.log('Document written with ID: ', docRef.id)
 
-    // Ask user if they want to share the file
     Alert.alert(
       'File Saved',
-      'Do you want to share the report?',
+      'The report has been saved and shared. What would you like to do?',
       [
         {
           text: 'Cancel',
           style: 'cancel',
+          onPress: () => setIsSaving(false),
+        },
+        {
+          text: 'View',
+          onPress: async () => {
+            try {
+              // Use expo-linking to open the PDF in an external viewer
+              await Linking.openURL(pdfDownloadURL)
+            } catch (error) {
+              console.error('Error opening PDF:', error)
+              Alert.alert('Error', 'Failed to open the PDF. Please try again.')
+            } finally {
+              setIsSaving(false)
+            }
+          },
         },
         {
           text: 'Share',
           onPress: async () => {
             try {
-              await Sharing.shareAsync(savePath, {
+              await Sharing.shareAsync(uri, {
                 dialogTitle: 'Share Inspection Report',
                 mimeType: 'application/pdf',
                 UTI: 'public.content',
               })
             } catch (error) {
               console.error('Error sharing file:', error)
-              alert('Failed to share the report')
+              Alert.alert('Error', 'Failed to share the report')
+            } finally {
+              setIsSaving(false)
             }
           },
         },
@@ -81,6 +106,10 @@ export const handleGeneratePdf = async formData => {
     )
   } catch (err) {
     console.error('Error generating PDF or saving to Firestore:', err)
-    alert('An error occurred while generating or saving the report')
+    Alert.alert(
+      'Error',
+      'An error occurred while generating or saving the report'
+    )
+    setIsSaving(false) // Ensure loading stops in case of an error
   }
 }
