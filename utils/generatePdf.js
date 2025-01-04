@@ -7,13 +7,30 @@ import * as Linking from 'expo-linking'
 import { Alert, Platform } from 'react-native'
 import { generateReportHTML } from '../components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { collection, addDoc } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
 
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator
 
   try {
+    // Check for unique address (case-insensitive)
+    const lowercaseAddress = formData.address.toLowerCase()
+    const addressQuery = query(
+      collection(firestore, 'inspectionReports'),
+      where('lowercaseAddress', '==', lowercaseAddress)
+    )
+    const querySnapshot = await getDocs(addressQuery)
+
+    if (!querySnapshot.empty) {
+      Alert.alert(
+        'Duplicate Address',
+        'An inspection report with this address already exists.',
+        [{ text: 'OK', onPress: () => setIsSaving(false) }]
+      )
+      return
+    }
+
     // Upload photos to Cloud Storage
     const photoUrls = await Promise.all(
       formData.photos.map(async (photo, index) => {
@@ -30,6 +47,8 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
     )
 
     formData.photos = photoUrls
+    // Include a lowercase version of the address for future case-insensitive queries
+    formData.lowercaseAddress = lowercaseAddress
 
     // Generate HTML and PDF
     const html = await generateReportHTML(formData)
