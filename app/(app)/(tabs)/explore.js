@@ -9,9 +9,6 @@ import {
   Modal,
   View,
   TextInput,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
 } from 'react-native'
 import {
@@ -34,6 +31,9 @@ import * as Print from 'expo-print'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import { router } from 'expo-router'
 
+// 1) Import expo-media-library
+import * as MediaLibrary from 'expo-media-library'
+
 const ReportsPage = () => {
   const [reports, setReports] = useState([])
   const backgroundColor = useThemeColor({}, 'background')
@@ -41,10 +41,15 @@ const ReportsPage = () => {
   const [modalVisible, setModalVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedReport, setSelectedReport] = useState(null)
-  const [isEditing, setIsEditing] = useState(false)
+
+  // We removed isEditing here since we’re pushing to another screen for editing
   const [editedReport, setEditedReport] = useState({})
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
+
+  // 2) State for download progress modal
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -61,13 +66,12 @@ const ReportsPage = () => {
         Alert.alert('Error', 'Could not fetch reports')
       }
     )
-
     return () => unsubscribe()
   }, [])
 
   const handleReportPress = report => {
     setSelectedReport(report)
-    setEditedReport({ ...report }) // Initialize editedReport with current report data
+    setEditedReport({ ...report })
     setModalVisible(true)
   }
 
@@ -103,10 +107,6 @@ const ReportsPage = () => {
     }
   }
 
-  const handleFieldChange = (field, value) => {
-    setEditedReport(prev => ({ ...prev, [field]: value }))
-  }
-
   const handleDeleteReport = async () => {
     Alert.alert(
       'Confirm Deletion',
@@ -139,62 +139,80 @@ const ReportsPage = () => {
     )
   }
 
-  const handleEditReport = () => {
-    setIsEditing(true)
-  }
-
-  const handleSaveEdit = async () => {
-    setIsSaving(true) // Start showing loading indicator
-    setUploadProgress(0) // Reset progress
-    try {
-      const reportRef = doc(firestore, 'inspectionReports', selectedReport.id)
-
-      // Update Firestore
-      await updateDoc(reportRef, editedReport)
-
-      // Generate new PDF with updated data
-      const newHtml = await generateReportHTML(editedReport)
-      const sanitizedAddress = editedReport.address
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .substring(0, 50)
-      const fileName = sanitizedAddress
-        ? `${sanitizedAddress}_Inspection_Report.pdf`
-        : 'Inspection_Report.pdf'
-      const { uri: newUri } = await Print.printToFileAsync({ html: newHtml })
-
-      // Upload new PDF to Firebase Storage with progress tracking
-      const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
-      const response = await fetch(newUri)
-      const blob = await response.blob()
-
-      await uploadBytes(pdfStorageRef, blob, {
-        onUploadProgress: snapshot => {
-          const progress =
-            (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          setUploadProgress(progress)
-        },
-      })
-
-      const newPdfDownloadURL = await getDownloadURL(pdfStorageRef)
-
-      // Update Firestore with new PDF URL
-      await updateDoc(reportRef, {
-        pdfFileName: fileName,
-        pdfDownloadURL: newPdfDownloadURL,
-      })
-
-      Alert.alert('Success', 'Report and PDF have been updated')
-      setIsEditing(false) // Close editing mode
-    } catch (error) {
-      console.error('Error updating report and PDF:', error)
-      Alert.alert('Error', 'Failed to update the report or regenerate the PDF')
-    } finally {
-      setIsSaving(false) // Stop showing loading indicator regardless of success or failure
-      setUploadProgress(0) // Reset progress bar
+  // 3) This function saves photos to the iOS Photo Library
+  const requestMediaLibraryPermissions = async () => {
+    const { status } = await MediaLibrary.requestPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'App needs photo library permission to save images.'
+      )
+      return false
     }
+    return true
   }
 
+  const handleDownloadPhotos = useCallback(async () => {
+    if (
+      !selectedReport ||
+      !selectedReport.photos ||
+      selectedReport.photos.length === 0
+    ) {
+      Alert.alert('Error', 'No photos available for this report')
+      return
+    }
+
+    const hasPermission = await requestMediaLibraryPermissions()
+    if (!hasPermission) return
+
+    setIsDownloading(true)
+    setDownloadProgress(0)
+
+    try {
+      let downloadedPhotos = 0
+      const updateProgress = setInterval(() => {
+        setDownloadProgress(prevProgress => {
+          // Prevent progress from exceeding 100%
+          return Math.min(
+            100,
+            (downloadedPhotos / selectedReport.photos.length) * 100 +
+              Math.random() * 10
+          ) // Add some randomness for smoother transition
+        })
+      }, 500) // Update every half second for smoother progress
+
+      for (let i = 0; i < selectedReport.photos.length; i++) {
+        const photo = selectedReport.photos[i]
+        const localFileName = `${photo.label || 'photo'}_${i}.jpg`
+        const localUri = FileSystem.documentDirectory + localFileName
+
+        const downloadResult = await FileSystem.downloadAsync(
+          photo.uri,
+          localUri
+        )
+        console.log('Downloaded photo:', downloadResult.uri)
+
+        await MediaLibrary.createAssetAsync(downloadResult.uri)
+        downloadedPhotos++ // Increment after each successful download
+
+        await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay to ensure visibility
+      }
+
+      clearInterval(updateProgress) // Stop updating progress after all photos are downloaded
+      setDownloadProgress(100) // Ensure progress shows 100%
+
+      Alert.alert(
+        'Saved to Library',
+        `All ${selectedReport.photos.length} photo(s) have been saved to your photo library.`,
+        [{ text: 'OK' }]
+      )
+    } catch (error) {
+      console.error('Error saving photos:', error)
+      Alert.alert('Error', 'Failed to save photos. Please try again.')
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [selectedReport, requestMediaLibraryPermissions])
   const renderItem = ({ item }) => (
     <TouchableOpacity
       onPress={() => handleReportPress(item)}
@@ -217,6 +235,7 @@ const ReportsPage = () => {
       </ThemedView>
     </TouchableOpacity>
   )
+
   return (
     <SafeAreaView style={styles.container}>
       <ThemedView style={styles.container}>
@@ -233,6 +252,8 @@ const ReportsPage = () => {
           renderItem={renderItem}
           contentContainerStyle={styles.list}
         />
+
+        {/* ====== MAIN MODAL for Options ====== */}
         <Modal
           animationType="slide"
           transparent={true}
@@ -240,7 +261,6 @@ const ReportsPage = () => {
           onRequestClose={() => {
             setModalVisible(!modalVisible)
           }}
-          // presentationStyle="pageSheet"
         >
           <View style={styles.centeredView}>
             <View style={styles.modalView}>
@@ -270,6 +290,8 @@ const ReportsPage = () => {
                   <TouchableOpacity
                     style={styles.iconOption}
                     onPress={() => {
+                      // Navigate to Edit page in expo-router
+                      // Or you could do setIsEditing(true) if you wanted an internal editor
                       router.push(`/editReportScreen?id=${selectedReport.id}`)
                       setModalVisible(false)
                     }}
@@ -285,10 +307,23 @@ const ReportsPage = () => {
                     <ThemedText style={styles.iconLabel}>Delete</ThemedText>
                   </TouchableOpacity>
                 </View>
+
+                {/* New Row for "Download Photos" */}
+                <View style={styles.iconRow}>
+                  <TouchableOpacity
+                    style={styles.iconOption}
+                    onPress={handleDownloadPhotos}
+                  >
+                    <IconSymbol name="photo" size={50} color="#2C3E50" />
+                    <ThemedText style={styles.iconLabel}>
+                      Save Photos
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => {
-                    setIsEditing(false)
                     setModalVisible(false)
                   }}
                 >
@@ -298,19 +333,46 @@ const ReportsPage = () => {
             </View>
           </View>
         </Modal>
+
+        {/* ====== SECOND MODAL for Download Progress ====== */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={isDownloading}
+          onRequestClose={() => setIsDownloading(false)}
+        >
+          <View style={styles.progressModalContainer}>
+            <View style={styles.progressModalContent}>
+              <ThemedText style={styles.downloadingText}>
+                Saving Photos...
+              </ThemedText>
+              <ThemedText style={styles.downloadingSubtext}>
+                {downloadProgress.toFixed(0)}%
+              </ThemedText>
+
+              <View style={styles.progressBarContainer}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${downloadProgress}%` },
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ThemedView>
     </SafeAreaView>
   )
 }
+
+export default ReportsPage
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
     backgroundColor: '#f0f0f0', // Light gray background
-  },
-  title: {
-    marginBottom: 20,
   },
   list: {
     paddingBottom: 20,
@@ -350,6 +412,7 @@ const styles = StyleSheet.create({
   },
   centeredView: {
     flex: 1,
+    justifyContent: 'flex-end', // so the modalView appears at the bottom
   },
   modalView: {
     backgroundColor: 'white',
@@ -365,76 +428,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-  },
-  modalContent: {
-    flex: 1,
-    width: '100%',
-  },
-  modalTitle: {
-    fontSize: 24,
-    marginBottom: 20,
-    color: '#2C3E50', // Dark blue title color
-  },
-  sectionTitle: {
-    marginBottom: 5,
-    width: '100%',
-    color: '#2C3E50', // Dark blue for section titles
-  },
-  editInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 15,
-    width: '100%',
-    backgroundColor: 'white',
-  },
-  multilineInput: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    backgroundColor: '#2C3E50', // Dark blue background for buttons
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-    marginTop: 10,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressBarContainer: {
-    height: 20,
-    backgroundColor: '#e0e0e0',
-    width: '100%',
-    marginTop: 10,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#2C3E50', // Dark blue for progress bar
-  },
-  searchBar: {
-    height: 40,
-    borderColor: 'gray',
-    borderWidth: 1,
-    marginBottom: 20,
-    paddingHorizontal: 10,
-    borderRadius: 5,
-  },
-  editContent: {
-    paddingBottom: 20,
+    // position: 'absolute',
+    // bottom: 0,
+    // left: 0,
+    // right: 0,
+    // height: '50%', // you can adjust this or remove if you want it auto-sized
   },
   optionContainer: {
     padding: 20,
     width: '100%',
-    backgroundColor: '#f0f0f0', // Light gray background for better contrast
+    backgroundColor: '#f9f9f9',
+    borderRadius: 20,
   },
   iconRow: {
     flexDirection: 'row',
@@ -446,11 +450,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconLabel: {
-    marginTop: 5,
-    color: '#2C3E50', // Dark blue text
+    marginTop: 8,
+    color: '#2C3E50',
+    fontSize: 14,
   },
   closeButton: {
-    backgroundColor: '#e74c3c', // A vibrant red for contrast and urgency
+    backgroundColor: '#e74c3c',
     borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -470,6 +475,53 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-})
+  searchBar: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 20,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+  },
 
-export default ReportsPage
+  // Progress Modal Styles
+  progressModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)', // semi-transparent overlay
+  },
+  progressModalContent: {
+    width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  downloadingText: {
+    fontSize: 18,
+    marginBottom: 10,
+    color: '#2C3E50',
+  },
+  downloadingSubtext: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#2C3E50',
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 20,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#2C3E50',
+  },
+})
