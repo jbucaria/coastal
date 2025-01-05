@@ -4,28 +4,26 @@ import {
   View,
   TextInput,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
   TouchableOpacity,
   ActivityIndicator,
   Text,
   Image,
 } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
+import * as Print from 'expo-print'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import { firestore, storage } from '@/firebaseConfig'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { generateReportHTML } from '@/components/ReportTemplate'
-import * as Print from 'expo-print'
-import { ThemedText } from '@/components/ThemedText'
-import { ThemedView } from '@/components/ThemedView'
-import { useThemeColor } from '@/hooks/useThemeColor'
 import { useLocalSearchParams, router } from 'expo-router'
 import {
   KeyboardToolbar,
   KeyboardAwareScrollView,
 } from 'react-native-keyboard-controller'
-import * as ImagePicker from 'expo-image-picker'
+import { generateReportHTML } from '@/components/ReportTemplate'
+import { ThemedText } from '@/components/ThemedText'
+import { ThemedView } from '@/components/ThemedView'
+import { useThemeColor } from '@/hooks/useThemeColor'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const EditReportPage = () => {
@@ -93,7 +91,7 @@ const EditReportPage = () => {
         if (photo.uri && !photo.downloadURL) {
           const response = await fetch(photo.uri)
           const blob = await response.blob()
-          const filename = `photos/${Date.now()}-${Math.random()
+          const filename = `inspectionPhotos/${Date.now()}-${Math.random()
             .toString(36)
             .substring(7)}.jpg`
           const storageRef = ref(storage, filename)

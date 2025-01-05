@@ -1,22 +1,36 @@
 // App.js
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Alert } from 'react-native'
 import InspectionForm from '@/components/InspectionForm'
 import { handleGeneratePdf } from '@/utils/generatePdf'
+import { useLocalSearchParams } from 'expo-router'
+import { auth } from '@/firebaseConfig'
 
 export default function App() {
-  const [customer, setCustomer] = useState('')
-  const [address, setAddress] = useState('')
+  const params = useLocalSearchParams()
+  const [customer, setCustomer] = useState(params.customer || '')
+  const [address, setAddress] = useState(params.address || '')
   const [date, setDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [reason, setReason] = useState('')
-  const [inspectorName, setInspectorName] = useState('')
+  const [reason, setReason] = useState(params.reason || '')
+  const [inspectorName, setInspectorName] = useState(params.inspectorName || '')
   const [hours, setHours] = useState('')
   const [inspectionResults, setInspectionResults] = useState('')
   const [recommendedActions, setRecommendedActions] = useState('')
   const [photos, setPhotos] = useState([])
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    // Fetch inspector name from Firebase Auth if not provided in params
+
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
+        setInspectorName(user.displayName || user.email || 'Unknown') // Adjust based on your Firebase user object structure
+      }
+    })
+    return () => unsubscribe() // Clean up subscription on unmount
+  }, [])
 
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(false)
