@@ -32,6 +32,7 @@ import { storage, firestore } from '@/firebaseConfig'
 import { generateReportHTML } from '@/components/ReportTemplate'
 import * as Print from 'expo-print'
 import { IconSymbol } from '@/components/ui/IconSymbol'
+import { router } from 'expo-router'
 
 const ReportsPage = () => {
   const [reports, setReports] = useState([])
@@ -243,205 +244,57 @@ const ReportsPage = () => {
         >
           <View style={styles.centeredView}>
             <View style={styles.modalView}>
-              {isEditing ? (
-                <KeyboardAvoidingView
-                  style={{ flex: 1, width: '100%' }}
-                  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                  keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-                >
-                  <ScrollView
-                    style={styles.modalContent}
-                    keyboardShouldPersistTaps="handled"
-                    contentContainerStyle={isEditing ? styles.editContent : {}}
-                  >
-                    <ThemedText type="title" style={styles.modalTitle}>
-                      Edit Report
-                    </ThemedText>
-
-                    {/* Customer */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Customer
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.customer}
-                      onChangeText={text => handleFieldChange('customer', text)}
-                      placeholder="Customer"
-                      style={styles.editInput}
-                    />
-
-                    {/* Address */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Address
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.address}
-                      onChangeText={text => handleFieldChange('address', text)}
-                      placeholder="Address"
-                      style={styles.editInput}
-                    />
-
-                    {/* Date */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Date of Inspection
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.date}
-                      onChangeText={text => handleFieldChange('date', text)}
-                      placeholder="Date"
-                      style={styles.editInput}
-                    />
-
-                    {/* Reason for Inspection */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Reason for Inspection
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.reason}
-                      onChangeText={text => handleFieldChange('reason', text)}
-                      placeholder="Reason"
-                      style={styles.editInput}
-                      multiline
-                    />
-
-                    {/* Inspector's Name */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Inspector's Name
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.inspectorName}
-                      onChangeText={text =>
-                        handleFieldChange('inspectorName', text)
-                      }
-                      placeholder="Inspector's Name"
-                      style={styles.editInput}
-                    />
-
-                    {/* Hours to Complete Inspection */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Hours to Complete Inspection
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.hours}
-                      onChangeText={text => handleFieldChange('hours', text)}
-                      placeholder="Hours"
-                      style={styles.editInput}
-                      keyboardType="numeric"
-                    />
-
-                    {/* Inspection Results */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Inspection Results
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.inspectionResults}
-                      onChangeText={text =>
-                        handleFieldChange('inspectionResults', text)
-                      }
-                      placeholder="Inspection Results"
-                      style={[styles.editInput, styles.multilineInput]}
-                      multiline
-                    />
-
-                    {/* Recommended Actions */}
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>
-                      Recommended Actions
-                    </ThemedText>
-                    <TextInput
-                      value={editedReport.recommendedActions}
-                      onChangeText={text =>
-                        handleFieldChange('recommendedActions', text)
-                      }
-                      placeholder="Recommended Actions"
-                      style={[styles.editInput, styles.multilineInput]}
-                      multiline
-                    />
-
-                    {isSaving && (
-                      <View style={styles.progressBarContainer}>
-                        <View
-                          style={[
-                            styles.progressBar,
-                            { width: `${uploadProgress}%` },
-                          ]}
-                        />
-                      </View>
-                    )}
-
-                    <TouchableOpacity
-                      style={styles.saveButton}
-                      onPress={handleSaveEdit}
-                      disabled={isSaving}
-                    >
-                      {isSaving ? (
-                        <ActivityIndicator size="small" color="white" />
-                      ) : (
-                        <ThemedText>Save Changes</ThemedText>
-                      )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.saveButton}
-                      onPress={() => {
-                        setIsEditing(false)
-                        setModalVisible(false)
-                      }}
-                    >
-                      <ThemedText>Close</ThemedText>
-                    </TouchableOpacity>
-                  </ScrollView>
-                </KeyboardAvoidingView>
-              ) : (
-                // Non-editing view content with icons
-                <View style={styles.optionContainer}>
-                  <View style={styles.iconRow}>
-                    <TouchableOpacity
-                      style={styles.iconOption}
-                      onPress={handleViewReport}
-                    >
-                      <IconSymbol name="doc.text" size={50} color="#2C3E50" />
-                      <ThemedText style={styles.iconLabel}>View</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.iconOption}
-                      onPress={handleDownloadReport}
-                    >
-                      <IconSymbol
-                        name="arrow.down.doc"
-                        size={50}
-                        color="#2C3E50"
-                      />
-                      <ThemedText style={styles.iconLabel}>Download</ThemedText>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.iconRow}>
-                    <TouchableOpacity
-                      style={styles.iconOption}
-                      onPress={handleEditReport}
-                    >
-                      <IconSymbol name="pencil" size={50} color="#2C3E50" />
-                      <ThemedText style={styles.iconLabel}>Edit</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.iconOption}
-                      onPress={handleDeleteReport}
-                    >
-                      <IconSymbol name="trash" size={50} color="#2C3E50" />
-                      <ThemedText style={styles.iconLabel}>Delete</ThemedText>
-                    </TouchableOpacity>
-                  </View>
+              <View style={styles.optionContainer}>
+                <View style={styles.iconRow}>
                   <TouchableOpacity
-                    style={styles.closeButton}
+                    style={styles.iconOption}
+                    onPress={handleViewReport}
+                  >
+                    <IconSymbol name="doc.text" size={50} color="#2C3E50" />
+                    <ThemedText style={styles.iconLabel}>View</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.iconOption}
+                    onPress={handleDownloadReport}
+                  >
+                    <IconSymbol
+                      name="arrow.down.doc"
+                      size={50}
+                      color="#2C3E50"
+                    />
+                    <ThemedText style={styles.iconLabel}>Download</ThemedText>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.iconRow}>
+                  <TouchableOpacity
+                    style={styles.iconOption}
                     onPress={() => {
-                      setIsEditing(false)
+                      router.push(`/editReportScreen?id=${selectedReport.id}`)
                       setModalVisible(false)
                     }}
                   >
-                    <ThemedText style={styles.closeButtonText}>
-                      Close
-                    </ThemedText>
+                    <IconSymbol name="pencil" size={50} color="#2C3E50" />
+                    <ThemedText style={styles.iconLabel}>Edit</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.iconOption}
+                    onPress={handleDeleteReport}
+                  >
+                    <IconSymbol name="trash" size={50} color="#2C3E50" />
+                    <ThemedText style={styles.iconLabel}>Delete</ThemedText>
                   </TouchableOpacity>
                 </View>
-              )}
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => {
+                    setIsEditing(false)
+                    setModalVisible(false)
+                  }}
+                >
+                  <ThemedText style={styles.closeButtonText}>Close</ThemedText>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -597,14 +450,19 @@ const styles = StyleSheet.create({
     color: '#2C3E50', // Dark blue text
   },
   closeButton: {
-    backgroundColor: '#2C3E50', // Dark blue for close button
-    borderRadius: 15,
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    elevation: 2,
-    marginTop: 20,
-    alignSelf: 'center', // Center the button
-    width: '90%', // Ensure it fits well on screen
+    backgroundColor: '#e74c3c', // A vibrant red for contrast and urgency
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    elevation: 3,
+    marginTop: 10,
+    marginHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   closeButtonText: {
     color: 'white',

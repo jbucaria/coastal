@@ -1,10 +1,9 @@
 // App.js
 
 import React, { useState } from 'react'
-import { SafeAreaView, Alert } from 'react-native'
+import { Alert } from 'react-native'
 import InspectionForm from '@/components/InspectionForm'
 import { handleGeneratePdf } from '@/utils/generatePdf'
-import { KeyboardProvider } from 'react-native-keyboard-controller'
 
 export default function App() {
   const [customer, setCustomer] = useState('')
