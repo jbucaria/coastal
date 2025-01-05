@@ -26,7 +26,7 @@ import {
   KeyboardAwareScrollView,
 } from 'react-native-keyboard-controller'
 import * as ImagePicker from 'expo-image-picker'
-import { IconSymbol } from '@/components/ui/IconSymbol' // Assuming you have this component for icons
+import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const EditReportPage = () => {
   const { id } = useLocalSearchParams()
@@ -186,7 +186,75 @@ const EditReportPage = () => {
             style={styles.editInput}
           />
 
-          {/* ... other fields ... */}
+          {/* Date */}
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Date of Inspection
+          </ThemedText>
+          <TextInput
+            value={editedReport.date}
+            onChangeText={text => handleFieldChange('date', text)}
+            placeholder="Date"
+            style={styles.editInput}
+          />
+
+          {/* Reason for Inspection */}
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Reason for Inspection
+          </ThemedText>
+          <TextInput
+            value={editedReport.reason}
+            onChangeText={text => handleFieldChange('reason', text)}
+            placeholder="Reason"
+            style={styles.editInput}
+            multiline
+          />
+
+          {/* Inspector's Name */}
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Inspector's Name
+          </ThemedText>
+          <TextInput
+            value={editedReport.inspectorName}
+            onChangeText={text => handleFieldChange('inspectorName', text)}
+            placeholder="Inspector's Name"
+            style={styles.editInput}
+          />
+
+          {/* Hours to Complete Inspection */}
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Hours to Complete Inspection
+          </ThemedText>
+          <TextInput
+            value={editedReport.hours}
+            onChangeText={text => handleFieldChange('hours', text)}
+            placeholder="Hours"
+            style={styles.editInput}
+            keyboardType="numeric"
+          />
+
+          {/* Inspection Results */}
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Inspection Results
+          </ThemedText>
+          <TextInput
+            value={editedReport.inspectionResults}
+            onChangeText={text => handleFieldChange('inspectionResults', text)}
+            placeholder="Inspection Results"
+            style={[styles.editInput, styles.multilineInput]}
+            multiline
+          />
+
+          {/* Recommended Actions */}
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Recommended Actions
+          </ThemedText>
+          <TextInput
+            value={editedReport.recommendedActions}
+            onChangeText={text => handleFieldChange('recommendedActions', text)}
+            placeholder="Recommended Actions"
+            style={[styles.editInput, styles.multilineInput]}
+            multiline
+          />
 
           <ThemedText type="subtitle" style={styles.sectionTitle}>
             Photos
@@ -248,7 +316,7 @@ const EditReportPage = () => {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    paddingBottom: 96, // Equivalent to pb-24 in NativeWind
+    paddingBottom: 96,
   },
   editContent: {
     flexGrow: 1,
@@ -336,7 +404,7 @@ const styles = StyleSheet.create({
     top: 5,
     right: 5,
     backgroundColor: 'rgba(255, 0, 0, 0.7)',
-    borderRadius: 50, // Circular shape
+    borderRadius: 50,
     padding: 3,
   },
   deletePhotoButtonText: {
@@ -344,14 +412,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   addPhotoButton: {
-    backgroundColor: '#2ecc71', // Green color
+    backgroundColor: '#2ecc71',
     borderRadius: 10,
     padding: 10,
     margin: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 100, // Match photo width for consistency
-    height: 100, // Match photo height for consistency
+    width: 100,
+    height: 100,
   },
 })
 
