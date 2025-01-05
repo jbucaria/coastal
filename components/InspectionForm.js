@@ -12,6 +12,10 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
   StyleSheet,
 } from 'react-native'
 import { ThemedText } from '@/components/ThemedText'
@@ -20,6 +24,10 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
+import {
+  KeyboardToolbar,
+  KeyboardAwareScrollView,
+} from 'react-native-keyboard-controller'
 
 const InspectionForm = ({
   customer,
@@ -99,175 +107,181 @@ const InspectionForm = ({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Address Field */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Address
-      </ThemedText>
-      <TextInput
-        style={styles.input}
-        value={address}
-        onChangeText={setAddress}
-        placeholder="Enter property address"
-      />
-
-      {/* Customer Field */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Customer
-      </ThemedText>
-      <TextInput
-        style={styles.input}
-        value={customer}
-        onChangeText={setCustomer}
-        placeholder="Enter customer name"
-      />
-
-      {/* Date of Inspection */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Date of Inspection
-      </ThemedText>
-      <Pressable style={styles.input} onPress={() => setShowDatePicker(true)}>
-        <Text>{date ? date.toLocaleDateString() : 'Select Date'}</Text>
-      </Pressable>
-      {showDatePicker && (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
+    <>
+      <KeyboardAwareScrollView
+        bottomOffset={62}
+        contentContainerStyle={styles.container}
+      >
+        {/* Address Field */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Address
+        </ThemedText>
+        <TextInput
+          style={styles.input}
+          value={address}
+          onChangeText={setAddress}
+          placeholder="Enter property address"
         />
-      )}
 
-      {/* Reason for Inspection */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Reason for Inspection
-      </ThemedText>
-      <TextInput
-        style={styles.input}
-        value={reason}
-        onChangeText={setReason}
-        placeholder="Enter reason"
-      />
+        {/* Customer Field */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Customer
+        </ThemedText>
+        <TextInput
+          style={styles.input}
+          value={customer}
+          onChangeText={setCustomer}
+          placeholder="Enter customer name"
+        />
 
-      {/* Inspector's Name */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Inspector's Name
-      </ThemedText>
-      <Pressable
-        style={styles.input}
-        onPress={() => setInspectorModalVisible(true)}
-      >
-        <Text>{inspectorName || 'Select Inspector'}</Text>
-      </Pressable>
-
-      {/* Modal for selecting inspector */}
-      <Modal
-        transparent={true}
-        visible={inspectorModalVisible}
-        animationType="slide"
-      >
-        <View style={styles.modalBackground}>
-          <View style={styles.modalContent}>
-            <ThemedText style={styles.subtitle} type="subtitle">
-              Select Inspector
-            </ThemedText>
-            {inspectors.map((inspector, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={styles.inspectorOption}
-                onPress={() => {
-                  setInspectorName(inspector)
-                  setInspectorModalVisible(false)
-                }}
-              >
-                <ThemedText>{inspector}</ThemedText>
-              </TouchableOpacity>
-            ))}
-            <Button
-              title="Done"
-              onPress={() => setInspectorModalVisible(false)}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Hours to Complete Inspection */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Hours to Complete Inspection
-      </ThemedText>
-      <TextInput
-        style={styles.input}
-        value={hours}
-        onChangeText={setHours}
-        placeholder="Enter hours"
-        keyboardType="numeric"
-      />
-
-      {/* Inspection Results */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Inspection Results
-      </ThemedText>
-      <TextInput
-        style={[styles.input, styles.multiLineInput]}
-        value={inspectionResults}
-        onChangeText={setInspectionResults}
-        placeholder="Enter inspection results"
-        multiline
-      />
-
-      {/* Recommended Actions */}
-      <ThemedText style={styles.subtitle} type="subtitle">
-        Recommended Actions
-      </ThemedText>
-      <TextInput
-        style={[styles.input, styles.multiLineInput]}
-        value={recommendedActions}
-        onChangeText={setRecommendedActions}
-        placeholder="Enter recommended actions"
-        multiline
-      />
-
-      {/* Photos */}
-      <ThemedView style={styles.photoSection}>
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <ThemedText style={styles.subtitle} type="subtitle">
-            Photos
-          </ThemedText>
-          <Pressable onPress={pickImageAsync}>
-            <IconSymbol name="photo.badge.plus" size={70} color="#008000" />
-          </Pressable>
-        </View>
-        {photos.map((photo, index) => (
-          <View key={index} style={styles.photoItem}>
-            <Image source={{ uri: photo.uri }} style={styles.photoImage} />
-            <TextInput
-              style={styles.photoLabelInput}
-              value={photo.label}
-              onChangeText={text => handlePhotoLabelChange(text, index)}
-              placeholder="Label this photo"
-            />
-            <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
-              <ThemedText style={styles.removeText}>Remove</ThemedText>
-            </TouchableOpacity>
-          </View>
-        ))}
-      </ThemedView>
-
-      {/* Button for generating PDF */}
-      <ThemedView style={styles.buttonContainer}>
-        {isSaving ? (
-          <ActivityIndicator size="large" color="#0000ff" />
-        ) : (
-          <Button title="Generate & Save PDF" onPress={handleGeneratePdf} />
+        {/* Date of Inspection */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Date of Inspection
+        </ThemedText>
+        <Pressable style={styles.input} onPress={() => setShowDatePicker(true)}>
+          <Text>{date ? date.toLocaleDateString() : 'Select Date'}</Text>
+        </Pressable>
+        {showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+          />
         )}
-      </ThemedView>
-    </ScrollView>
+
+        {/* Reason for Inspection */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Reason for Inspection
+        </ThemedText>
+        <TextInput
+          style={styles.input}
+          value={reason}
+          onChangeText={setReason}
+          placeholder="Enter reason"
+        />
+
+        {/* Inspector's Name */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Inspector's Name
+        </ThemedText>
+        <Pressable
+          style={styles.input}
+          onPress={() => setInspectorModalVisible(true)}
+        >
+          <Text>{inspectorName || 'Select Inspector'}</Text>
+        </Pressable>
+
+        {/* Modal for selecting inspector */}
+        <Modal
+          transparent={true}
+          visible={inspectorModalVisible}
+          animationType="slide"
+        >
+          <View style={styles.modalBackground}>
+            <View style={styles.modalContent}>
+              <ThemedText style={styles.subtitle} type="subtitle">
+                Select Inspector
+              </ThemedText>
+              {inspectors.map((inspector, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.inspectorOption}
+                  onPress={() => {
+                    setInspectorName(inspector)
+                    setInspectorModalVisible(false)
+                  }}
+                >
+                  <ThemedText>{inspector}</ThemedText>
+                </TouchableOpacity>
+              ))}
+              <Button
+                title="Done"
+                onPress={() => setInspectorModalVisible(false)}
+              />
+            </View>
+          </View>
+        </Modal>
+
+        {/* Hours to Complete Inspection */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Hours to Complete Inspection
+        </ThemedText>
+        <TextInput
+          style={styles.input}
+          value={hours}
+          onChangeText={setHours}
+          placeholder="Enter hours"
+          keyboardType="numeric"
+        />
+
+        {/* Inspection Results */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Inspection Results
+        </ThemedText>
+        <TextInput
+          style={[styles.input, styles.multiLineInput]}
+          value={inspectionResults}
+          onChangeText={setInspectionResults}
+          placeholder="Enter inspection results"
+          multiline
+        />
+
+        {/* Recommended Actions */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Recommended Actions
+        </ThemedText>
+        <TextInput
+          style={[styles.input, styles.multiLineInput]}
+          value={recommendedActions}
+          onChangeText={setRecommendedActions}
+          placeholder="Enter recommended actions"
+          multiline
+        />
+
+        {/* Photos */}
+        <ThemedView style={styles.photoSection}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <ThemedText style={styles.subtitle} type="subtitle">
+              Photos
+            </ThemedText>
+            <Pressable onPress={pickImageAsync}>
+              <IconSymbol name="photo.badge.plus" size={70} color="#008000" />
+            </Pressable>
+          </View>
+          {photos.map((photo, index) => (
+            <View key={index} style={styles.photoItem}>
+              <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+              <TextInput
+                style={styles.photoLabelInput}
+                value={photo.label}
+                onChangeText={text => handlePhotoLabelChange(text, index)}
+                placeholder="Label this photo"
+              />
+              <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
+                <ThemedText style={styles.removeText}>Remove</ThemedText>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ThemedView>
+
+        {/* Button for generating PDF */}
+        <ThemedView style={styles.buttonContainer}>
+          {isSaving ? (
+            <ActivityIndicator size="large" color="#0000ff" />
+          ) : (
+            <Button title="Generate & Save PDF" onPress={handleGeneratePdf} />
+          )}
+        </ThemedView>
+      </KeyboardAwareScrollView>
+      <KeyboardToolbar />
+    </>
   )
 }
 

@@ -1,16 +1,10 @@
 // App.js
 
 import React, { useState } from 'react'
-import {
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  TouchableWithoutFeedback,
-  Alert,
-} from 'react-native'
+import { SafeAreaView, Alert } from 'react-native'
 import InspectionForm from '@/components/InspectionForm'
 import { handleGeneratePdf } from '@/utils/generatePdf'
+import { KeyboardProvider } from 'react-native-keyboard-controller'
 
 export default function App() {
   const [customer, setCustomer] = useState('')
@@ -104,40 +98,30 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView className="flex-1">
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={100}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <InspectionForm
-            customer={customer}
-            setCustomer={setCustomer}
-            address={address}
-            setAddress={setAddress}
-            date={date}
-            setDate={setDate}
-            showDatePicker={showDatePicker}
-            setShowDatePicker={setShowDatePicker}
-            inspectorName={inspectorName}
-            setInspectorName={setInspectorName}
-            reason={reason}
-            setReason={setReason}
-            hours={hours}
-            setHours={setHours}
-            inspectionResults={inspectionResults}
-            setInspectionResults={setInspectionResults}
-            recommendedActions={recommendedActions}
-            setRecommendedActions={setRecommendedActions}
-            photos={photos}
-            setPhotos={setPhotos}
-            isSaving={isSaving}
-            handleDateChange={handleDateChange}
-            handleGeneratePdf={handleGeneratePdfLocal}
-          />
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <InspectionForm
+      customer={customer}
+      setCustomer={setCustomer}
+      address={address}
+      setAddress={setAddress}
+      date={date}
+      setDate={setDate}
+      showDatePicker={showDatePicker}
+      setShowDatePicker={setShowDatePicker}
+      inspectorName={inspectorName}
+      setInspectorName={setInspectorName}
+      reason={reason}
+      setReason={setReason}
+      hours={hours}
+      setHours={setHours}
+      inspectionResults={inspectionResults}
+      setInspectionResults={setInspectionResults}
+      recommendedActions={recommendedActions}
+      setRecommendedActions={setRecommendedActions}
+      photos={photos}
+      setPhotos={setPhotos}
+      isSaving={isSaving}
+      handleDateChange={handleDateChange}
+      handleGeneratePdf={handleGeneratePdfLocal}
+    />
   )
 }
