@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'expo-router'
 import {
   View,
   Text,
@@ -13,7 +14,7 @@ import {
   Alert,
   Image,
 } from 'react-native'
-import { IconSymbol } from '@/components/ui/IconSymbol'
+import { IconSymbol } from '@/components/ui/IconSymbol' // Adjust import path as needed
 import {
   collection,
   addDoc,
@@ -23,28 +24,41 @@ import {
 } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { router } from 'expo-router'
+import * as ImagePicker from 'expo-image-picker'
+import { KeyboardToolbar } from 'react-native-keyboard-controller'
 
 const Index = () => {
+  const [projects, setProjects] = useState([])
+
+  // ===== NEW STATE =====
+  // For "Add Project" modal
   const [modalVisible, setModalVisible] = useState(false)
   const [newProject, setNewProject] = useState({
     street: '',
     city: '',
     state: '',
     zip: '',
+    customer: '',
     inspectorName: '',
     reason: '',
-    customer: '',
-    photos: [],
+    jobType: '',
+    photos: [], // Array of URIs
   })
-  const [projects, setProjects] = useState([])
+
+  // For "Project Details" modal
   const [selectedProject, setSelectedProject] = useState(null)
   const [modalOptionsVisible, setModalOptionsVisible] = useState(false)
 
   useEffect(() => {
+    // Listen for real-time updates from Firestore
     const unsubscribe = onSnapshot(
       collection(firestore, 'projects'),
       snapshot => {
-        setProjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+        const projectsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        setProjects(projectsData)
       },
       error => {
         console.error('Error fetching projects:', error)
@@ -54,13 +68,51 @@ const Index = () => {
     return () => unsubscribe()
   }, [])
 
+  // ============ OPEN MAPS ============
   const openGoogleMaps = address => {
-    // Google Maps opening logic remains the same
+    const url = Platform.select({
+      ios: `comgooglemaps://?q=${encodeURIComponent(address)}`,
+      android: `geo:0,0?q=${encodeURIComponent(address)}`,
+    })
+
+    if (Platform.OS === 'ios') {
+      Linking.canOpenURL('comgooglemaps://')
+        .then(supported => {
+          if (supported) {
+            return Linking.openURL(url)
+          } else {
+            // If Google Maps is not installed, open in browser
+            console.log('Google Maps not installed, opening in browser')
+            return Linking.openURL(
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                address
+              )}`
+            )
+          }
+        })
+        .catch(err => console.error('An error occurred', err))
+    } else {
+      Linking.openURL(url).catch(err => console.error('An error occurred', err))
+    }
   }
 
+  // ============ CREATE PROJECT ============
   const handleCreateProject = async () => {
-    const fullAddress = `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`
-    const projectData = { ...newProject, address: fullAddress }
+    // Format address from individual fields
+    const formattedAddress = `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`
+
+    const projectData = {
+      address: formattedAddress,
+      street: newProject.street,
+      city: newProject.city,
+      state: newProject.state,
+      zip: newProject.zip,
+      customer: newProject.customer,
+      inspectorName: newProject.inspectorName,
+      reason: newProject.reason,
+      jobType: newProject.jobType,
+      photos: newProject.photos, // array of URIs
+    }
 
     try {
       const docRef = await addDoc(
@@ -68,14 +120,18 @@ const Index = () => {
         projectData
       )
       console.log('Project created with ID: ', docRef.id)
+
       setModalVisible(false)
+      // Reset form
       setNewProject({
         street: '',
         city: '',
         state: '',
         zip: '',
+        customer: '',
         inspectorName: '',
         reason: '',
+        jobType: '',
         photos: [],
       })
     } catch (error) {
@@ -83,19 +139,24 @@ const Index = () => {
     }
   }
 
+  // ============ SELECT PROJECT ============
   const handleProjectPress = project => {
     setSelectedProject(project)
     setModalOptionsVisible(true)
   }
 
+  // ============ DELETE PROJECT ============
   const handleDeleteProject = async () => {
     if (!selectedProject) return
-
     Alert.alert(
       'Confirm Deletion',
       'Are you sure you want to delete this project?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Cancel',
+          onPress: () => console.log('Deletion cancelled'),
+          style: 'cancel',
+        },
         {
           text: 'OK',
           onPress: async () => {
@@ -115,309 +176,334 @@ const Index = () => {
     )
   }
 
+  // ============ INSPECTION ============
   const handleInspection = () => {
-    if (selectedProject) {
-      router.push({
-        pathname: '/inspection',
-        params: {
-          address: selectedProject.address,
-          inspectorName: selectedProject.inspectorName,
-          customer: selectedProject.customer || '',
-          reason: selectedProject.reason || '',
-        },
-      })
-      setModalOptionsVisible(false)
+    if (!selectedProject) return
+    router.push({
+      pathname: '/inspection',
+      params: {
+        address: selectedProject.address,
+        inspectorName: selectedProject.inspectorName || '',
+        customer: selectedProject.customer || '',
+        reason: selectedProject.reason || '',
+      },
+    })
+    setModalOptionsVisible(false)
+  }
+
+  // ============ ADD PHOTO ============
+  const handleAddPhoto = async () => {
+    // Request permission
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'Camera roll permissions are needed to add photos.'
+      )
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsMultipleSelection: true, // or true if you want multiple
+      quality: 0.7,
+    })
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      // If you want multiple images, you'll handle them in the result.assets array
+      setNewProject(prev => ({
+        ...prev,
+        photos: [...prev.photos, result.assets[0].uri],
+      }))
     }
   }
 
   return (
     <ImageBackground
       source={require('../../../assets/images/logo.png')}
-      style={{ flex: 1, resizeMode: 'cover' }}
+      className="flex-1"
+      resizeMode="cover"
     >
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-around',
-            marginTop: 20,
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => router.push('/inspection')}
-            style={styles.navButton}
-          >
-            <IconSymbol name="folder.badge.plus" size={24} color="white" />
-            <Text style={styles.navButtonText}>Inspection</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push('/remediation')}
-            style={styles.navButton}
-          >
-            <IconSymbol name="folder.badge.plus" size={24} color="white" />
-            <Text style={styles.navButtonText}>Remediation</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={styles.scrollView}>
+      <SafeAreaView className="flex-1 px-4 py-2">
+        {/* Project List */}
+        <ScrollView className="mb-20 mx-1 mt-2">
           {projects.map(project => (
             <TouchableOpacity
               key={project.id}
               onPress={() => handleProjectPress(project)}
-              style={styles.projectCard}
+              className="mb-3 bg-[#1ABC9C]/90 rounded-lg p-3 shadow-md"
             >
-              <Text style={styles.projectCardText}>{project.address}</Text>
-              <Text style={styles.projectCardText}>
-                Inspector: {project.inspectorName}
+              <Text className="text-white text-base font-bold">
+                {project.address}
               </Text>
-              <Text style={styles.projectCardText}>
-                reason: {project.reason}
+              <Text className="text-white text-sm">
+                Inspector: {project.inspectorName || 'N/A'}
+              </Text>
+              <Text className="text-white text-sm">
+                Job Type: {project.jobType || 'N/A'}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
+        {/* Add Project Floating Button */}
         <TouchableOpacity
           onPress={() => setModalVisible(true)}
-          style={styles.fab}
+          className="absolute bottom-28 right-6 bg-[#F39C12] rounded-full p-4 shadow-lg"
         >
           <IconSymbol name="plus" size={30} color="white" />
         </TouchableOpacity>
 
-        {/* Modal for Project Creation */}
+        {/* ======= ADD PROJECT MODAL ======= */}
         <Modal
           animationType="slide"
           transparent={true}
           visible={modalVisible}
           onRequestClose={() => setModalVisible(false)}
         >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
+          <View className="flex-1 justify-center items-center bg-black/50 px-4">
+            <View className="bg-white w-full rounded-lg p-6 max-w-md">
+              <Text className="text-xl font-bold mb-4 text-center text-[#2C3E50]">
+                Create New Project
+              </Text>
+
+              {/* Street */}
               <TextInput
-                style={styles.input}
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
                 placeholder="Street"
                 value={newProject.street}
                 onChangeText={text =>
                   setNewProject({ ...newProject, street: text })
                 }
               />
+              {/* City */}
               <TextInput
-                style={styles.input}
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
                 placeholder="City"
                 value={newProject.city}
                 onChangeText={text =>
                   setNewProject({ ...newProject, city: text })
                 }
               />
+              {/* State */}
               <TextInput
-                style={styles.input}
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
                 placeholder="State"
                 value={newProject.state}
                 onChangeText={text =>
                   setNewProject({ ...newProject, state: text })
                 }
               />
+              {/* Zip */}
               <TextInput
-                style={styles.input}
-                placeholder="Zip"
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                placeholder="ZIP"
                 value={newProject.zip}
                 onChangeText={text =>
                   setNewProject({ ...newProject, zip: text })
                 }
               />
+              {/* Customer */}
               <TextInput
-                style={styles.input}
-                placeholder="Inspector Name"
-                value={newProject.inspectorName}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, inspectorName: text })
-                }
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Type of Job"
-                value={newProject.reason}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, reason: text })
-                }
-              />
-              <TextInput
-                style={styles.input}
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
                 placeholder="Customer"
                 value={newProject.customer}
                 onChangeText={text =>
                   setNewProject({ ...newProject, customer: text })
                 }
               />
-              {/* Photo upload logic would go here */}
+              {/* Inspector Name */}
+              <TextInput
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                placeholder="Inspector Name"
+                value={newProject.inspectorName}
+                onChangeText={text =>
+                  setNewProject({ ...newProject, inspectorName: text })
+                }
+              />
+              {/* Reason */}
+              <TextInput
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                placeholder="Reason for Inspection"
+                value={newProject.reason}
+                onChangeText={text =>
+                  setNewProject({ ...newProject, reason: text })
+                }
+              />
+              {/* Job Type */}
+              <TextInput
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                placeholder="Type of Job"
+                value={newProject.jobType}
+                onChangeText={text =>
+                  setNewProject({ ...newProject, jobType: text })
+                }
+              />
+
+              {/* PHOTOS PREVIEW */}
+              {newProject.photos.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="my-2"
+                >
+                  {newProject.photos.map((uri, index) => (
+                    <Image
+                      key={index}
+                      source={{ uri }}
+                      className="w-16 h-16 rounded mr-2"
+                    />
+                  ))}
+                </ScrollView>
+              )}
+
+              {/* Add Photo Button */}
               <TouchableOpacity
-                onPress={handleCreateProject}
-                style={styles.modalButton}
+                onPress={handleAddPhoto}
+                className="bg-[#1ABC9C] rounded p-3 mb-2"
               >
-                <Text style={styles.modalButtonText}>Create Project</Text>
+                <Text className="text-white text-center font-semibold">
+                  Add Photo
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                style={[styles.modalButton, { backgroundColor: '#FF5722' }]}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
+
+              {/* CREATE & CANCEL */}
+              <View className="flex-row justify-between mt-2">
+                <TouchableOpacity
+                  onPress={handleCreateProject}
+                  className="bg-[#2C3E50] rounded p-3 flex-1 mr-2"
+                >
+                  <Text className="text-white text-center font-semibold">
+                    Create
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  className="bg-[#f44336] rounded p-3 flex-1 ml-2"
+                >
+                  <Text className="text-white text-center font-semibold">
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
 
-        {/* Modal for Project Options */}
+        {/* ======= PROJECT DETAILS & OPTIONS MODAL ======= */}
         <Modal
           animationType="slide"
           transparent={true}
           visible={modalOptionsVisible}
           onRequestClose={() => setModalOptionsVisible(false)}
         >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              {selectedProject && (
-                <>
-                  <Text style={styles.modalText}>Project Details:</Text>
-                  <Text style={styles.modalText}>
-                    Address: {selectedProject.address}
+          {selectedProject && (
+            <View className="flex-1 justify-center items-center bg-black/50 px-4">
+              <View className="bg-white w-full rounded-lg p-6 max-w-md">
+                <Text className="text-xl font-bold mb-2 text-center text-[#2C3E50]">
+                  Project Details
+                </Text>
+
+                {/* Display project fields */}
+                <Text className="text-base text-[#2C3E50] font-semibold">
+                  Address:
+                </Text>
+                <Text className="mb-2">{selectedProject.address}</Text>
+
+                <Text className="text-base text-[#2C3E50] font-semibold">
+                  Customer:
+                </Text>
+                <Text className="mb-2">
+                  {selectedProject.customer || 'N/A'}
+                </Text>
+
+                <Text className="text-base text-[#2C3E50] font-semibold">
+                  Inspector:
+                </Text>
+                <Text className="mb-2">
+                  {selectedProject.inspectorName || 'N/A'}
+                </Text>
+
+                <Text className="text-base text-[#2C3E50] font-semibold">
+                  Reason:
+                </Text>
+                <Text className="mb-2">{selectedProject.reason || 'N/A'}</Text>
+
+                <Text className="text-base text-[#2C3E50] font-semibold">
+                  Job Type:
+                </Text>
+                <Text className="mb-2">{selectedProject.jobType || 'N/A'}</Text>
+
+                {/* Photos */}
+                {selectedProject.photos && selectedProject.photos.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    className="my-2"
+                  >
+                    {selectedProject.photos.map((uri, index) => (
+                      <Image
+                        key={index}
+                        source={{ uri }}
+                        className="w-20 h-20 rounded mr-2"
+                      />
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text className="italic text-gray-400 my-2">
+                    No photos available
                   </Text>
-                  <Text style={styles.modalText}>
-                    Inspector: {selectedProject.inspectorName}
-                  </Text>
-                  <Text style={styles.modalText}>
-                    Job Type: {selectedProject.reason}
-                  </Text>
-                  <Text style={styles.modalText}>
-                    Customer: {selectedProject.customer}
-                  </Text>
-                  {/* Display photos if any */}
-                  {selectedProject.photos &&
-                    selectedProject.photos.length > 0 && (
-                      <ScrollView
-                        horizontal={true}
-                        style={{ maxHeight: 100, marginBottom: 10 }}
-                      >
-                        {selectedProject.photos.map((photo, index) => (
-                          <Image
-                            key={index}
-                            source={{ uri: photo }}
-                            style={{ width: 80, height: 80, marginRight: 10 }}
-                          />
-                        ))}
-                      </ScrollView>
-                    )}
-                </>
-              )}
-              <TouchableOpacity
-                onPress={() => {
-                  openGoogleMaps(selectedProject.address)
-                  setModalOptionsVisible(false)
-                }}
-                style={styles.modalButton}
-              >
-                <Text style={styles.modalButtonText}>Directions</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleInspection}
-                style={styles.modalButton}
-              >
-                <Text style={styles.modalButtonText}>Inspection</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleDeleteProject}
-                style={[styles.modalButton, { backgroundColor: '#F44336' }]}
-              >
-                <Text style={styles.modalButtonText}>Delete Project</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setModalOptionsVisible(false)}
-                style={[styles.modalButton, { backgroundColor: '#757575' }]}
-              >
-                <Text style={styles.modalButtonText}>Close</Text>
-              </TouchableOpacity>
+                )}
+
+                {/* Actions */}
+                <View className="mt-4">
+                  <TouchableOpacity
+                    onPress={() => {
+                      openGoogleMaps(selectedProject.address)
+                      setModalOptionsVisible(false)
+                    }}
+                    className="mb-2 bg-[#1ABC9C] rounded p-3 shadow-sm"
+                  >
+                    <Text className="text-center text-white font-semibold">
+                      Get Directions
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleInspection}
+                    className="mb-2 bg-[#2C3E50] rounded p-3 shadow-sm"
+                  >
+                    <Text className="text-center text-white font-semibold">
+                      Start Inspection
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleDeleteProject}
+                    className="mb-2 bg-red-600 rounded p-3 shadow-sm"
+                  >
+                    <Text className="text-center text-white font-semibold">
+                      Delete Project
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setModalOptionsVisible(false)}
+                    className="rounded p-3 bg-gray-300 shadow-sm"
+                  >
+                    <Text className="text-center text-[#2C3E50] font-semibold">
+                      Close
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
+          )}
         </Modal>
+        <KeyboardToolbar />
       </SafeAreaView>
     </ImageBackground>
   )
-}
-
-const styles = {
-  navButton: {
-    padding: 10,
-    backgroundColor: '#1A237E',
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navButtonText: {
-    color: 'white',
-    marginLeft: 5,
-    fontSize: 16,
-  },
-  scrollView: {
-    margin: 10,
-  },
-  projectCard: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 15,
-    marginVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  projectCardText: {
-    color: 'white',
-    marginBottom: 5,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 100,
-    right: 20,
-    backgroundColor: '#4CAF50',
-    borderRadius: 30,
-    padding: 15,
-    elevation: 4,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    width: '80%',
-    alignItems: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    width: '100%',
-    padding: 10,
-    marginBottom: 10,
-  },
-  modalButton: {
-    backgroundColor: '#1A237E',
-    padding: 10,
-    borderRadius: 5,
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  modalButtonText: {
-    color: 'white',
-    fontSize: 16,
-  },
-  modalText: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
 }
 
 export default Index
