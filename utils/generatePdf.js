@@ -1,5 +1,3 @@
-// utils/generatePdf.js
-
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import * as Print from 'expo-print'
@@ -9,6 +7,7 @@ import { generateReportHTML } from '../components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
+import { sendNotification } from './notificationService'
 
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator
@@ -47,7 +46,6 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
     )
 
     formData.photos = photoUrls
-    // Include a lowercase version of the address for future case-insensitive queries
     formData.lowercaseAddress = lowercaseAddress
 
     // Generate HTML and PDF
@@ -76,9 +74,12 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
       ...formData,
       timestamp: new Date(),
       pdfFileName: fileName,
-      pdfDownloadURL: pdfDownloadURL, // Store the download URL from storage
+      pdfDownloadURL: pdfDownloadURL,
     })
     console.log('Document written with ID: ', docRef.id)
+
+    // Send notification here
+    await sendNotification(formData, docRef.id)
 
     Alert.alert(
       'File Saved',
@@ -93,7 +94,6 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
           text: 'View',
           onPress: async () => {
             try {
-              // Use expo-linking to open the PDF in an external viewer
               await Linking.openURL(pdfDownloadURL)
             } catch (error) {
               console.error('Error opening PDF:', error)
