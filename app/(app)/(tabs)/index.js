@@ -1,3 +1,4 @@
+// Import necessary modules
 import React, { useState, useEffect } from 'react'
 import { Link } from 'expo-router'
 import {
@@ -14,6 +15,8 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  StyleSheet,
+  Switch, // Import Switch for toggling remediation
 } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol' // Adjust import path as needed
 import {
@@ -54,6 +57,7 @@ const Index = () => {
     reason: '',
     jobType: '',
     photos: [], // Array of URIs
+    remediationRequired: false, // **Added Field**
   })
 
   // For "Project Details" modal
@@ -74,6 +78,10 @@ const Index = () => {
       },
       error => {
         console.error('Error fetching projects:', error)
+        Alert.alert(
+          'Error',
+          'Could not fetch projects. Please try again later.'
+        )
       }
     )
 
@@ -110,6 +118,18 @@ const Index = () => {
 
   // ============ CREATE PROJECT ============
   const handleCreateProject = async () => {
+    // Basic Validation (Optional but Recommended)
+    if (
+      !newProject.street ||
+      !newProject.city ||
+      !newProject.state ||
+      !newProject.zip ||
+      !newProject.customer
+    ) {
+      Alert.alert('Validation Error', 'Please fill out all required fields.')
+      return
+    }
+
     // Format address from individual fields
     const formattedAddress = `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`
 
@@ -126,6 +146,8 @@ const Index = () => {
       reason: newProject.reason,
       jobType: newProject.jobType,
       photos: newProject.photos, // array of URIs
+      remediationRequired: newProject.remediationRequired, // **Include Remediation**
+      createdAt: new Date(), // Optional: Timestamp
     }
 
     try {
@@ -149,9 +171,12 @@ const Index = () => {
         reason: '',
         jobType: '',
         photos: [],
+        remediationRequired: false, // **Reset Remediation**
       })
+      Alert.alert('Success', 'Project created successfully.')
     } catch (error) {
       console.error('Error creating project:', error)
+      Alert.alert('Error', 'Failed to create the project. Please try again.')
     }
   }
 
@@ -183,28 +208,25 @@ const Index = () => {
               // Assuming 'photos' is an array of Firebase Storage URLs
               if (selectedProject.photos && selectedProject.photos.length > 0) {
                 for (let photoURL of selectedProject.photos) {
-                  // Parse the URL to get the path
-                  let url = new URL(photoURL)
-                  let path = decodeURIComponent(
-                    url.pathname.substring(url.pathname.indexOf('/o/') + 3)
-                  ) // Adjust path extraction based on URL format
-                  path = path.split('?')[0] // Remove any query parameters
-
-                  // Create a reference manually
-                  const photoRef = ref(storage, path)
-                  deletePromises.push(deleteObject(photoRef))
+                  try {
+                    // Parse the URL to get the path
+                    const photoRef = refFromURL(storage, photoURL)
+                    deletePromises.push(deleteObject(photoRef))
+                  } catch (error) {
+                    console.warn('Failed to delete photo:', photoURL, error)
+                  }
                 }
-
-                // Wait for all deletions to complete
-                await Promise.all(deletePromises)
-                console.log('All photos deleted successfully')
               }
+
+              // Wait for all deletions to complete
+              await Promise.all(deletePromises)
+              console.log('All photos deleted successfully')
 
               // Delete the project document from Firestore
               await deleteDoc(doc(firestore, 'projects', selectedProject.id))
               Alert.alert(
                 'Success',
-                'The report and all associated files have been deleted.'
+                'The project and all associated photos have been deleted.'
               )
               setModalOptionsVisible(false)
               console.log('Project deleted successfully')
@@ -222,7 +244,6 @@ const Index = () => {
     )
   }
 
-  console.log('selectedProject:', selectedProject)
   // ============ INSPECTION ============
   const handleInspection = () => {
     if (!selectedProject) return
@@ -235,6 +256,7 @@ const Index = () => {
         contactName: selectedProject.contactName || '',
         contactNumber: selectedProject.contactNumber || '',
         reason: selectedProject.reason || '',
+        remediationRequired: selectedProject.remediationRequired || false,
       },
     })
     setModalOptionsVisible(false)
@@ -259,45 +281,70 @@ const Index = () => {
 
     if (!result.canceled && result.assets?.[0]?.uri) {
       const storage = getStorage()
-      const response = await fetch(result.assets[0].uri)
-      const blob = await response.blob()
-      const fileRef = ref(storage, `projectDetailPhotos/${Date.now()}.jpg`) // Unique filename
-      const uploadTask = await uploadBytes(fileRef, blob)
+      const uploadPromises = result.assets.map(async asset => {
+        const response = await fetch(asset.uri)
+        const blob = await response.blob()
+        const fileRef = ref(
+          storage,
+          `projectDetailPhotos/${Date.now()}_${asset.filename}`
+        )
+        await uploadBytes(fileRef, blob)
+        const downloadURL = await getDownloadURL(fileRef)
+        return downloadURL
+      })
 
-      const downloadURL = await getDownloadURL(fileRef)
-
-      // Update the project with the new URL
-      setNewProject(prev => ({
-        ...prev,
-        photos: [...prev.photos, downloadURL],
-      }))
+      try {
+        const newPhotoURLs = await Promise.all(uploadPromises)
+        setNewProject(prev => ({
+          ...prev,
+          photos: [...prev.photos, ...newPhotoURLs],
+        }))
+        Alert.alert('Success', 'Photos added successfully.')
+      } catch (error) {
+        console.error('Error uploading photos:', error)
+        Alert.alert('Error', 'Failed to upload photos. Please try again.')
+      }
+    } else {
+      Alert.alert('No Selection', 'You did not select any image.')
     }
   }
 
   return (
     <ImageBackground
       source={require('../../../assets/images/logo.png')}
-      className="flex-1"
+      style={styles.background}
       resizeMode="cover"
     >
-      <SafeAreaView className="flex-1 px-4 py-2">
+      <SafeAreaView style={styles.safeArea}>
         {/* Project List */}
-        <ScrollView className="mb-20 mx-1 mt-2">
+        <ScrollView style={styles.scrollView}>
           {projects.map(project => (
             <TouchableOpacity
               key={project.id}
               onPress={() => handleProjectPress(project)}
-              className="mb-3 bg-[#1ABC9C]/90 rounded-lg p-3 shadow-md"
+              style={[
+                styles.projectCard,
+                {
+                  backgroundColor: project.remediationRequired
+                    ? '#FFD700'
+                    : '#1ABC9C',
+                }, // **Dynamic Background**
+              ]}
             >
-              <Text className="text-white text-base font-bold">
-                {project.address}
-              </Text>
-              <Text className="text-white text-sm">
-                Inspector: {project.inspectorName || 'N/A'}
-              </Text>
-              <Text className="text-white text-sm">
-                Job Type: {project.jobType || 'N/A'}
-              </Text>
+              <View style={styles.cardContent}>
+                <Text style={styles.projectAddress}>{project.address}</Text>
+                <View style={styles.inspectorRow}>
+                  <Text style={styles.inspectorName}>
+                    Inspector: {project.inspectorName || 'N/A'}
+                  </Text>
+                  {project.remediationRequired && (
+                    <Text style={styles.remediationIndicator}> R</Text> // **Render "R"**
+                  )}
+                </View>
+                <Text style={styles.jobType}>
+                  Job Type: {project.jobType || 'N/A'}
+                </Text>
+              </View>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -305,7 +352,7 @@ const Index = () => {
         {/* Add Project Floating Button */}
         <TouchableOpacity
           onPress={() => setModalVisible(true)}
-          className="absolute bottom-28 right-6 bg-[#F39C12] rounded-full p-4 shadow-lg"
+          style={styles.floatingButton}
         >
           <IconSymbol name="plus" size={30} color="white" />
         </TouchableOpacity>
@@ -317,15 +364,13 @@ const Index = () => {
           visible={modalVisible}
           onRequestClose={() => setModalVisible(false)}
         >
-          <View className="flex-1 justify-center items-center bg-black/50 px-4">
-            <View className="bg-white w-full rounded-lg p-6 max-w-md">
-              <Text className="text-xl font-bold mb-4 text-center text-[#2C3E50]">
-                Create New Project
-              </Text>
+          <View style={styles.modalBackground}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Create New Project</Text>
 
               {/* Street */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="Street"
                 value={newProject.street}
                 onChangeText={text =>
@@ -334,7 +379,7 @@ const Index = () => {
               />
               {/* City */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="City"
                 value={newProject.city}
                 onChangeText={text =>
@@ -343,7 +388,7 @@ const Index = () => {
               />
               {/* State */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="State"
                 value={newProject.state}
                 onChangeText={text =>
@@ -352,42 +397,45 @@ const Index = () => {
               />
               {/* Zip */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="ZIP"
                 value={newProject.zip}
                 onChangeText={text =>
                   setNewProject({ ...newProject, zip: text })
                 }
+                keyboardType="numeric"
               />
               {/* Customer */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="Customer"
                 value={newProject.customer}
                 onChangeText={text =>
                   setNewProject({ ...newProject, customer: text })
                 }
               />
-              {/* Customer */}
+              {/* Homeowner Name */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="Homeowner Name"
                 value={newProject.contactName}
                 onChangeText={text =>
                   setNewProject({ ...newProject, contactName: text })
                 }
               />
+              {/* Homeowner Number */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="Homeowner Number"
                 value={newProject.contactNumber}
                 onChangeText={text =>
                   setNewProject({ ...newProject, contactNumber: text })
                 }
+                keyboardType="phone-pad"
               />
               {/* Inspector Name */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="Inspector Name"
                 value={newProject.inspectorName}
                 onChangeText={text =>
@@ -396,7 +444,7 @@ const Index = () => {
               />
               {/* Reason */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="Reason for Inspection"
                 value={newProject.reason}
                 onChangeText={text =>
@@ -405,7 +453,7 @@ const Index = () => {
               />
               {/* Job Type */}
               <TextInput
-                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                style={styles.modalInput}
                 placeholder="Type of Job"
                 value={newProject.jobType}
                 onChangeText={text =>
@@ -413,18 +461,29 @@ const Index = () => {
                 }
               />
 
+              {/* ====== Remediation Required Checkbox ====== */}
+              <View style={styles.checkboxContainer}>
+                <Switch
+                  value={newProject.remediationRequired}
+                  onValueChange={value =>
+                    setNewProject({ ...newProject, remediationRequired: value })
+                  }
+                />
+                <Text style={styles.checkboxLabel}>Remediation Required</Text>
+              </View>
+
               {/* PHOTOS PREVIEW */}
               {newProject.photos.length > 0 && (
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  className="my-2"
+                  style={styles.photosPreview}
                 >
                   {newProject.photos.map((uri, index) => (
                     <Image
                       key={index}
                       source={{ uri }}
-                      className="w-16 h-16 rounded mr-2"
+                      style={styles.photoThumbnail}
                     />
                   ))}
                 </ScrollView>
@@ -433,30 +492,24 @@ const Index = () => {
               {/* Add Photo Button */}
               <TouchableOpacity
                 onPress={handleAddPhoto}
-                className="bg-[#1ABC9C] rounded p-3 mb-2"
+                style={styles.addPhotoButton}
               >
-                <Text className="text-white text-center font-semibold">
-                  Add Photo
-                </Text>
+                <Text style={styles.addPhotoButtonText}>Add Photo</Text>
               </TouchableOpacity>
 
-              {/* CREATE & CANCEL */}
-              <View className="flex-row justify-between mt-2">
+              {/* CREATE & CANCEL Buttons */}
+              <View style={styles.modalButtonContainer}>
                 <TouchableOpacity
                   onPress={handleCreateProject}
-                  className="bg-[#2C3E50] rounded p-3 flex-1 mr-2"
+                  style={[styles.modalButton, styles.createButton]}
                 >
-                  <Text className="text-white text-center font-semibold">
-                    Create
-                  </Text>
+                  <Text style={styles.modalButtonText}>Create</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setModalVisible(false)}
-                  className="bg-[#f44336] rounded p-3 flex-1 ml-2"
+                  style={[styles.modalButton, styles.cancelButton]}
                 >
-                  <Text className="text-white text-center font-semibold">
-                    Cancel
-                  </Text>
+                  <Text style={styles.modalButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -464,16 +517,15 @@ const Index = () => {
         </Modal>
 
         {/* ======= Photo detail MODAL ======= */}
-
         <Modal
           animationType="fade"
           transparent={true}
           visible={selectedPhoto !== null}
           onRequestClose={() => setSelectedPhoto(null)}
         >
-          <View className="flex-1 justify-center items-center bg-black/80">
+          <View style={styles.photoModalBackground}>
             <TouchableOpacity
-              className="flex-1"
+              style={styles.photoModalTouchable}
               onPress={() => {
                 setSelectedPhoto(null)
                 setModalOptionsVisible(true)
@@ -481,21 +533,21 @@ const Index = () => {
               activeOpacity={1}
             >
               {selectedPhoto ? (
-                <View className="flex-1 justify-center items-center">
+                <View style={styles.photoModalContent}>
                   <ActivityIndicator size="large" color="#0000ff" />
                   <Image
                     source={{ uri: selectedPhoto }}
-                    className="flex-1"
-                    style={{ width: '800%', height: '800%' }}
+                    style={styles.fullPhoto}
                     resizeMode="contain"
                   />
                 </View>
               ) : (
-                <Text className="text-white">Loading...</Text>
+                <Text style={styles.photoLoadingText}>Loading...</Text>
               )}
             </TouchableOpacity>
           </View>
         </Modal>
+
         {/* ======= PROJECT DETAILS & OPTIONS MODAL ======= */}
         <Modal
           animationType="slide"
@@ -504,60 +556,57 @@ const Index = () => {
           onRequestClose={() => setModalOptionsVisible(false)}
         >
           {selectedProject && (
-            <View className="flex-1 justify-center items-center bg-black/50 px-4">
-              <View className="bg-white w-full rounded-lg p-6 max-w-md">
-                <Text className="text-xl font-bold mb-2 text-center text-[#2C3E50]">
-                  Project Details
-                </Text>
+            <View style={styles.projectModalBackground}>
+              <View style={styles.projectModalContainer}>
+                <Text style={styles.projectModalTitle}>Project Details</Text>
 
                 {/* Display project fields */}
-                <Text className="text-base text-[#2C3E50] font-semibold">
-                  Address:
+                <Text style={styles.projectFieldLabel}>Address:</Text>
+                <Text style={styles.projectFieldValue}>
+                  {selectedProject.address}
                 </Text>
-                <Text className="mb-2">{selectedProject.address}</Text>
 
-                <Text className="text-base text-[#2C3E50] font-semibold">
-                  Customer:
-                </Text>
-                <Text className="mb-2">
+                <Text style={styles.projectFieldLabel}>Customer:</Text>
+                <Text style={styles.projectFieldValue}>
                   {selectedProject.customer || 'N/A'}
                 </Text>
-                <Text className="text-base text-[#2C3E50] font-semibold">
-                  Contact Name:
-                </Text>
-                <Text className="mb-2">
+
+                <Text style={styles.projectFieldLabel}>Contact Name:</Text>
+                <Text style={styles.projectFieldValue}>
                   {selectedProject.contactName || 'N/A'}
                 </Text>
-                <Text className="text-base text-[#2C3E50] font-semibold">
-                  Contact Number:
-                </Text>
-                <Text className="mb-2">
+
+                <Text style={styles.projectFieldLabel}>Contact Number:</Text>
+                <Text style={styles.projectFieldValue}>
                   {selectedProject.contactNumber || 'N/A'}
                 </Text>
 
-                <Text className="text-base text-[#2C3E50] font-semibold">
-                  Inspector:
-                </Text>
-                <Text className="mb-2">
-                  {selectedProject.inspectorName || 'N/A'}
+                <Text style={styles.projectFieldLabel}>Inspector:</Text>
+                <View style={styles.inspectorRowModal}>
+                  <Text style={styles.projectFieldValue}>
+                    {selectedProject.inspectorName || 'N/A'}
+                  </Text>
+                  {selectedProject.remediationRequired && (
+                    <Text style={styles.remediationIndicatorModal}> R</Text> // **Render "R"**
+                  )}
+                </View>
+
+                <Text style={styles.projectFieldLabel}>Reason:</Text>
+                <Text style={styles.projectFieldValue}>
+                  {selectedProject.reason || 'N/A'}
                 </Text>
 
-                <Text className="text-base text-[#2C3E50] font-semibold">
-                  Reason:
+                <Text style={styles.projectFieldLabel}>Job Type:</Text>
+                <Text style={styles.projectFieldValue}>
+                  {selectedProject.jobType || 'N/A'}
                 </Text>
-                <Text className="mb-2">{selectedProject.reason || 'N/A'}</Text>
-
-                <Text className="text-base text-[#2C3E50] font-semibold">
-                  Job Type:
-                </Text>
-                <Text className="mb-2">{selectedProject.jobType || 'N/A'}</Text>
 
                 {/* Photos */}
                 {selectedProject.photos && selectedProject.photos.length > 0 ? (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    className="my-2"
+                    style={styles.projectPhotos}
                   >
                     {selectedProject.photos.map((uri, index) => (
                       <TouchableOpacity
@@ -567,58 +616,47 @@ const Index = () => {
                           setModalOptionsVisible(false)
                         }}
                       >
-                        <Image
-                          source={{ uri }}
-                          className="w-20 h-20 rounded mr-2"
-                        />
+                        <Image source={{ uri }} style={styles.projectPhoto} />
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
                 ) : (
-                  <Text className="italic text-gray-400 my-2">
-                    No photos available
-                  </Text>
+                  <Text style={styles.noPhotosText}>No photos available</Text>
                 )}
 
                 {/* Actions */}
-                <View className="mt-4">
+                <View style={styles.projectActionsContainer}>
                   <TouchableOpacity
                     onPress={() => {
                       openGoogleMaps(selectedProject.address)
                       setModalOptionsVisible(false)
                     }}
-                    className="mb-2 bg-[#1ABC9C] rounded p-3 shadow-sm"
+                    style={styles.actionButton}
                   >
-                    <Text className="text-center text-white font-semibold">
-                      Get Directions
-                    </Text>
+                    <Text style={styles.actionButtonText}>Get Directions</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     onPress={handleInspection}
-                    className="mb-2 bg-[#2C3E50] rounded p-3 shadow-sm"
+                    style={styles.actionButton}
                   >
-                    <Text className="text-center text-white font-semibold">
+                    <Text style={styles.actionButtonText}>
                       Start Inspection
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     onPress={handleDeleteProject}
-                    className="mb-2 bg-red-600 rounded p-3 shadow-sm"
+                    style={[styles.actionButton, styles.deleteButton]}
                   >
-                    <Text className="text-center text-white font-semibold">
-                      Delete Project
-                    </Text>
+                    <Text style={styles.actionButtonText}>Delete Project</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     onPress={() => setModalOptionsVisible(false)}
-                    className="rounded p-3 bg-gray-300 shadow-sm"
+                    style={[styles.actionButton, styles.closeButton]}
                   >
-                    <Text className="text-center text-[#2C3E50] font-semibold">
-                      Close
-                    </Text>
+                    <Text style={styles.actionButtonText}>Close</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -632,3 +670,252 @@ const Index = () => {
 }
 
 export default Index
+
+// ======= Styles =======
+const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  scrollView: {
+    marginBottom: 80, // Adjust based on floating button position
+  },
+  projectCard: {
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 8,
+    marginTop: 3,
+    // Background color is set dynamically
+  },
+  cardContent: {
+    // Additional styling if needed
+  },
+  projectAddress: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  inspectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  inspectorName: {
+    color: 'white',
+    fontSize: 14,
+  },
+  remediationIndicator: {
+    color: 'red',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  jobType: {
+    color: 'white',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  floatingButton: {
+    position: 'absolute',
+    bottom: 90,
+    right: 24,
+    backgroundColor: '#F39C12',
+    borderRadius: 30,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContainer: {
+    width: '90%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+    color: '#2C3E50',
+  },
+  modalInput: {
+    backgroundColor: '#f0f0f0',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  checkboxLabel: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#2C3E50',
+  },
+  photosPreview: {
+    flexDirection: 'row',
+    marginVertical: 8,
+  },
+  photoThumbnail: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  addPhotoButton: {
+    backgroundColor: '#1ABC9C',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  addPhotoButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  createButton: {
+    backgroundColor: '#2C3E50',
+  },
+  cancelButton: {
+    backgroundColor: '#f44336',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  photoModalBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  photoModalTouchable: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalContent: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullPhoto: {
+    width: '90%',
+    height: '90%',
+  },
+  photoLoadingText: {
+    color: 'white',
+    fontSize: 18,
+  },
+  projectModalBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  projectModalContainer: {
+    width: '85%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+  },
+  projectModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+    color: '#2C3E50',
+  },
+  projectFieldLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginTop: 8,
+  },
+  projectFieldValue: {
+    fontSize: 16,
+    color: '#2C3E50',
+    marginBottom: 8,
+  },
+  inspectorRowModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  remediationIndicatorModal: {
+    color: 'red',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  projectPhotos: {
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  projectPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  noPhotosText: {
+    fontStyle: 'italic',
+    color: '#888',
+    marginTop: 8,
+  },
+  projectActionsContainer: {
+    marginTop: 16,
+  },
+  actionButton: {
+    backgroundColor: '#2C3E50',
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#e74c3c',
+  },
+  closeButton: {
+    backgroundColor: '#7f8c8d',
+  },
+  actionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+})
