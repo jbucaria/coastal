@@ -13,6 +13,7 @@ import {
   Platform,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol' // Adjust import path as needed
 import {
@@ -22,6 +23,14 @@ import {
   deleteDoc,
   doc,
 } from 'firebase/firestore'
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+  refFromURL,
+} from 'firebase/storage'
 import { firestore } from '@/firebaseConfig'
 import { router } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
@@ -48,6 +57,7 @@ const Index = () => {
   // For "Project Details" modal
   const [selectedProject, setSelectedProject] = useState(null)
   const [modalOptionsVisible, setModalOptionsVisible] = useState(false)
+  const [selectedPhoto, setSelectedPhoto] = useState(null)
 
   useEffect(() => {
     // Listen for real-time updates from Firestore
@@ -150,7 +160,7 @@ const Index = () => {
     if (!selectedProject) return
     Alert.alert(
       'Confirm Deletion',
-      'Are you sure you want to delete this project?',
+      'Are you sure you want to delete this project and all its photos?',
       [
         {
           text: 'Cancel',
@@ -161,13 +171,39 @@ const Index = () => {
           text: 'OK',
           onPress: async () => {
             try {
+              const storage = getStorage()
+              const deletePromises = []
+
+              // Assuming 'photos' is an array of Firebase Storage URLs
+              if (selectedProject.photos && selectedProject.photos.length > 0) {
+                for (let photoURL of selectedProject.photos) {
+                  // Parse the URL to get the path
+                  let url = new URL(photoURL)
+                  let path = decodeURIComponent(
+                    url.pathname.substring(url.pathname.indexOf('/o/') + 3)
+                  ) // Adjust path extraction based on URL format
+                  path = path.split('?')[0] // Remove any query parameters
+
+                  // Create a reference manually
+                  const photoRef = ref(storage, path)
+                  deletePromises.push(deleteObject(photoRef))
+                }
+
+                // Wait for all deletions to complete
+                await Promise.all(deletePromises)
+                console.log('All photos deleted successfully')
+              }
+
+              // Delete the project document from Firestore
               await deleteDoc(doc(firestore, 'projects', selectedProject.id))
               setModalOptionsVisible(false)
+              console.log('Project deleted successfully')
             } catch (error) {
               Alert.alert(
                 'Error',
-                'Failed to delete the project: ' + error.message
+                'Failed to delete the project or its photos: ' + error.message
               )
+              console.error('Deletion error:', error)
             }
           },
         },
@@ -175,7 +211,6 @@ const Index = () => {
       { cancelable: false }
     )
   }
-
   // ============ INSPECTION ============
   const handleInspection = () => {
     if (!selectedProject) return
@@ -193,7 +228,6 @@ const Index = () => {
 
   // ============ ADD PHOTO ============
   const handleAddPhoto = async () => {
-    // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert(
@@ -205,18 +239,28 @@ const Index = () => {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
-      allowsMultipleSelection: true, // or true if you want multiple
+      allowsMultipleSelection: true,
       quality: 0.7,
     })
 
     if (!result.canceled && result.assets?.[0]?.uri) {
-      // If you want multiple images, you'll handle them in the result.assets array
+      const storage = getStorage()
+      const response = await fetch(result.assets[0].uri)
+      const blob = await response.blob()
+      const fileRef = ref(storage, `projectDetailPhotos/${Date.now()}.jpg`) // Unique filename
+      const uploadTask = await uploadBytes(fileRef, blob)
+
+      const downloadURL = await getDownloadURL(fileRef)
+
+      // Update the project with the new URL
       setNewProject(prev => ({
         ...prev,
-        photos: [...prev.photos, result.assets[0].uri],
+        photos: [...prev.photos, downloadURL],
       }))
     }
   }
+
+  console.log('selectedPhoto:', selectedPhoto)
 
   return (
     <ImageBackground
@@ -390,6 +434,39 @@ const Index = () => {
           </View>
         </Modal>
 
+        {/* ======= Photo detail MODAL ======= */}
+
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={selectedPhoto !== null}
+          onRequestClose={() => setSelectedPhoto(null)}
+        >
+          <View className="flex-1 justify-center items-center bg-black/80">
+            <TouchableOpacity
+              className="flex-1"
+              onPress={() => {
+                setSelectedPhoto(null)
+                setModalOptionsVisible(true)
+              }}
+              activeOpacity={1}
+            >
+              {selectedPhoto ? (
+                <View className="flex-1 justify-center items-center">
+                  <ActivityIndicator size="large" color="#0000ff" />
+                  <Image
+                    source={{ uri: selectedPhoto }}
+                    className="flex-1"
+                    style={{ width: '800%', height: '800%' }}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : (
+                <Text className="text-white">Loading...</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Modal>
         {/* ======= PROJECT DETAILS & OPTIONS MODAL ======= */}
         <Modal
           animationType="slide"
@@ -442,11 +519,18 @@ const Index = () => {
                     className="my-2"
                   >
                     {selectedProject.photos.map((uri, index) => (
-                      <Image
+                      <TouchableOpacity
                         key={index}
-                        source={{ uri }}
-                        className="w-20 h-20 rounded mr-2"
-                      />
+                        onPress={() => {
+                          setSelectedPhoto(uri)
+                          setModalOptionsVisible(false)
+                        }}
+                      >
+                        <Image
+                          source={{ uri }}
+                          className="w-20 h-20 rounded mr-2"
+                        />
+                      </TouchableOpacity>
                     ))}
                   </ScrollView>
                 ) : (

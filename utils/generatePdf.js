@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import * as Print from 'expo-print'
 import * as Linking from 'expo-linking'
-import { Alert, Platform } from 'react-native'
+import { Alert } from 'react-native'
 import { generateReportHTML } from '../components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
@@ -79,7 +79,7 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
     console.log('Document written with ID: ', docRef.id)
 
     // Send notification here
-    await sendNotification(formData, docRef.id)
+    // await sendNotification(formData, docRef.id)
 
     Alert.alert(
       'File Saved',

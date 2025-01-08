@@ -11,28 +11,19 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native'
-import {
-  collection,
-  onSnapshot,
-  doc,
-  updateDoc,
-  deleteDoc,
-} from 'firebase/firestore'
-import { ThemedText } from '@/components/ThemedText'
-import { ThemedView } from '@/components/ThemedView'
+import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
+import { storage, firestore } from '@/firebaseConfig'
+import { getStorage, ref, deleteObject } from 'firebase/storage'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
-import { useThemeColor } from '@/hooks/useThemeColor'
 import * as Linking from 'expo-linking'
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { storage, firestore } from '@/firebaseConfig'
-import { generateReportHTML } from '@/components/ReportTemplate'
-import * as Print from 'expo-print'
-import { IconSymbol } from '@/components/ui/IconSymbol'
+import * as MediaLibrary from 'expo-media-library'
 import { router } from 'expo-router'
 
-// 1) Import expo-media-library
-import * as MediaLibrary from 'expo-media-library'
+import { ThemedText } from '@/components/ThemedText'
+import { ThemedView } from '@/components/ThemedView'
+import { useThemeColor } from '@/hooks/useThemeColor'
+import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const ReportsPage = () => {
   const [reports, setReports] = useState([])
@@ -107,10 +98,37 @@ const ReportsPage = () => {
     }
   }
 
-  const handleDeleteReport = async () => {
+  /**
+   * Extracts the Firebase Storage path from a download URL.
+   *
+   * @param {string} downloadURL - The Firebase Storage download URL.
+   * @returns {string|null} - The decoded storage path or null if extraction fails.
+   */
+  const extractStoragePath = downloadURL => {
+    try {
+      const url = new URL(downloadURL)
+      const encodedPath = url.searchParams.get('o')
+      if (!encodedPath) {
+        console.warn('No "o" parameter found in URL:', downloadURL)
+        return null
+      }
+      return decodeURIComponent(encodedPath)
+    } catch (error) {
+      console.error('Invalid URL:', downloadURL, error)
+      return null
+    }
+  }
+
+  /**
+   * Deletes an inspection report and its associated files from Firebase Storage and Firestore.
+   *
+   * @param {object} selectedReport - The report object containing at least `id`, `pdfDownloadURL`, and `photos`.
+   * @param {Function} setModalVisible - State setter to control modal visibility.
+   */
+  const handleDeleteReport = async (selectedReport, setModalVisible) => {
     Alert.alert(
       'Confirm Deletion',
-      'Are you sure you want to delete this report?',
+      'Are you sure you want to delete this report and all associated files?',
       [
         {
           text: 'Cancel',
@@ -121,15 +139,82 @@ const ReportsPage = () => {
           text: 'Delete',
           onPress: async () => {
             try {
-              if (!selectedReport) return
+              if (!selectedReport) {
+                console.warn('No report selected for deletion.')
+                return
+              }
+
+              const storage = getStorage()
+
+              // 1. Delete the PDF file
+              if (
+                selectedReport.pdfDownloadURL &&
+                typeof selectedReport.pdfDownloadURL === 'string'
+              ) {
+                const pdfPath = extractStoragePath(
+                  selectedReport.pdfDownloadURL
+                )
+                if (pdfPath) {
+                  const pdfRef = ref(storage, pdfPath)
+                  await deleteObject(pdfRef)
+                  console.log('PDF deleted:', pdfPath)
+                } else {
+                  console.warn(
+                    'Could not determine PDF path from URL:',
+                    selectedReport.pdfDownloadURL
+                  )
+                }
+              }
+
+              // 2. Delete photos associated with the report
+              if (Array.isArray(selectedReport.photos)) {
+                const photoDeletePromises = selectedReport.photos.map(
+                  async photo => {
+                    if (photo.uri && typeof photo.uri === 'string') {
+                      const photoPath = extractStoragePath(photo.uri)
+                      if (photoPath) {
+                        const photoRef = ref(storage, photoPath)
+                        try {
+                          await deleteObject(photoRef)
+                          console.log('Photo deleted:', photoPath)
+                        } catch (error) {
+                          console.error(
+                            'Error deleting photo:',
+                            photoPath,
+                            error
+                          )
+                        }
+                      } else {
+                        console.warn(
+                          'Could not determine photo path from URL:',
+                          photo.uri
+                        )
+                      }
+                    }
+                  }
+                )
+
+                await Promise.all(photoDeletePromises)
+                console.log('All photos deleted.')
+              }
+
+              // 3. Delete the report document from Firestore
               await deleteDoc(
                 doc(firestore, 'inspectionReports', selectedReport.id)
               )
-              Alert.alert('Success', 'Report has been deleted')
+              console.log('Report document deleted:', selectedReport.id)
+
+              Alert.alert(
+                'Success',
+                'Report and associated files have been deleted.'
+              )
               setModalVisible(false)
             } catch (error) {
-              console.error('Error deleting report:', error)
-              Alert.alert('Error', 'Failed to delete the report')
+              console.error('Error deleting report or files:', error)
+              Alert.alert(
+                'Error',
+                'Failed to delete the report or associated files.'
+              )
             }
           },
           style: 'destructive',
