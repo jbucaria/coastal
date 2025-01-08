@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
-import { storage, firestore } from '@/firebaseConfig'
+import { firestore } from '@/firebaseConfig'
 import { getStorage, ref, deleteObject } from 'firebase/storage'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
@@ -27,20 +27,14 @@ import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const ReportsPage = () => {
   const [reports, setReports] = useState([])
-  const backgroundColor = useThemeColor({}, 'background')
   const textColor = useThemeColor({}, 'text')
   const [modalVisible, setModalVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedReport, setSelectedReport] = useState(null)
-
-  // We removed isEditing here since we’re pushing to another screen for editing
-  const [editedReport, setEditedReport] = useState({})
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [isSaving, setIsSaving] = useState(false)
-
-  // 2) State for download progress modal
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
+  const [editedReport, setEditedReport] = useState(null)
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -128,6 +122,7 @@ const ReportsPage = () => {
           text: 'OK',
           onPress: async () => {
             try {
+              setIsDeleting(true)
               const storage = getStorage()
               const deletePromises = []
 
@@ -165,6 +160,12 @@ const ReportsPage = () => {
               await deleteDoc(
                 doc(firestore, 'inspectionReports', selectedReport.id)
               )
+
+              Alert.alert(
+                'Success',
+                'The report and all associated files have been deleted.'
+              )
+
               setModalVisible(false) // Changed from setModalOptionsVisible to setModalVisible
               console.log('Report deleted successfully')
             } catch (error) {
@@ -173,6 +174,8 @@ const ReportsPage = () => {
                 'Failed to delete the report or its photos: ' + error.message
               )
               console.error('Deletion error:', error)
+            } finally {
+              setIsDeleting(false)
             }
           },
         },
@@ -254,6 +257,7 @@ const ReportsPage = () => {
       setIsDownloading(false)
     }
   }, [selectedReport, requestMediaLibraryPermissions])
+
   const renderItem = ({ item }) => (
     <TouchableOpacity
       onPress={() => handleReportPress(item)}
@@ -365,10 +369,23 @@ const ReportsPage = () => {
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => {
-                    setModalVisible(false)
+                    if (!isDeleting) {
+                      setModalVisible(false)
+                    } else {
+                      Alert.alert(
+                        'Action in Progress',
+                        'Please wait until the deletion is complete.'
+                      )
+                    }
                   }}
                 >
-                  <ThemedText style={styles.closeButtonText}>Close</ThemedText>
+                  {isDeleting ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <ThemedText style={styles.closeButtonText}>
+                      Close
+                    </ThemedText>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

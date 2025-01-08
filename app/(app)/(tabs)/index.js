@@ -196,6 +196,10 @@ const Index = () => {
 
               // Delete the project document from Firestore
               await deleteDoc(doc(firestore, 'projects', selectedProject.id))
+              Alert.alert(
+                'Success',
+                'The report and all associated files have been deleted.'
+              )
               setModalOptionsVisible(false)
               console.log('Project deleted successfully')
             } catch (error) {
