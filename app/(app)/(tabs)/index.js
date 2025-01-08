@@ -211,6 +211,8 @@ const Index = () => {
       { cancelable: false }
     )
   }
+
+  console.log('selectedProject:', selectedProject)
   // ============ INSPECTION ============
   const handleInspection = () => {
     if (!selectedProject) return
@@ -259,8 +261,6 @@ const Index = () => {
       }))
     }
   }
-
-  console.log('selectedPhoto:', selectedPhoto)
 
   return (
     <ImageBackground

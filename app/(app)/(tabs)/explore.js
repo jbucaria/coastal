@@ -98,37 +98,26 @@ const ReportsPage = () => {
     }
   }
 
-  /**
-   * Extracts the Firebase Storage path from a download URL.
-   *
-   * @param {string} downloadURL - The Firebase Storage download URL.
-   * @returns {string|null} - The decoded storage path or null if extraction fails.
-   */
   const extractStoragePath = downloadURL => {
     try {
       const url = new URL(downloadURL)
-      const encodedPath = url.searchParams.get('o')
-      if (!encodedPath) {
-        console.warn('No "o" parameter found in URL:', downloadURL)
-        return null
-      }
-      return decodeURIComponent(encodedPath)
+      let path = decodeURIComponent(
+        url.pathname.substring(url.pathname.indexOf('/o/') + 3)
+      )
+      path = path.split('?')[0] // Remove query parameters
+      return path
     } catch (error) {
-      console.error('Invalid URL:', downloadURL, error)
+      console.error('Error extracting path:', error, 'URL:', downloadURL)
       return null
     }
   }
 
-  /**
-   * Deletes an inspection report and its associated files from Firebase Storage and Firestore.
-   *
-   * @param {object} selectedReport - The report object containing at least `id`, `pdfDownloadURL`, and `photos`.
-   * @param {Function} setModalVisible - State setter to control modal visibility.
-   */
-  const handleDeleteReport = async (selectedReport, setModalVisible) => {
+  const handleDeleteReport = async () => {
+    if (!selectedReport) return
+
     Alert.alert(
       'Confirm Deletion',
-      'Are you sure you want to delete this report and all associated files?',
+      'Are you sure you want to delete this report and all its photos?',
       [
         {
           text: 'Cancel',
@@ -136,94 +125,61 @@ const ReportsPage = () => {
           style: 'cancel',
         },
         {
-          text: 'Delete',
+          text: 'OK',
           onPress: async () => {
             try {
-              if (!selectedReport) {
-                console.warn('No report selected for deletion.')
-                return
-              }
-
               const storage = getStorage()
+              const deletePromises = []
 
-              // 1. Delete the PDF file
-              if (
-                selectedReport.pdfDownloadURL &&
-                typeof selectedReport.pdfDownloadURL === 'string'
-              ) {
-                const pdfPath = extractStoragePath(
-                  selectedReport.pdfDownloadURL
-                )
-                if (pdfPath) {
-                  const pdfRef = ref(storage, pdfPath)
-                  await deleteObject(pdfRef)
-                  console.log('PDF deleted:', pdfPath)
-                } else {
-                  console.warn(
-                    'Could not determine PDF path from URL:',
-                    selectedReport.pdfDownloadURL
-                  )
-                }
-              }
+              // Correctly handling the photos array of objects
+              if (selectedReport.photos && selectedReport.photos.length > 0) {
+                for (let photo of selectedReport.photos) {
+                  if (photo.uri) {
+                    let url = new URL(photo.uri)
+                    let path = decodeURIComponent(
+                      url.pathname.substring(url.pathname.indexOf('/o/') + 3)
+                    )
+                    path = path.split('?')[0] // Remove query parameters
 
-              // 2. Delete photos associated with the report
-              if (Array.isArray(selectedReport.photos)) {
-                const photoDeletePromises = selectedReport.photos.map(
-                  async photo => {
-                    if (photo.uri && typeof photo.uri === 'string') {
-                      const photoPath = extractStoragePath(photo.uri)
-                      if (photoPath) {
-                        const photoRef = ref(storage, photoPath)
-                        try {
-                          await deleteObject(photoRef)
-                          console.log('Photo deleted:', photoPath)
-                        } catch (error) {
-                          console.error(
-                            'Error deleting photo:',
-                            photoPath,
-                            error
-                          )
-                        }
-                      } else {
-                        console.warn(
-                          'Could not determine photo path from URL:',
-                          photo.uri
-                        )
-                      }
-                    }
+                    const photoRef = ref(storage, path)
+                    deletePromises.push(deleteObject(photoRef))
+                  } else {
+                    console.warn('Photo object has no URI:', photo)
                   }
-                )
+                }
 
-                await Promise.all(photoDeletePromises)
-                console.log('All photos deleted.')
+                // Construct filename
+                const pdfFileName = selectedReport.pdfFileName
+                const pdfPath = `inspectionReports/${pdfFileName}`
+                console.log('PDF Path:', pdfPath)
+                // Delete the PDF file
+                const pdfRef = ref(storage, pdfPath)
+                deletePromises.push(deleteObject(pdfRef))
+
+                // Wait for all deletions to complete
+                await Promise.all(deletePromises)
+                console.log('All photos deleted successfully')
               }
 
-              // 3. Delete the report document from Firestore
+              // Delete the report document from Firestore
               await deleteDoc(
                 doc(firestore, 'inspectionReports', selectedReport.id)
               )
-              console.log('Report document deleted:', selectedReport.id)
-
-              Alert.alert(
-                'Success',
-                'Report and associated files have been deleted.'
-              )
-              setModalVisible(false)
+              setModalVisible(false) // Changed from setModalOptionsVisible to setModalVisible
+              console.log('Report deleted successfully')
             } catch (error) {
-              console.error('Error deleting report or files:', error)
               Alert.alert(
                 'Error',
-                'Failed to delete the report or associated files.'
+                'Failed to delete the report or its photos: ' + error.message
               )
+              console.error('Deletion error:', error)
             }
           },
-          style: 'destructive',
         },
       ],
       { cancelable: false }
     )
   }
-
   // 3) This function saves photos to the iOS Photo Library
   const requestMediaLibraryPermissions = async () => {
     const { status } = await MediaLibrary.requestPermissionsAsync()
