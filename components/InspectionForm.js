@@ -35,7 +35,6 @@ const InspectionForm = ({
   address,
   setAddress,
   date,
-  setDate,
   showDatePicker,
   setShowDatePicker,
   inspectorName,
@@ -53,6 +52,10 @@ const InspectionForm = ({
   isSaving,
   handleDateChange,
   handleGeneratePdf,
+  setContactName,
+  contactName,
+  setContactNumber,
+  contactNumber,
 }) => {
   const [inspectorModalVisible, setInspectorModalVisible] = useState(false)
   const inspectors = ['John Bucaria', 'Dave Sprott', 'Bobby Blasewitz']
@@ -132,6 +135,22 @@ const InspectionForm = ({
           value={customer}
           onChangeText={setCustomer}
           placeholder="Enter customer name"
+        />
+        {/* Customer Field */}
+        <ThemedText style={styles.subtitle} type="subtitle">
+          Home Owner's Contact Info
+        </ThemedText>
+        <TextInput
+          style={styles.input}
+          value={contactName}
+          onChangeText={setContactName}
+          placeholder="Enter owners name"
+        />
+        <TextInput
+          style={styles.input}
+          value={contactNumber}
+          onChangeText={setContactNumber}
+          placeholder="Enter owners number"
         />
 
         {/* Date of Inspection */}

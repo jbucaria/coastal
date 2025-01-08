@@ -48,6 +48,8 @@ const Index = () => {
     state: '',
     zip: '',
     customer: '',
+    contactName: '',
+    contactNumber: '',
     inspectorName: '',
     reason: '',
     jobType: '',
@@ -118,6 +120,8 @@ const Index = () => {
       state: newProject.state,
       zip: newProject.zip,
       customer: newProject.customer,
+      contactName: newProject.contactName,
+      contactNumber: newProject.contactNumber,
       inspectorName: newProject.inspectorName,
       reason: newProject.reason,
       jobType: newProject.jobType,
@@ -139,6 +143,8 @@ const Index = () => {
         state: '',
         zip: '',
         customer: '',
+        contactName: '',
+        contactNumber: '',
         inspectorName: '',
         reason: '',
         jobType: '',
@@ -226,6 +232,8 @@ const Index = () => {
         address: selectedProject.address,
         inspectorName: selectedProject.inspectorName || '',
         customer: selectedProject.customer || '',
+        contactName: selectedProject.contactName || '',
+        contactNumber: selectedProject.contactNumber || '',
         reason: selectedProject.reason || '',
       },
     })
@@ -358,6 +366,23 @@ const Index = () => {
                 value={newProject.customer}
                 onChangeText={text =>
                   setNewProject({ ...newProject, customer: text })
+                }
+              />
+              {/* Customer */}
+              <TextInput
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                placeholder="Homeowner Name"
+                value={newProject.contactName}
+                onChangeText={text =>
+                  setNewProject({ ...newProject, contactName: text })
+                }
+              />
+              <TextInput
+                className="bg-gray-100 border border-gray-300 rounded p-2 mb-2"
+                placeholder="Homeowner Number"
+                value={newProject.contactNumber}
+                onChangeText={text =>
+                  setNewProject({ ...newProject, contactNumber: text })
                 }
               />
               {/* Inspector Name */}
@@ -496,6 +521,18 @@ const Index = () => {
                 </Text>
                 <Text className="mb-2">
                   {selectedProject.customer || 'N/A'}
+                </Text>
+                <Text className="text-base text-[#2C3E50] font-semibold">
+                  Contact Name:
+                </Text>
+                <Text className="mb-2">
+                  {selectedProject.contactName || 'N/A'}
+                </Text>
+                <Text className="text-base text-[#2C3E50] font-semibold">
+                  Contact Number:
+                </Text>
+                <Text className="mb-2">
+                  {selectedProject.contactNumber || 'N/A'}
                 </Text>
 
                 <Text className="text-base text-[#2C3E50] font-semibold">

@@ -14,12 +14,15 @@ export default function App() {
   const [date, setDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [reason, setReason] = useState(params.reason || '')
+  const [contactName, setContactName] = useState(params.contactName || '')
+  const [contactNumber, setContactNumber] = useState(params.contactNumber || '')
   const [inspectorName, setInspectorName] = useState(params.inspectorName || '')
   const [hours, setHours] = useState('')
   const [inspectionResults, setInspectionResults] = useState('')
   const [recommendedActions, setRecommendedActions] = useState('')
   const [photos, setPhotos] = useState([])
   const [isSaving, setIsSaving] = useState(false)
+  const [contactInfo, setContactInfo] = useState('')
 
   useEffect(() => {
     // Fetch inspector name from Firebase Auth if not provided in params
@@ -47,6 +50,8 @@ export default function App() {
       'Reason for Inspection': reason,
       "Inspector's Name": inspectorName,
       'Hours to Complete Inspection': hours,
+      'Contact Name': contactName,
+      'Contact Number': contactNumber,
       'Inspection Results': inspectionResults,
       'Recommended Actions': recommendedActions,
     }
@@ -99,6 +104,8 @@ export default function App() {
         date: date.toLocaleDateString(),
         reason,
         inspectorName,
+        contactName,
+        contactNumber,
         hours,
         inspectionResults,
         recommendedActions,
@@ -135,6 +142,10 @@ export default function App() {
       isSaving={isSaving}
       handleDateChange={handleDateChange}
       handleGeneratePdf={handleGeneratePdfLocal}
+      contactName={contactName}
+      setContactName={setContactName}
+      setContactNumber={setContactNumber}
+      contactNumber={contactNumber}
     />
   )
 }

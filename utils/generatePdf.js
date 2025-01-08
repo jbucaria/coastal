@@ -7,7 +7,6 @@ import { generateReportHTML } from '../components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
-import { sendNotification } from './notificationService'
 
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator

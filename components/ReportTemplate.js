@@ -148,6 +148,11 @@ export const generateReportHTML = async formData => {
                 <th>Hours</th>
                 <td>${formData.hours}</td>
               </tr>
+              <tr>
+                <th>Homeowner Contact</th>
+                <td>${formData.contactName}, ${formData.contactNumber}</td>
+              </tr>
+              
             </table>
           </div>
   
