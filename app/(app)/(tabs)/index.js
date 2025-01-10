@@ -1,5 +1,4 @@
-// Import necessary modules
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Link } from 'expo-router'
 import {
   View,
@@ -16,7 +15,7 @@ import {
   Image,
   ActivityIndicator,
   StyleSheet,
-  Switch, // Import Switch for toggling remediation
+  Switch,
 } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol' // Adjust import path as needed
 import {
@@ -25,6 +24,7 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  updateDoc,
 } from 'firebase/firestore'
 import {
   getStorage,
@@ -38,18 +38,16 @@ import { firestore } from '@/firebaseConfig'
 import { router } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { KeyboardToolbar } from 'react-native-keyboard-controller'
-import useProjectStore from '@/store/projectStore'
 
 const Index = () => {
-  const projects = useProjectStore(state => state.projects)
-  const setProjects = useProjectStore(state => state.setProjects)
-  const addProject = useProjectStore(state => state.addProject)
-  const removeProject = useProjectStore(state => state.removeProject)
-  const updateProject = useProjectStore(state => state.updateProject)
-
-  // ===== NEW STATE =====
-  // For "Add Project" modal
   const [modalVisible, setModalVisible] = useState(false)
+  const [modalOptionsVisible, setModalOptionsVisible] = useState(false)
+  const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [selectedProject, setSelectedProject] = useState(null)
+  const [selectedProjectId, setSelectedProjectId] = useState(null)
+  const [projects, setProjects] = useState([])
+
+  // Local state for form inputs
   const [newProject, setNewProject] = useState({
     street: '',
     city: '',
@@ -61,25 +59,22 @@ const Index = () => {
     inspectorName: '',
     reason: '',
     jobType: '',
-    photos: [], // Array of URIs
-    remediationRequired: false, // **Added Field**
+    photos: [],
+    remediationRequired: false,
+    equipmentOnSite: false,
+    siteComplete: false,
   })
 
-  // For "Project Details" modal
-  const [selectedProject, setSelectedProject] = useState(null)
-  const [modalOptionsVisible, setModalOptionsVisible] = useState(false)
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
-
+  // Effect for fetching projects from Firestore
   useEffect(() => {
-    // Listen for real-time updates from Firestore
     const unsubscribe = onSnapshot(
       collection(firestore, 'projects'),
       snapshot => {
         const projectsData = snapshot.docs.map(doc => ({
-          id: doc.id, // Capture docRef.id
+          id: doc.id,
           ...doc.data(),
         }))
-        setProjects(projectsData) // Update Zustand store
+        setProjects(projectsData)
       },
       error => {
         console.error('Error fetching projects:', error)
@@ -93,66 +88,42 @@ const Index = () => {
     return () => unsubscribe()
   }, [])
 
-  // ============ OPEN MAPS ============
-  const openGoogleMaps = address => {
-    const url = Platform.select({
-      ios: `comgooglemaps://?q=${encodeURIComponent(address)}`,
-      android: `geo:0,0?q=${encodeURIComponent(address)}`,
-    })
-
-    if (Platform.OS === 'ios') {
-      Linking.canOpenURL('comgooglemaps://')
-        .then(supported => {
-          if (supported) {
-            return Linking.openURL(url)
-          } else {
-            // If Google Maps is not installed, open in browser
-            console.log('Google Maps not installed, opening in browser')
-            return Linking.openURL(
-              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                address
-              )}`
-            )
+  // Listen for changes in the selected project
+  useEffect(() => {
+    if (selectedProjectId) {
+      const unsubscribeProject = onSnapshot(
+        doc(firestore, 'projects', selectedProjectId),
+        doc => {
+          if (doc.exists()) {
+            setSelectedProject({ ...doc.data(), id: doc.id })
           }
-        })
-        .catch(err => console.error('An error occurred', err))
-    } else {
-      Linking.openURL(url).catch(err => console.error('An error occurred', err))
-    }
-  }
+        }
+      )
 
-  // ============ CREATE PROJECT ============
+      return () => unsubscribeProject()
+    }
+  }, [selectedProjectId])
+
+  // Update project in Firestore
+  const updateProject = useCallback(async (projectId, field, value) => {
+    try {
+      await updateDoc(doc(firestore, 'projects', projectId), { [field]: value })
+      console.log('Project updated successfully')
+    } catch (error) {
+      console.error('Error updating project:', error)
+      Alert.alert('Error', 'Failed to update the project. Please try again.')
+    }
+  }, [])
+
+  // Create project function
   const handleCreateProject = async () => {
-    // Basic Validation (Optional but Recommended)
-    if (
-      !newProject.street ||
-      !newProject.city ||
-      !newProject.state ||
-      !newProject.zip ||
-      !newProject.customer
-    ) {
-      Alert.alert('Validation Error', 'Please fill out all required fields.')
-      return
-    }
-
     // Format address from individual fields
     const formattedAddress = `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`
 
     const projectData = {
       address: formattedAddress,
-      street: newProject.street,
-      city: newProject.city,
-      state: newProject.state,
-      zip: newProject.zip,
-      customer: newProject.customer,
-      contactName: newProject.contactName,
-      contactNumber: newProject.contactNumber,
-      inspectorName: newProject.inspectorName,
-      reason: newProject.reason,
-      jobType: newProject.jobType,
-      photos: newProject.photos, // array of URIs
-      remediationRequired: newProject.remediationRequired, // **Include Remediation**
-      createdAt: new Date(), // Optional: Timestamp
+      ...newProject,
+      createdAt: new Date(),
     }
 
     try {
@@ -161,9 +132,7 @@ const Index = () => {
         projectData
       )
       console.log('Project created with ID: ', docRef.id)
-
       setModalVisible(false)
-      // Reset form
       setNewProject({
         street: '',
         city: '',
@@ -187,13 +156,41 @@ const Index = () => {
     }
   }
 
-  // ============ SELECT PROJECT ============
+  // Function to open Google Maps
+  const openGoogleMaps = address => {
+    const url = Platform.select({
+      ios: `comgooglemaps://?q=${encodeURIComponent(address)}`,
+      android: `geo:0,0?q=${encodeURIComponent(address)}`,
+    })
+
+    if (Platform.OS === 'ios') {
+      Linking.canOpenURL('comgooglemaps://')
+        .then(supported => {
+          if (supported) {
+            return Linking.openURL(url)
+          } else {
+            console.log('Google Maps not installed, opening in browser')
+            return Linking.openURL(
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                address
+              )}`
+            )
+          }
+        })
+        .catch(err => console.error('An error occurred', err))
+    } else {
+      Linking.openURL(url).catch(err => console.error('An error occurred', err))
+    }
+  }
+
+  // Handle selecting a project
   const handleProjectPress = project => {
     setSelectedProject(project)
+    setSelectedProjectId(project.id)
     setModalOptionsVisible(true)
   }
 
-  // ============ DELETE PROJECT ============
+  // Handle deleting a project
   const handleDeleteProject = async () => {
     if (!selectedProject) return
     Alert.alert(
@@ -211,12 +208,9 @@ const Index = () => {
             try {
               const storage = getStorage()
               const deletePromises = []
-
-              // Assuming 'photos' is an array of Firebase Storage URLs
               if (selectedProject.photos && selectedProject.photos.length > 0) {
                 for (let photoURL of selectedProject.photos) {
                   try {
-                    // Parse the URL to get the path
                     const photoRef = refFromURL(storage, photoURL)
                     deletePromises.push(deleteObject(photoRef))
                   } catch (error) {
@@ -225,11 +219,9 @@ const Index = () => {
                 }
               }
 
-              // Wait for all deletions to complete
               await Promise.all(deletePromises)
               console.log('All photos deleted successfully')
 
-              // Delete the project document from Firestore
               await deleteDoc(doc(firestore, 'projects', selectedProject.id))
               Alert.alert(
                 'Success',
@@ -251,7 +243,7 @@ const Index = () => {
     )
   }
 
-  // ============ INSPECTION ============
+  // Handle inspection
   const handleInspection = () => {
     if (!selectedProject) return
     router.push({
@@ -269,7 +261,7 @@ const Index = () => {
     setModalOptionsVisible(false)
   }
 
-  // ============ ADD PHOTO ============
+  // Handle add photo
   const handleAddPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
@@ -315,7 +307,6 @@ const Index = () => {
       Alert.alert('No Selection', 'You did not select any image.')
     }
   }
-
   return (
     <ImageBackground
       source={require('../../../assets/images/logo.png')}
@@ -328,14 +319,16 @@ const Index = () => {
           {projects.map(project => (
             <TouchableOpacity
               key={project.id}
-              onPress={() => handleProjectPress(project)}
+              onPress={() => {
+                handleProjectPress(project)
+              }}
               style={[
                 styles.projectCard,
                 {
                   backgroundColor: project.remediationRequired
                     ? '#FFD700'
                     : '#1ABC9C',
-                }, // **Dynamic Background**
+                },
               ]}
             >
               <View style={styles.cardContent}>
@@ -344,9 +337,14 @@ const Index = () => {
                   <Text style={styles.inspectorName}>
                     Inspector: {project.inspectorName || 'N/A'}
                   </Text>
-
                   {project.remediationRequired && (
-                    <Text style={styles.remediationIndicator}> R</Text> // **Render "R"**
+                    <Text style={styles.remediationIndicator}> R</Text>
+                  )}
+                  {project.equipmentOnSite && (
+                    <Text style={styles.remediationIndicator}> E</Text>
+                  )}
+                  {project.siteComplete && (
+                    <Text style={styles.remediationIndicator}> C</Text>
                   )}
                 </View>
                 <Text style={styles.jobType}>
@@ -617,11 +615,13 @@ const Index = () => {
                     {/* ====== Remediation Required Checkbox ====== */}
                     <View style={styles.checkboxContainer}>
                       <Switch
-                        value={selectedProject.remediationRequired || false}
+                        value={selectedProject?.remediationRequired || false}
                         onValueChange={value =>
-                          updateProject(selectedProject.id, {
-                            remediationRequired: value,
-                          })
+                          updateProject(
+                            selectedProject.id,
+                            'remediationRequired',
+                            value
+                          )
                         }
                       />
                       <Text style={styles.checkboxLabel}>
@@ -630,11 +630,13 @@ const Index = () => {
                     </View>
                     <View style={styles.checkboxContainer}>
                       <Switch
-                        value={selectedProject.equipmentOnSite || false}
+                        value={selectedProject?.equipmentOnSite || false}
                         onValueChange={value =>
-                          updateProject(selectedProject.id, {
-                            equipmentOnSite: value,
-                          })
+                          updateProject(
+                            selectedProject.id,
+                            'equipmentOnSite',
+                            value
+                          )
                         }
                       />
                       <Text style={styles.checkboxLabel}>
@@ -645,9 +647,11 @@ const Index = () => {
                       <Switch
                         value={selectedProject.siteComplete || false}
                         onValueChange={value =>
-                          updateProject(selectedProject.id, {
-                            siteComplete: value,
-                          })
+                          updateProject(
+                            selectedProject.id,
+                            'siteComplete',
+                            value
+                          )
                         }
                       />
                       <Text style={styles.checkboxLabel}>Site Complete</Text>
