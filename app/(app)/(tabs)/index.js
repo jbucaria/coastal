@@ -38,9 +38,14 @@ import { firestore } from '@/firebaseConfig'
 import { router } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { KeyboardToolbar } from 'react-native-keyboard-controller'
+import useProjectStore from '@/store/projectStore'
 
 const Index = () => {
-  const [projects, setProjects] = useState([])
+  const projects = useProjectStore(state => state.projects)
+  const setProjects = useProjectStore(state => state.setProjects)
+  const addProject = useProjectStore(state => state.addProject)
+  const removeProject = useProjectStore(state => state.removeProject)
+  const updateProject = useProjectStore(state => state.updateProject)
 
   // ===== NEW STATE =====
   // For "Add Project" modal
@@ -71,10 +76,10 @@ const Index = () => {
       collection(firestore, 'projects'),
       snapshot => {
         const projectsData = snapshot.docs.map(doc => ({
-          id: doc.id,
+          id: doc.id, // Capture docRef.id
           ...doc.data(),
         }))
-        setProjects(projectsData)
+        setProjects(projectsData) // Update Zustand store
       },
       error => {
         console.error('Error fetching projects:', error)
@@ -171,7 +176,9 @@ const Index = () => {
         reason: '',
         jobType: '',
         photos: [],
-        remediationRequired: false, // **Reset Remediation**
+        remediationRequired: false,
+        equipmentOnSite: false,
+        siteComplete: false,
       })
       Alert.alert('Success', 'Project created successfully.')
     } catch (error) {
@@ -337,6 +344,7 @@ const Index = () => {
                   <Text style={styles.inspectorName}>
                     Inspector: {project.inspectorName || 'N/A'}
                   </Text>
+
                   {project.remediationRequired && (
                     <Text style={styles.remediationIndicator}> R</Text> // **Render "R"**
                   )}
@@ -364,156 +372,152 @@ const Index = () => {
           visible={modalVisible}
           onRequestClose={() => setModalVisible(false)}
         >
-          <View style={styles.modalBackground}>
-            <View style={styles.modalContainer}>
-              <Text style={styles.modalTitle}>Create New Project</Text>
-
-              {/* Street */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Street"
-                value={newProject.street}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, street: text })
-                }
-              />
-              {/* City */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="City"
-                value={newProject.city}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, city: text })
-                }
-              />
-              {/* State */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="State"
-                value={newProject.state}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, state: text })
-                }
-              />
-              {/* Zip */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="ZIP"
-                value={newProject.zip}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, zip: text })
-                }
-                keyboardType="numeric"
-              />
-              {/* Customer */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Customer"
-                value={newProject.customer}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, customer: text })
-                }
-              />
-              {/* Homeowner Name */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Homeowner Name"
-                value={newProject.contactName}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, contactName: text })
-                }
-              />
-              {/* Homeowner Number */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Homeowner Number"
-                value={newProject.contactNumber}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, contactNumber: text })
-                }
-                keyboardType="phone-pad"
-              />
-              {/* Inspector Name */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Inspector Name"
-                value={newProject.inspectorName}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, inspectorName: text })
-                }
-              />
-              {/* Reason */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Reason for Inspection"
-                value={newProject.reason}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, reason: text })
-                }
-              />
-              {/* Job Type */}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Type of Job"
-                value={newProject.jobType}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, jobType: text })
-                }
-              />
-
-              {/* ====== Remediation Required Checkbox ====== */}
-              <View style={styles.checkboxContainer}>
-                <Switch
-                  value={newProject.remediationRequired}
-                  onValueChange={value =>
-                    setNewProject({ ...newProject, remediationRequired: value })
-                  }
-                />
-                <Text style={styles.checkboxLabel}>Remediation Required</Text>
-              </View>
-
-              {/* PHOTOS PREVIEW */}
-              {newProject.photos.length > 0 && (
+          <SafeAreaView style={styles.modalOverlay}>
+            <View style={styles.modalBackground}>
+              <SafeAreaView style={styles.fullWidthModal}>
                 <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.photosPreview}
+                  style={styles.modalContent}
+                  contentContainerStyle={styles.modalContainer}
                 >
-                  {newProject.photos.map((uri, index) => (
-                    <Image
-                      key={index}
-                      source={{ uri }}
-                      style={styles.photoThumbnail}
-                    />
-                  ))}
+                  <Text style={styles.modalTitle}>Create New Project</Text>
+
+                  {/* Street */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Street"
+                    value={newProject.street}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, street: text })
+                    }
+                  />
+                  {/* City */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="City"
+                    value={newProject.city}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, city: text })
+                    }
+                  />
+                  {/* State */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="State"
+                    value={newProject.state}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, state: text })
+                    }
+                  />
+                  {/* Zip */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="ZIP"
+                    value={newProject.zip}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, zip: text })
+                    }
+                    keyboardType="numeric"
+                  />
+                  {/* Customer */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Customer"
+                    value={newProject.customer}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, customer: text })
+                    }
+                  />
+                  {/* Homeowner Name */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Homeowner Name"
+                    value={newProject.contactName}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, contactName: text })
+                    }
+                  />
+                  {/* Homeowner Number */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Homeowner Number"
+                    value={newProject.contactNumber}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, contactNumber: text })
+                    }
+                    keyboardType="phone-pad"
+                  />
+                  {/* Inspector Name */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Inspector Name"
+                    value={newProject.inspectorName}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, inspectorName: text })
+                    }
+                  />
+                  {/* Reason */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Reason for Inspection"
+                    value={newProject.reason}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, reason: text })
+                    }
+                  />
+                  {/* Job Type */}
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Type of Job"
+                    value={newProject.jobType}
+                    onChangeText={text =>
+                      setNewProject({ ...newProject, jobType: text })
+                    }
+                  />
+
+                  {/* PHOTOS PREVIEW */}
+                  {newProject.photos.length > 0 && (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.photosPreview}
+                    >
+                      {newProject.photos.map((uri, index) => (
+                        <Image
+                          key={index}
+                          source={{ uri }}
+                          style={styles.photoThumbnail}
+                        />
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  {/* Add Photo Button */}
+                  <TouchableOpacity
+                    onPress={handleAddPhoto}
+                    style={styles.addPhotoButton}
+                  >
+                    <Text style={styles.addPhotoButtonText}>Add Photo</Text>
+                  </TouchableOpacity>
+
+                  {/* CREATE & CANCEL Buttons */}
+                  <View style={styles.modalButtonContainer}>
+                    <TouchableOpacity
+                      onPress={handleCreateProject}
+                      style={[styles.modalButton, styles.createButton]}
+                    >
+                      <Text style={styles.modalButtonText}>Create</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setModalVisible(false)}
+                      style={[styles.modalButton, styles.cancelButton]}
+                    >
+                      <Text style={styles.modalButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
                 </ScrollView>
-              )}
-
-              {/* Add Photo Button */}
-              <TouchableOpacity
-                onPress={handleAddPhoto}
-                style={styles.addPhotoButton}
-              >
-                <Text style={styles.addPhotoButtonText}>Add Photo</Text>
-              </TouchableOpacity>
-
-              {/* CREATE & CANCEL Buttons */}
-              <View style={styles.modalButtonContainer}>
-                <TouchableOpacity
-                  onPress={handleCreateProject}
-                  style={[styles.modalButton, styles.createButton]}
-                >
-                  <Text style={styles.modalButtonText}>Create</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setModalVisible(false)}
-                  style={[styles.modalButton, styles.cancelButton]}
-                >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
+              </SafeAreaView>
             </View>
-          </View>
+          </SafeAreaView>
         </Modal>
 
         {/* ======= Photo detail MODAL ======= */}
@@ -556,111 +560,171 @@ const Index = () => {
           onRequestClose={() => setModalOptionsVisible(false)}
         >
           {selectedProject && (
-            <View style={styles.projectModalBackground}>
-              <View style={styles.projectModalContainer}>
-                <Text style={styles.projectModalTitle}>Project Details</Text>
-
-                {/* Display project fields */}
-                <Text style={styles.projectFieldLabel}>Address:</Text>
-                <Text style={styles.projectFieldValue}>
-                  {selectedProject.address}
-                </Text>
-
-                <Text style={styles.projectFieldLabel}>Customer:</Text>
-                <Text style={styles.projectFieldValue}>
-                  {selectedProject.customer || 'N/A'}
-                </Text>
-
-                <Text style={styles.projectFieldLabel}>Contact Name:</Text>
-                <Text style={styles.projectFieldValue}>
-                  {selectedProject.contactName || 'N/A'}
-                </Text>
-
-                <Text style={styles.projectFieldLabel}>Contact Number:</Text>
-                <Text style={styles.projectFieldValue}>
-                  {selectedProject.contactNumber || 'N/A'}
-                </Text>
-
-                <Text style={styles.projectFieldLabel}>Inspector:</Text>
-                <View style={styles.inspectorRowModal}>
-                  <Text style={styles.projectFieldValue}>
-                    {selectedProject.inspectorName || 'N/A'}
-                  </Text>
-                  {selectedProject.remediationRequired && (
-                    <Text style={styles.remediationIndicatorModal}> R</Text> // **Render "R"**
-                  )}
-                </View>
-
-                <Text style={styles.projectFieldLabel}>Reason:</Text>
-                <Text style={styles.projectFieldValue}>
-                  {selectedProject.reason || 'N/A'}
-                </Text>
-
-                <Text style={styles.projectFieldLabel}>Job Type:</Text>
-                <Text style={styles.projectFieldValue}>
-                  {selectedProject.jobType || 'N/A'}
-                </Text>
-
-                {/* Photos */}
-                {selectedProject.photos && selectedProject.photos.length > 0 ? (
+            <SafeAreaView style={styles.modalOverlay}>
+              <View style={styles.modalBackground}>
+                <SafeAreaView style={styles.fullWidthModal}>
                   <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.projectPhotos}
+                    style={styles.modalContent}
+                    contentContainerStyle={styles.modalContainer}
                   >
-                    {selectedProject.photos.map((uri, index) => (
+                    <Text style={styles.projectModalTitle}>
+                      Project Details
+                    </Text>
+
+                    {/* Display project fields */}
+                    <Text style={styles.projectFieldLabel}>Address:</Text>
+                    <Text style={styles.projectFieldValue}>
+                      {selectedProject.address}
+                    </Text>
+
+                    <Text style={styles.projectFieldLabel}>Customer:</Text>
+                    <Text style={styles.projectFieldValue}>
+                      {selectedProject.customer || 'N/A'}
+                    </Text>
+
+                    <Text style={styles.projectFieldLabel}>Contact Name:</Text>
+                    <Text style={styles.projectFieldValue}>
+                      {selectedProject.contactName || 'N/A'}
+                    </Text>
+
+                    <Text style={styles.projectFieldLabel}>
+                      Contact Number:
+                    </Text>
+                    <Text style={styles.projectFieldValue}>
+                      {selectedProject.contactNumber || 'N/A'}
+                    </Text>
+
+                    <Text style={styles.projectFieldLabel}>Inspector:</Text>
+                    <View style={styles.inspectorRowModal}>
+                      <Text style={styles.projectFieldValue}>
+                        {selectedProject.inspectorName || 'N/A'}
+                      </Text>
+                      {selectedProject.remediationRequired && (
+                        <Text style={styles.remediationIndicatorModal}> R</Text>
+                      )}
+                    </View>
+
+                    <Text style={styles.projectFieldLabel}>Reason:</Text>
+                    <Text style={styles.projectFieldValue}>
+                      {selectedProject.reason || 'N/A'}
+                    </Text>
+
+                    <Text style={styles.projectFieldLabel}>Job Type:</Text>
+                    <Text style={styles.projectFieldValue}>
+                      {selectedProject.jobType || 'N/A'}
+                    </Text>
+
+                    {/* ====== Remediation Required Checkbox ====== */}
+                    <View style={styles.checkboxContainer}>
+                      <Switch
+                        value={selectedProject.remediationRequired || false}
+                        onValueChange={value =>
+                          updateProject(selectedProject.id, {
+                            remediationRequired: value,
+                          })
+                        }
+                      />
+                      <Text style={styles.checkboxLabel}>
+                        Remediation Required
+                      </Text>
+                    </View>
+                    <View style={styles.checkboxContainer}>
+                      <Switch
+                        value={selectedProject.equipmentOnSite || false}
+                        onValueChange={value =>
+                          updateProject(selectedProject.id, {
+                            equipmentOnSite: value,
+                          })
+                        }
+                      />
+                      <Text style={styles.checkboxLabel}>
+                        Equipment On Site
+                      </Text>
+                    </View>
+                    <View style={styles.checkboxContainer}>
+                      <Switch
+                        value={selectedProject.siteComplete || false}
+                        onValueChange={value =>
+                          updateProject(selectedProject.id, {
+                            siteComplete: value,
+                          })
+                        }
+                      />
+                      <Text style={styles.checkboxLabel}>Site Complete</Text>
+                    </View>
+
+                    {/* Photos */}
+                    {selectedProject.photos &&
+                    selectedProject.photos.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.projectPhotos}
+                      >
+                        {selectedProject.photos.map((uri, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            onPress={() => {
+                              setSelectedPhoto(uri)
+                              setModalOptionsVisible(false)
+                            }}
+                          >
+                            <Image
+                              source={{ uri }}
+                              style={styles.projectPhoto}
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    ) : (
+                      <Text style={styles.noPhotosText}>
+                        No photos available
+                      </Text>
+                    )}
+
+                    {/* Actions */}
+                    <View style={styles.projectActionsContainer}>
                       <TouchableOpacity
-                        key={index}
                         onPress={() => {
-                          setSelectedPhoto(uri)
+                          openGoogleMaps(selectedProject.address)
                           setModalOptionsVisible(false)
                         }}
+                        style={styles.actionButton}
                       >
-                        <Image source={{ uri }} style={styles.projectPhoto} />
+                        <Text style={styles.actionButtonText}>
+                          Get Directions
+                        </Text>
                       </TouchableOpacity>
-                    ))}
+
+                      <TouchableOpacity
+                        onPress={handleInspection}
+                        style={styles.actionButton}
+                      >
+                        <Text style={styles.actionButtonText}>
+                          Start Inspection
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={handleDeleteProject}
+                        style={[styles.actionButton, styles.deleteButton]}
+                      >
+                        <Text style={styles.actionButtonText}>
+                          Delete Project
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => setModalOptionsVisible(false)}
+                        style={[styles.actionButton, styles.closeButton]}
+                      >
+                        <Text style={styles.actionButtonText}>Close</Text>
+                      </TouchableOpacity>
+                    </View>
                   </ScrollView>
-                ) : (
-                  <Text style={styles.noPhotosText}>No photos available</Text>
-                )}
-
-                {/* Actions */}
-                <View style={styles.projectActionsContainer}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      openGoogleMaps(selectedProject.address)
-                      setModalOptionsVisible(false)
-                    }}
-                    style={styles.actionButton}
-                  >
-                    <Text style={styles.actionButtonText}>Get Directions</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleInspection}
-                    style={styles.actionButton}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      Start Inspection
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleDeleteProject}
-                    style={[styles.actionButton, styles.deleteButton]}
-                  >
-                    <Text style={styles.actionButtonText}>Delete Project</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => setModalOptionsVisible(false)}
-                    style={[styles.actionButton, styles.closeButton]}
-                  >
-                    <Text style={styles.actionButtonText}>Close</Text>
-                  </TouchableOpacity>
-                </View>
+                </SafeAreaView>
               </View>
-            </View>
+            </SafeAreaView>
           )}
         </Modal>
         <KeyboardToolbar />
@@ -735,17 +799,17 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
   modalBackground: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContainer: {
-    width: '90%',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
+    padding: 0,
   },
   modalTitle: {
     fontSize: 20,
@@ -753,6 +817,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
     color: '#2C3E50',
+  },
+  fullWidthModal: {
+    flex: 1,
+    width: '100%',
+  },
+  modalContent: {
+    flexGrow: 1,
+    backgroundColor: 'white',
+    padding: 20, // Adjust padding as needed
   },
   modalInput: {
     backgroundColor: '#f0f0f0',

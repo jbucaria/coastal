@@ -1,3 +1,5 @@
+// handleGeneratePdf.js or wherever the function resides
+
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import * as Print from 'expo-print'
@@ -7,6 +9,7 @@ import { generateReportHTML } from '../components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
+import useInspectionStore from '../store/inspectionStore' // Adjust the path as needed
 
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator
