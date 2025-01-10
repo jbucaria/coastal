@@ -1,4 +1,4 @@
-// handleGeneratePdf.js or wherever the function resides
+// utils/handleGeneratePdf.js
 
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
@@ -7,18 +7,39 @@ import * as Linking from 'expo-linking'
 import { Alert } from 'react-native'
 import { generateReportHTML } from '../components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore'
+import {
+  collection,
+  addDoc,
+  doc,
+  setDoc,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
-import useInspectionStore from '../store/inspectionStore' // Adjust the path as needed
 
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator
 
   try {
-    // Check for unique address (case-insensitive)
+    const { projectId } = formData
+
+    if (!projectId) {
+      Alert.alert('Error', 'No project ID provided.')
+      setIsSaving(false)
+      return
+    }
+
+    // **1. Check for Duplicate Inspection Reports within the Same Project**
     const lowercaseAddress = formData.address.toLowerCase()
+    const inspectionReportsRef = collection(
+      firestore,
+      'projects',
+      projectId,
+      'inspectionReports'
+    )
     const addressQuery = query(
-      collection(firestore, 'inspectionReports'),
+      inspectionReportsRef,
       where('lowercaseAddress', '==', lowercaseAddress)
     )
     const querySnapshot = await getDocs(addressQuery)
@@ -26,31 +47,37 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
     if (!querySnapshot.empty) {
       Alert.alert(
         'Duplicate Address',
-        'An inspection report with this address already exists.',
+        'An inspection report with this address already exists for this project.',
         [{ text: 'OK', onPress: () => setIsSaving(false) }]
       )
       return
     }
 
-    // Upload photos to Cloud Storage
+    // **2. Create a New Inspection Report Document Reference**
+    const newReportDocRef = doc(inspectionReportsRef) // Auto-generated ID
+    const reportId = newReportDocRef.id
+
+    // **3. Upload Photos to Firebase Storage**
     const photoUrls = await Promise.all(
       formData.photos.map(async (photo, index) => {
         const storageRef = ref(
           storage,
-          `inspectionPhotos/${Date.now()}_${index}`
+          `projects/${projectId}/inspectionReports/${reportId}/photos/${Date.now()}_${index}`
         )
         const img = await fetch(photo.uri)
         const blob = await img.blob()
-        const snapshot = await uploadBytes(storageRef, blob)
-        const downloadURL = await getDownloadURL(snapshot.ref)
+        await uploadBytes(storageRef, blob)
+        const downloadURL = await getDownloadURL(storageRef)
         return { uri: downloadURL, label: photo.label }
       })
     )
 
+    // **4. Update Form Data with Photo URLs and Additional Fields**
     formData.photos = photoUrls
     formData.lowercaseAddress = lowercaseAddress
+    formData.timestamp = new Date()
 
-    // Generate HTML and PDF
+    // **5. Generate HTML and Convert to PDF**
     const html = await generateReportHTML(formData)
 
     const sanitizedAddress = formData.address
@@ -64,25 +91,28 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
 
     const { uri } = await Print.printToFileAsync({ html })
 
-    // Upload PDF to Firebase Storage
-    const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
-    const response = await fetch(uri)
-    const blob = await response.blob()
-    const pdfSnapshot = await uploadBytes(pdfStorageRef, blob)
-    const pdfDownloadURL = await getDownloadURL(pdfSnapshot.ref)
+    // **6. Upload PDF to Firebase Storage**
+    const pdfStorageRef = ref(
+      storage,
+      `projects/${projectId}/inspectionReports/${reportId}/${fileName}`
+    )
+    const pdfResponse = await fetch(uri)
+    const pdfBlob = await pdfResponse.blob()
+    await uploadBytes(pdfStorageRef, pdfBlob)
+    const pdfDownloadURL = await getDownloadURL(pdfStorageRef)
 
-    // Add report data to Firestore
-    const docRef = await addDoc(collection(firestore, 'inspectionReports'), {
+    // **7. Save Inspection Report Data to Firestore**
+    const reportData = {
       ...formData,
-      timestamp: new Date(),
       pdfFileName: fileName,
       pdfDownloadURL: pdfDownloadURL,
-    })
-    console.log('Document written with ID: ', docRef.id)
+    }
 
-    // Send notification here
-    // await sendNotification(formData, docRef.id)
+    await setDoc(newReportDocRef, reportData) // Write data to Firestore
 
+    console.log('Inspection Report created with ID:', reportId)
+
+    // **8. Provide User Feedback and Sharing Options**
     Alert.alert(
       'File Saved',
       'The report has been saved and shared. What would you like to do?',

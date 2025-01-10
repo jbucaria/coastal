@@ -13,9 +13,7 @@ import {
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  TouchableWithoutFeedback,
+  Switch,
   StyleSheet,
 } from 'react-native'
 import { ThemedText } from '@/components/ThemedText'
@@ -56,9 +54,20 @@ const InspectionForm = ({
   contactName,
   setContactNumber,
   contactNumber,
+  project,
+  setProject,
+  projectId,
 }) => {
   const [inspectorModalVisible, setInspectorModalVisible] = useState(false)
   const inspectors = ['John Bucaria', 'Dave Sprott', 'Bobby Blasewitz']
+
+  const handleSwitchChange = (field, value) => {
+    if (project) {
+      setProject({ ...project, [field]: value })
+    } else {
+      console.error('Project is undefined, cannot update:', field)
+    }
+  }
 
   const handlePhotoLabelChange = (text, index) => {
     const updatedPhotos = [...photos]
@@ -110,197 +119,171 @@ const InspectionForm = ({
   }
 
   return (
-    <>
-      <KeyboardAwareScrollView
-        bottomOffset={62}
-        contentContainerStyle={styles.container}
+    <KeyboardAwareScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Create Inspection Report</Text>
+
+      {/* Display Project ID (optional) */}
+      {projectId && (
+        <Text style={styles.projectIdText}>Project ID: {projectId}</Text>
+      )}
+
+      {/* Customer Field */}
+      <TextInput
+        style={styles.input}
+        placeholder="Customer"
+        value={customer}
+        onChangeText={text => setCustomer(text)}
+      />
+
+      {/* Address Field */}
+      <TextInput
+        style={styles.input}
+        placeholder="Address"
+        value={address}
+        onChangeText={text => setAddress(text)}
+      />
+
+      {/* Date Picker */}
+      <TouchableOpacity
+        onPress={() => setShowDatePicker(true)}
+        style={styles.dateButton}
       >
-        {/* Address Field */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Address
-        </ThemedText>
-        <TextInput
-          style={styles.input}
-          value={address}
-          onChangeText={setAddress}
-          placeholder="Enter property address"
-        />
+        <Text style={styles.dateButtonText}>Select Date</Text>
+      </TouchableOpacity>
+      <Text style={styles.selectedDateText}>
+        Selected Date: {date.toLocaleDateString()}
+      </Text>
 
-        {/* Customer Field */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Customer
-        </ThemedText>
-        <TextInput
-          style={styles.input}
-          value={customer}
-          onChangeText={setCustomer}
-          placeholder="Enter customer name"
-        />
-        {/* Customer Field */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Home Owner's Contact Info
-        </ThemedText>
-        <TextInput
-          style={styles.input}
-          value={contactName}
-          onChangeText={setContactName}
-          placeholder="Enter owners name"
-        />
-        <TextInput
-          style={styles.input}
-          value={contactNumber}
-          onChangeText={setContactNumber}
-          placeholder="Enter owners number"
-        />
+      {/* Inspector Name */}
+      <TextInput
+        style={styles.input}
+        placeholder="Inspector's Name"
+        value={inspectorName}
+        onChangeText={text => setInspectorName(text)}
+      />
 
-        {/* Date of Inspection */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Date of Inspection
-        </ThemedText>
-        <Pressable style={styles.input} onPress={() => setShowDatePicker(true)}>
-          <Text>{date ? date.toLocaleDateString() : 'Select Date'}</Text>
-        </Pressable>
-        {showDatePicker && (
-          <DateTimePicker
-            value={date}
-            mode="date"
-            display="default"
-            onChange={handleDateChange}
-          />
+      {/* Reason for Inspection */}
+      <TextInput
+        style={styles.input}
+        placeholder="Reason for Inspection"
+        value={reason}
+        onChangeText={text => setReason(text)}
+      />
+
+      {/* Hours to Complete Inspection */}
+      <TextInput
+        style={styles.input}
+        placeholder="Hours to Complete Inspection"
+        value={hours}
+        onChangeText={text => setHours(text)}
+        keyboardType="numeric"
+      />
+
+      {/* Contact Name */}
+      <TextInput
+        style={styles.input}
+        placeholder="Contact Name"
+        value={contactName}
+        onChangeText={text => setContactName(text)}
+      />
+
+      {/* Contact Number */}
+      <TextInput
+        style={styles.input}
+        placeholder="Contact Number"
+        value={contactNumber}
+        onChangeText={text => setContactNumber(text)}
+        keyboardType="phone-pad"
+      />
+
+      {/* Inspection Results */}
+      <TextInput
+        style={styles.textArea}
+        placeholder="Inspection Results"
+        value={inspectionResults}
+        onChangeText={text => setInspectionResults(text)}
+        multiline
+      />
+
+      {/* Recommended Actions */}
+      <TextInput
+        style={styles.textArea}
+        placeholder="Recommended Actions"
+        value={recommendedActions}
+        onChangeText={text => setRecommendedActions(text)}
+        multiline
+      />
+
+      {/* Remediation Required Switch */}
+      <View style={styles.checkboxContainer}>
+        <Switch
+          value={project.remediationRequired || false}
+          onValueChange={value =>
+            handleSwitchChange('remediationRequired', value)
+          }
+        />
+        <Text style={styles.checkboxLabel}>Remediation Required</Text>
+      </View>
+
+      {/* Equipment On Site Switch */}
+      <View style={styles.checkboxContainer}>
+        <Switch
+          value={project.equipmentOnSite || false}
+          onValueChange={value => handleSwitchChange('equipmentOnSite', value)}
+        />
+        <Text style={styles.checkboxLabel}>Equipment On Site</Text>
+      </View>
+
+      {/* Site Complete Switch */}
+      <View style={styles.checkboxContainer}>
+        <Switch
+          value={project.siteComplete || false}
+          onValueChange={value => handleSwitchChange('siteComplete', value)}
+        />
+        <Text style={styles.checkboxLabel}>Site Complete</Text>
+      </View>
+
+      {/* Photos */}
+      <ThemedView style={styles.photoSection}>
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <ThemedText style={styles.subtitle} type="subtitle">
+            Photos
+          </ThemedText>
+          <Pressable onPress={pickImageAsync}>
+            <IconSymbol name="photo.badge.plus" size={30} color="#008000" />
+          </Pressable>
+        </View>
+        {photos.map((photo, index) => (
+          <View key={index} style={styles.photoItem}>
+            <Image source={{ uri: photo.uri }} style={styles.photoImage} />
+            <TextInput
+              style={styles.photoLabelInput}
+              value={photo.label}
+              onChangeText={text => handlePhotoLabelChange(text, index)}
+              placeholder="Label this photo"
+            />
+            <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
+              <ThemedText style={styles.removeText}>Remove</ThemedText>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </ThemedView>
+
+      {/* Button for generating PDF */}
+      <ThemedView style={styles.buttonContainer}>
+        {isSaving ? (
+          <ActivityIndicator size="large" color="#0000ff" />
+        ) : (
+          <Button title="Generate & Save PDF" onPress={handleGeneratePdf} />
         )}
-
-        {/* Reason for Inspection */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Reason for Inspection
-        </ThemedText>
-        <TextInput
-          style={styles.input}
-          value={reason}
-          onChangeText={setReason}
-          placeholder="Enter reason"
-        />
-
-        {/* Inspector's Name */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Inspector's Name
-        </ThemedText>
-        <Pressable
-          style={styles.input}
-          onPress={() => setInspectorModalVisible(true)}
-        >
-          <Text>{inspectorName || 'Select Inspector'}</Text>
-        </Pressable>
-
-        {/* Modal for selecting inspector */}
-        <Modal
-          transparent={true}
-          visible={inspectorModalVisible}
-          animationType="slide"
-        >
-          <View style={styles.modalBackground}>
-            <View style={styles.modalContent}>
-              <ThemedText style={styles.subtitle} type="subtitle">
-                Select Inspector
-              </ThemedText>
-              {inspectors.map((inspector, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={styles.inspectorOption}
-                  onPress={() => {
-                    setInspectorName(inspector)
-                    setInspectorModalVisible(false)
-                  }}
-                >
-                  <ThemedText>{inspector}</ThemedText>
-                </TouchableOpacity>
-              ))}
-              <Button
-                title="Done"
-                onPress={() => setInspectorModalVisible(false)}
-              />
-            </View>
-          </View>
-        </Modal>
-
-        {/* Hours to Complete Inspection */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Hours to Complete Inspection
-        </ThemedText>
-        <TextInput
-          style={styles.input}
-          value={hours}
-          onChangeText={setHours}
-          placeholder="Enter hours"
-          keyboardType="numeric"
-        />
-
-        {/* Inspection Results */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Inspection Results
-        </ThemedText>
-        <TextInput
-          style={[styles.input, styles.multiLineInput]}
-          value={inspectionResults}
-          onChangeText={setInspectionResults}
-          placeholder="Enter inspection results"
-          multiline
-        />
-
-        {/* Recommended Actions */}
-        <ThemedText style={styles.subtitle} type="subtitle">
-          Recommended Actions
-        </ThemedText>
-        <TextInput
-          style={[styles.input, styles.multiLineInput]}
-          value={recommendedActions}
-          onChangeText={setRecommendedActions}
-          placeholder="Enter recommended actions"
-          multiline
-        />
-
-        {/* Photos */}
-        <ThemedView style={styles.photoSection}>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <ThemedText style={styles.subtitle} type="subtitle">
-              Photos
-            </ThemedText>
-            <Pressable onPress={pickImageAsync}>
-              <IconSymbol name="photo.badge.plus" size={70} color="#008000" />
-            </Pressable>
-          </View>
-          {photos.map((photo, index) => (
-            <View key={index} style={styles.photoItem}>
-              <Image source={{ uri: photo.uri }} style={styles.photoImage} />
-              <TextInput
-                style={styles.photoLabelInput}
-                value={photo.label}
-                onChangeText={text => handlePhotoLabelChange(text, index)}
-                placeholder="Label this photo"
-              />
-              <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
-                <ThemedText style={styles.removeText}>Remove</ThemedText>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </ThemedView>
-
-        {/* Button for generating PDF */}
-        <ThemedView style={styles.buttonContainer}>
-          {isSaving ? (
-            <ActivityIndicator size="large" color="#0000ff" />
-          ) : (
-            <Button title="Generate & Save PDF" onPress={handleGeneratePdf} />
-          )}
-        </ThemedView>
-      </KeyboardAwareScrollView>
-      <KeyboardToolbar />
-    </>
+      </ThemedView>
+    </KeyboardAwareScrollView>
   )
 }
 
@@ -311,10 +294,15 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 96, // Equivalent to pb-24 in NativeWind
   },
-  subtitle: {
-    fontSize: 18,
+  title: {
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 20,
+  },
+  projectIdText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 10,
   },
   input: {
     borderWidth: 1,
@@ -324,12 +312,40 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: 'white',
   },
-  multiLineInput: {
-    height: 96, // Equivalent to h-24 in NativeWind
+  textArea: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 8,
+    height: 100,
     textAlignVertical: 'top',
+    marginBottom: 16,
+    backgroundColor: 'white',
   },
-  buttonContainer: {
-    marginTop: 16,
+  dateButton: {
+    backgroundColor: '#3498db',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  dateButtonText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  selectedDateText: {
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  checkboxLabel: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#2C3E50',
   },
   photoSection: {
     marginBottom: 16,
@@ -360,20 +376,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-  modalBackground: {
-    flex: 1,
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  buttonContainer: {
+    marginTop: 16,
   },
-  modalContent: {
-    backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 10,
-  },
-  inspectorOption: {
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+  subtitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
 })

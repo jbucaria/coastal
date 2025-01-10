@@ -1,3 +1,6 @@
+// components/ProjectDetailsModal.js
+
+import { router } from 'expo-router' // Ensure correct import
 import React from 'react'
 import {
   Modal,
@@ -9,6 +12,9 @@ import {
   Switch,
   Image,
   SafeAreaView,
+  Alert,
+  Platform,
+  Linking,
 } from 'react-native'
 
 const ProjectDetailsModal = ({
@@ -22,6 +28,7 @@ const ProjectDetailsModal = ({
   setSelectedProject,
 }) => {
   if (!project) return null
+
   const handleSwitchChange = (field, value) => {
     // Update local state first for immediate UI feedback
     setSelectedProject(prevProject => ({
@@ -32,6 +39,57 @@ const ProjectDetailsModal = ({
     // Then update Firestore
     onUpdateProject(project.id, field, value)
   }
+
+  const openGoogleMaps = address => {
+    const url = Platform.select({
+      ios: `comgooglemaps://?q=${encodeURIComponent(address)}`,
+      android: `geo:0,0?q=${encodeURIComponent(address)}`,
+    })
+
+    if (Platform.OS === 'ios') {
+      Linking.canOpenURL('comgooglemaps://')
+        .then(supported => {
+          if (supported) {
+            return Linking.openURL(url)
+          } else {
+            // If Google Maps is not installed, open in browser
+            console.log('Google Maps not installed, opening in browser')
+            return Linking.openURL(
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                address
+              )}`
+            )
+          }
+        })
+        .catch(err => console.error('An error occurred', err))
+    } else {
+      Linking.openURL(url).catch(err => console.error('An error occurred', err))
+    }
+  }
+
+  const handleInspection = () => {
+    if (!project) {
+      Alert.alert('Error', 'No project selected for inspection.')
+      return
+    }
+    router.push({
+      pathname: '/inspection', // Ensure this path matches your routes
+      params: {
+        projectId: project.id, // Pass the project ID here
+        address: project.address,
+        inspectorName: project.inspectorName || '',
+        customer: project.customer || '',
+        contactName: project.contactName || '',
+        contactNumber: project.contactNumber || '',
+        reason: project.reason || '',
+        remediationRequired: project.remediationRequired || false,
+        equipmentOnSite: project.equipmentOnSite || false,
+        siteComplete: project.siteComplete || false,
+      },
+    })
+    onClose()
+  }
+
   return (
     <Modal
       animationType="slide"
@@ -87,35 +145,6 @@ const ProjectDetailsModal = ({
                 {project.jobType || 'N/A'}
               </Text>
 
-              {/* ====== Remediation Required Checkbox ====== */}
-              <View style={styles.checkboxContainer}>
-                <Switch
-                  value={project.remediationRequired || false}
-                  onValueChange={value =>
-                    handleSwitchChange('remediationRequired', value)
-                  }
-                />
-                <Text style={styles.checkboxLabel}>Remediation Required</Text>
-              </View>
-              <View style={styles.checkboxContainer}>
-                <Switch
-                  value={project.equipmentOnSite || false}
-                  onValueChange={value =>
-                    handleSwitchChange('equipmentOnSite', value)
-                  }
-                />
-                <Text style={styles.checkboxLabel}>Equipment On Site</Text>
-              </View>
-              <View style={styles.checkboxContainer}>
-                <Switch
-                  value={project.siteComplete || false}
-                  onValueChange={value =>
-                    handleSwitchChange('siteComplete', value)
-                  }
-                />
-                <Text style={styles.checkboxLabel}>Site Complete</Text>
-              </View>
-
               {/* Photos */}
               {project.photos && project.photos.length > 0 ? (
                 <ScrollView
@@ -143,8 +172,15 @@ const ProjectDetailsModal = ({
               <View style={styles.projectActionsContainer}>
                 <TouchableOpacity
                   onPress={() => {
-                    // Open Google Maps functionality not included here
-                    onClose()
+                    if (project.address) {
+                      openGoogleMaps(project.address)
+                      onClose()
+                    } else {
+                      Alert.alert(
+                        'Error',
+                        'No address available for directions.'
+                      )
+                    }
                   }}
                   style={styles.actionButton}
                 >
@@ -152,10 +188,7 @@ const ProjectDetailsModal = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => {
-                    // Handle Inspection functionality not included here
-                    onClose()
-                  }}
+                  onPress={handleInspection}
                   style={styles.actionButton}
                 >
                   <Text style={styles.actionButtonText}>Start Inspection</Text>
@@ -232,16 +265,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 4,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  checkboxLabel: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: '#2C3E50',
   },
   projectPhotos: {
     marginTop: 12,

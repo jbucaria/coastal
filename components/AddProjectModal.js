@@ -1,3 +1,5 @@
+// components/AddProjectModal.js
+
 import React, { useState, useCallback } from 'react'
 import {
   Modal,
@@ -7,12 +9,10 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Switch,
   Image,
   SafeAreaView,
   Alert,
 } from 'react-native'
-import { IconSymbol } from '@/components/ui/IconSymbol'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import * as ImagePicker from 'expo-image-picker'
 
@@ -33,6 +33,8 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     equipmentOnSite: false,
     siteComplete: false,
   })
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleAddPhoto = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -57,7 +59,7 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
         const blob = await response.blob()
         const fileRef = ref(
           storage,
-          `projectPhotos/${Date.now()}_${asset.filename}`
+          `projectPhotos/${Date.now()}_${asset.fileName}` // Ensure 'fileName' is correct
         )
         await uploadBytes(fileRef, blob)
         const downloadURL = await getDownloadURL(fileRef)
@@ -80,39 +82,61 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     }
   }, [])
 
-  const handleCreateProject = () => {
-    // Basic Validation (Optional but Recommended)
-    if (
-      !newProject.street ||
-      !newProject.city ||
-      !newProject.state ||
-      !newProject.zip ||
-      !newProject.customer
-    ) {
-      Alert.alert('Validation Error', 'Please fill out all required fields.')
-      return
-    }
+  const handleCreateProject = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
 
-    onCreateProject({
-      ...newProject,
-      address: `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`,
-    })
-    setNewProject({
-      street: '',
-      city: '',
-      state: '',
-      zip: '',
-      customer: '',
-      contactName: '',
-      contactNumber: '',
-      inspectorName: '',
-      reason: '',
-      jobType: '',
-      photos: [],
-      remediationRequired: false,
-      equipmentOnSite: false,
-      siteComplete: false,
-    })
+    try {
+      // Basic Validation (Optional but Recommended)
+      // if (
+      //   !newProject.street ||
+      //   !newProject.city ||
+      //   !newProject.state ||
+      //   !newProject.zip ||
+      //   !newProject.customer
+      // ) {
+      //   Alert.alert('Validation Error', 'Please fill out all required fields.')
+      //   setIsSubmitting(false)
+      //   return
+      // }
+
+      const projectData = {
+        ...newProject,
+        address: `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`,
+        createdAt: new Date(),
+      }
+
+      // Pass the project data to the parent component
+      await onCreateProject(projectData)
+
+      // Reset form
+      setNewProject({
+        street: '',
+        city: '',
+        state: '',
+        zip: '',
+        customer: '',
+        contactName: '',
+        contactNumber: '',
+        inspectorName: '',
+        reason: '',
+        jobType: '',
+        photos: [],
+        remediationRequired: false,
+        equipmentOnSite: false,
+        siteComplete: false,
+      })
+
+      Alert.alert('Success', 'Project created successfully.')
+
+      // Close the modal
+      onClose()
+    } catch (error) {
+      console.error('Error creating project:', error)
+      Alert.alert('Error', 'Failed to create the project. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -253,13 +277,21 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
               <View style={styles.modalButtonContainer}>
                 <TouchableOpacity
                   onPress={handleCreateProject}
-                  style={[styles.modalButton, styles.createButton]}
+                  style={[
+                    styles.modalButton,
+                    styles.createButton,
+                    isSubmitting && styles.disabledButton,
+                  ]}
+                  disabled={isSubmitting}
                 >
-                  <Text style={styles.modalButtonText}>Create</Text>
+                  <Text style={styles.modalButtonText}>
+                    {isSubmitting ? 'Creating...' : 'Create'}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={onClose}
                   style={[styles.modalButton, styles.cancelButton]}
+                  disabled={isSubmitting}
                 >
                   <Text style={styles.modalButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -310,16 +342,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 12,
   },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  checkboxLabel: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: '#2C3E50',
-  },
   photosPreview: {
     flexDirection: 'row',
     marginVertical: 8,
@@ -359,6 +381,9 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: '#f44336',
+  },
+  disabledButton: {
+    backgroundColor: '#95a5a6',
   },
   modalButtonText: {
     color: 'white',

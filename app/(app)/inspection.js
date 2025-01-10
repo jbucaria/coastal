@@ -1,5 +1,6 @@
 // App.js
 
+import { router } from 'expo-router'
 import React, { useState, useEffect } from 'react'
 import { Alert } from 'react-native'
 import InspectionForm from '@/components/InspectionForm'
@@ -9,6 +10,8 @@ import { auth } from '@/firebaseConfig'
 
 export default function App() {
   const params = useLocalSearchParams()
+  const { projectId } = params // Extract projectId from params
+
   const [customer, setCustomer] = useState(params.customer || '')
   const [address, setAddress] = useState(params.address || '')
   const [date, setDate] = useState(new Date())
@@ -22,7 +25,11 @@ export default function App() {
   const [recommendedActions, setRecommendedActions] = useState('')
   const [photos, setPhotos] = useState([])
   const [isSaving, setIsSaving] = useState(false)
-  const [contactInfo, setContactInfo] = useState('')
+  const [project, setProject] = useState({
+    remediationRequired: params.remediationRequired === 'true' || false,
+    equipmentOnSite: params.equipmentOnSite === 'true' || false,
+    siteComplete: params.siteComplete === 'true' || false,
+  })
 
   useEffect(() => {
     // Fetch inspector name from Firebase Auth if not provided in params
@@ -99,6 +106,7 @@ export default function App() {
       if (!validationResult) return
 
       const formData = {
+        projectId, // Now projectId is defined and passed from params
         customer,
         address,
         date: date.toLocaleDateString(),
@@ -146,6 +154,9 @@ export default function App() {
       setContactName={setContactName}
       setContactNumber={setContactNumber}
       contactNumber={contactNumber}
+      project={project}
+      setProject={setProject}
+      projectId={projectId} // Pass projectId to InspectionForm if needed
     />
   )
 }

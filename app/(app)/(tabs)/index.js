@@ -1,3 +1,5 @@
+// screens/Index.js
+
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
@@ -7,6 +9,7 @@ import {
   Alert,
   StyleSheet,
   Text,
+  TouchableOpacity,
 } from 'react-native'
 import {
   collection,
@@ -20,23 +23,29 @@ import { firestore } from '@/firebaseConfig'
 import ProjectCard from '@/components/ProjectCard'
 import AddProjectModal from '@/components/AddProjectModal'
 import ProjectDetailsModal from '@/components/ProjectDetailsModal'
-import PhotoModal from '@/components/PhotoModal' // Assuming you want to split PhotoModal as well
+import PhotoModal from '@/components/PhotoModal'
 import { KeyboardToolbar } from 'react-native-keyboard-controller'
-import { TouchableOpacity } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol'
+import useProjectStore from '@/store/projectStore' // Ensure correct path
 
 const Index = () => {
-  const [projects, setProjects] = useState([])
   const [modalVisible, setModalVisible] = useState(false)
   const [modalOptionsVisible, setModalOptionsVisible] = useState(false)
   const [selectedProject, setSelectedProject] = useState(null)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
 
+  const projects = useProjectStore(state => state.projects)
+  const setProjects = useProjectStore(state => state.setProjects)
+
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(firestore, 'projects'),
       snapshot => {
-        setProjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+        const projectsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        setProjects(projectsData)
       },
       error => {
         console.error('Error fetching projects:', error)
@@ -48,22 +57,28 @@ const Index = () => {
     )
 
     return () => unsubscribe()
-  }, [])
+  }, [setProjects])
 
   const handleProjectPress = project => {
-    console.log('Project being passed:', project)
     setSelectedProject(project)
     setModalOptionsVisible(true)
   }
 
   const handleCreateProject = async projectData => {
     try {
-      await addDoc(collection(firestore, 'projects'), {
+      const docRef = await addDoc(collection(firestore, 'projects'), {
         ...projectData,
         createdAt: new Date(),
       })
+      console.log('Project created with ID:', docRef.id)
       setModalVisible(false)
       Alert.alert('Success', 'Project created successfully.')
+
+      // Optionally, navigate to the Inspection Screen with the new projectId
+      router.push({
+        pathname: '/inspection',
+        params: { projectId: docRef.id },
+      })
     } catch (error) {
       console.error('Error creating project:', error)
       Alert.alert('Error', 'Failed to create the project. Please try again.')
@@ -74,6 +89,7 @@ const Index = () => {
     try {
       await updateDoc(doc(firestore, 'projects', projectId), { [field]: value })
       console.log('Project updated successfully')
+      // No need to manually update state; onSnapshot will handle it
     } catch (error) {
       console.error('Error updating project:', error)
       Alert.alert('Error', 'Failed to update the project. Please try again.')
@@ -91,9 +107,12 @@ const Index = () => {
           text: 'OK',
           onPress: async () => {
             try {
+              // TODO: Delete photos from Firebase Storage if necessary
               await deleteDoc(doc(firestore, 'projects', selectedProject.id))
               Alert.alert('Success', 'The project has been deleted.')
               setModalOptionsVisible(false)
+              setSelectedProject(null)
+              // onSnapshot will automatically update the projects list
             } catch (error) {
               Alert.alert(
                 'Error',

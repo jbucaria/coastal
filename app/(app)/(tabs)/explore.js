@@ -11,7 +11,14 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native'
-import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
+import {
+  collectionGroup,
+  onSnapshot,
+  doc,
+  deleteDoc,
+  query,
+  orderBy,
+} from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { getStorage, ref, deleteObject } from 'firebase/storage'
 import * as FileSystem from 'expo-file-system'
@@ -37,20 +44,29 @@ const ReportsPage = () => {
   const [editedReport, setEditedReport] = useState(null)
 
   useEffect(() => {
+    // Define the collection group query for 'inspectionReports' across all projects
+    const inspectionReportsQuery = query(
+      collectionGroup(firestore, 'inspectionReports'),
+      orderBy('timestamp', 'desc') // Ensure 'timestamp' field exists in your documents
+    )
+
     const unsubscribe = onSnapshot(
-      collection(firestore, 'inspectionReports'),
+      inspectionReportsQuery,
       snapshot => {
-        const allReports = []
-        snapshot.forEach(doc => {
-          allReports.push({ id: doc.id, ...doc.data() })
-        })
+        const allReports = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          projectId: doc.ref.parent.parent.id, // Extract parent projectId
+        }))
         setReports(allReports)
       },
       error => {
-        console.error('Error fetching reports:', error)
-        Alert.alert('Error', 'Could not fetch reports')
+        console.error('Error fetching inspection reports:', error)
+        Alert.alert('Error', 'Could not fetch inspection reports.')
       }
     )
+
+    // Clean up listener on unmount
     return () => unsubscribe()
   }, [])
 
@@ -92,20 +108,6 @@ const ReportsPage = () => {
     }
   }
 
-  const extractStoragePath = downloadURL => {
-    try {
-      const url = new URL(downloadURL)
-      let path = decodeURIComponent(
-        url.pathname.substring(url.pathname.indexOf('/o/') + 3)
-      )
-      path = path.split('?')[0] // Remove query parameters
-      return path
-    } catch (error) {
-      console.error('Error extracting path:', error, 'URL:', downloadURL)
-      return null
-    }
-  }
-
   const handleDeleteReport = async () => {
     if (!selectedReport) return
 
@@ -126,10 +128,11 @@ const ReportsPage = () => {
               const storage = getStorage()
               const deletePromises = []
 
-              // Correctly handling the photos array of objects
+              // Ensure 'photos' is an array of objects with 'uri'
               if (selectedReport.photos && selectedReport.photos.length > 0) {
                 for (let photo of selectedReport.photos) {
                   if (photo.uri) {
+                    // Extract the storage path from the URI
                     let url = new URL(photo.uri)
                     let path = decodeURIComponent(
                       url.pathname.substring(url.pathname.indexOf('/o/') + 3)
@@ -143,30 +146,38 @@ const ReportsPage = () => {
                   }
                 }
 
-                // Construct filename
+                // Correctly construct the PDF path with projectId and reportId
                 const pdfFileName = selectedReport.pdfFileName
-                const pdfPath = `inspectionReports/${pdfFileName}`
+                const pdfPath = `projects/${selectedReport.projectId}/inspectionReports/${selectedReport.id}/${pdfFileName}`
                 console.log('PDF Path:', pdfPath)
+
                 // Delete the PDF file
                 const pdfRef = ref(storage, pdfPath)
                 deletePromises.push(deleteObject(pdfRef))
 
                 // Wait for all deletions to complete
                 await Promise.all(deletePromises)
-                console.log('All photos deleted successfully')
+                console.log('All photos and PDF deleted successfully')
               }
 
-              // Delete the report document from Firestore
-              await deleteDoc(
-                doc(firestore, 'inspectionReports', selectedReport.id)
+              // Correctly reference the Firestore document path
+              const reportDocRef = doc(
+                firestore,
+                'projects',
+                selectedReport.projectId,
+                'inspectionReports',
+                selectedReport.id
               )
+
+              // Delete the report document from Firestore
+              await deleteDoc(reportDocRef)
 
               Alert.alert(
                 'Success',
                 'The report and all associated files have been deleted.'
               )
 
-              setModalVisible(false) // Changed from setModalOptionsVisible to setModalVisible
+              setModalVisible(false)
               console.log('Report deleted successfully')
             } catch (error) {
               Alert.alert(
@@ -183,6 +194,7 @@ const ReportsPage = () => {
       { cancelable: false }
     )
   }
+
   // 3) This function saves photos to the iOS Photo Library
   const requestMediaLibraryPermissions = async () => {
     const { status } = await MediaLibrary.requestPermissionsAsync()
