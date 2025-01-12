@@ -10,13 +10,15 @@ import {
   View,
   TextInput,
   ActivityIndicator,
+  Text,
 } from 'react-native'
 import {
-  collectionGroup,
+  collection,
   onSnapshot,
   doc,
   deleteDoc,
   query,
+  where,
   orderBy,
 } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
@@ -42,33 +44,35 @@ const ReportsPage = () => {
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [editedReport, setEditedReport] = useState(null)
+  const [projects, setProjects] = useState([])
 
   useEffect(() => {
-    // Define the collection group query for 'inspectionReports' across all projects
-    const inspectionReportsQuery = query(
-      collectionGroup(firestore, 'inspectionReports'),
-      orderBy('timestamp', 'desc') // Ensure 'timestamp' field exists in your documents
+    const projectsRef = collection(firestore, 'projects')
+    const q = query(
+      projectsRef,
+      where('siteComplete', '==', true), // Filter for completed projects
+      orderBy('createdAt', 'desc') // Assuming you want to order by creation date
     )
-
     const unsubscribe = onSnapshot(
-      inspectionReportsQuery,
+      q,
       snapshot => {
-        const allReports = snapshot.docs.map(doc => ({
+        const projectsData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          projectId: doc.ref.parent.parent.id, // Extract parent projectId
         }))
-        setReports(allReports)
+        setReports(projectsData)
       },
       error => {
-        console.error('Error fetching inspection reports:', error)
-        Alert.alert('Error', 'Could not fetch inspection reports.')
+        console.error('Error fetching projects:', error)
+        Alert.alert(
+          'Error',
+          'Could not fetch projects. Please try again later.'
+        )
       }
     )
 
-    // Clean up listener on unmount
     return () => unsubscribe()
-  }, [])
+  }, [setReports])
 
   const handleReportPress = report => {
     setSelectedReport(report)
@@ -79,19 +83,6 @@ const ReportsPage = () => {
   const filteredReports = reports.filter(report =>
     report.address.toLowerCase().includes(searchQuery.toLowerCase())
   )
-
-  const handleViewReport = async () => {
-    if (!selectedReport || !selectedReport.pdfDownloadURL) {
-      Alert.alert('Error', 'No PDF URL available for this report')
-      return
-    }
-    try {
-      await Linking.openURL(selectedReport.pdfDownloadURL)
-    } catch (error) {
-      console.error('Error opening report:', error)
-      Alert.alert('Error', `Failed to open the report: ${error.message}`)
-    }
-  }
 
   const handleDownloadReport = async () => {
     if (!selectedReport || !selectedReport.pdfDownloadURL) return
@@ -277,22 +268,28 @@ const ReportsPage = () => {
     >
       <ThemedView style={styles.cardShadow}>
         <ThemedView style={styles.card}>
-          {item.photos && item.photos.length > 0 && (
-            <Image
-              source={{ uri: item.photos[0].uri }}
-              style={styles.reportImage}
-              resizeMode="cover"
-            />
+          {item.photos && item.photos.length ? (
+            <>
+              <Image
+                source={{ uri: item.photos[0].uri }}
+                style={styles.reportImage}
+                resizeMode="cover"
+                onError={error => console.error('Image load error:', error)}
+                onLoad={() => console.log('Image loaded successfully')}
+              />
+            </>
+          ) : (
+            <IconSymbol name="house" size={100} color="green" />
           )}
           <ThemedView style={styles.reportInfo}>
             <ThemedText type="subtitle">{item.address}</ThemedText>
             <ThemedText style={styles.dateText}>{item.date}</ThemedText>
+            <ThemedText style={styles.dateText}>{item.projectId}</ThemedText>
           </ThemedView>
         </ThemedView>
       </ThemedView>
     </TouchableOpacity>
   )
-
   return (
     <SafeAreaView style={styles.container}>
       <ThemedView style={styles.container}>
@@ -324,11 +321,15 @@ const ReportsPage = () => {
               <View style={styles.optionContainer}>
                 <View style={styles.iconRow}>
                   <TouchableOpacity
-                    style={styles.iconOption}
-                    onPress={handleViewReport}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/viewReport', // Adjust the route to match your setup
+                        params: { projectId: reports.projectId },
+                      })
+                    }}
+                    style={styles.viewButton}
                   >
-                    <IconSymbol name="doc.text" size={50} color="#2C3E50" />
-                    <ThemedText style={styles.iconLabel}>View</ThemedText>
+                    <Text style={styles.viewButtonText}>View Report</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.iconOption}

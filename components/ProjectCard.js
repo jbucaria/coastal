@@ -2,15 +2,21 @@ import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 
 const ProjectCard = ({ project, onPress }) => {
+  // Determine background color based on project status
+  let backgroundColor = 'rgba(200, 200, 200, .9)' // Default translucent gray
+
+  if (project.siteComplete) {
+    backgroundColor = '#8BC34A' // A finished type of green
+  } else if (project.remediationRequired) {
+    backgroundColor = '#FFD700' // Yellow for remediation required
+  } else if (project.equipmentOnSite) {
+    backgroundColor = '#007BFF' // Blue for equipment on site
+  }
+
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[
-        styles.projectCard,
-        {
-          backgroundColor: project.remediationRequired ? '#FFD700' : '#1ABC9C',
-        },
-      ]}
+      style={[styles.projectCard, { backgroundColor: backgroundColor }]}
     >
       <View style={styles.cardContent}>
         <Text style={styles.projectAddress}>{project.address}</Text>
@@ -29,6 +35,7 @@ const ProjectCard = ({ project, onPress }) => {
           )}
         </View>
         <Text style={styles.jobType}>Job Type: {project.jobType || 'N/A'}</Text>
+        <Text style={styles.jobType}>ID: {project.projectId || 'N/A'}</Text>
       </View>
     </TouchableOpacity>
   )
@@ -42,16 +49,16 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   cardContent: {},
-  projectAddress: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  projectAddress: { color: 'black', fontSize: 16, fontWeight: 'bold' },
   inspectorRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  inspectorName: { color: 'white', fontSize: 14 },
+  inspectorName: { color: 'black', fontSize: 14 },
   remediationIndicator: {
     color: 'red',
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 4,
   },
-  jobType: { color: 'white', fontSize: 14, marginTop: 4 },
+  jobType: { color: 'black', fontSize: 14, marginTop: 4 },
 })
 
 export default ProjectCard

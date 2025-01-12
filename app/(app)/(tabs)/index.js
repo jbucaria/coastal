@@ -8,7 +8,6 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  Text,
   TouchableOpacity,
 } from 'react-native'
 import {
@@ -26,16 +25,13 @@ import ProjectDetailsModal from '@/components/ProjectDetailsModal'
 import PhotoModal from '@/components/PhotoModal'
 import { KeyboardToolbar } from 'react-native-keyboard-controller'
 import { IconSymbol } from '@/components/ui/IconSymbol'
-import useProjectStore from '@/store/projectStore' // Ensure correct path
 
 const Index = () => {
   const [modalVisible, setModalVisible] = useState(false)
   const [modalOptionsVisible, setModalOptionsVisible] = useState(false)
   const [selectedProject, setSelectedProject] = useState(null)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
-
-  const projects = useProjectStore(state => state.projects)
-  const setProjects = useProjectStore(state => state.setProjects)
+  const [projects, setProjects] = useState([])
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -71,6 +67,8 @@ const Index = () => {
         createdAt: new Date(),
       })
       console.log('Project created with ID:', docRef.id)
+      await updateDoc(docRef, { projectId: docRef.id })
+      console.log('Project document updated with its own ID.')
       setModalVisible(false)
       Alert.alert('Success', 'Project created successfully.')
     } catch (error) {

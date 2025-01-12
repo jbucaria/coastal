@@ -4,41 +4,30 @@ import React, { useState } from 'react'
 import {
   View,
   TextInput,
-  Pressable,
   Text,
-  Modal,
-  Button,
   TouchableOpacity,
   Image,
-  ScrollView,
+  Button,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Switch,
   StyleSheet,
+  Alert,
 } from 'react-native'
-import { ThemedText } from '@/components/ThemedText'
-import { ThemedView } from '@/components/ThemedView'
-import DateTimePicker from '@react-native-community/datetimepicker'
-import { IconSymbol } from '@/components/ui/IconSymbol'
+import { updateDoc, doc } from 'firebase/firestore'
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
-import {
-  KeyboardToolbar,
-  KeyboardAwareScrollView,
-} from 'react-native-keyboard-controller'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
+import { ThemedText } from '@/components/ThemedText'
+import { ThemedView } from '@/components/ThemedView'
+import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const InspectionForm = ({
   customer,
   setCustomer,
   address,
   setAddress,
-  date,
-  showDatePicker,
-  setShowDatePicker,
   inspectorName,
   setInspectorName,
-  reason,
-  setReason,
   hours,
   setHours,
   inspectionResults,
@@ -48,7 +37,6 @@ const InspectionForm = ({
   photos,
   setPhotos,
   isSaving,
-  handleDateChange,
   handleGeneratePdf,
   setContactName,
   contactName,
@@ -57,15 +45,34 @@ const InspectionForm = ({
   project,
   setProject,
   projectId,
+  firestore, // Firestore instance
 }) => {
-  const [inspectorModalVisible, setInspectorModalVisible] = useState(false)
-  const inspectors = ['John Bucaria', 'Dave Sprott', 'Bobby Blasewitz']
+  // isEditing controls whether full form fields are editable
+  const [isEditing, setIsEditing] = useState(false)
+
+  // For toggling the editing mode:
+  const toggleEditMode = () => setIsEditing(prev => !prev)
+
+  const onUpdateProject = async (projectId, field, value) => {
+    try {
+      await updateDoc(doc(firestore, 'projects', projectId), {
+        [field]: value,
+      })
+      console.log(`Project field ${field} updated to ${value}`)
+    } catch (error) {
+      console.error('Error updating project:', error)
+      Alert.alert('Error', 'Failed to update the project. Please try again.')
+    }
+  }
 
   const handleSwitchChange = (field, value) => {
-    if (project) {
-      setProject({ ...project, [field]: value })
+    // Update local state for immediate feedback
+    setProject(prev => ({ ...prev, [field]: value }))
+    // Update Firestore if projectId is present
+    if (projectId) {
+      onUpdateProject(projectId, field, value)
     } else {
-      console.error('Project is undefined, cannot update:', field)
+      console.error('Project ID is missing. Cannot update Firestore.')
     }
   }
 
@@ -85,189 +92,171 @@ const InspectionForm = ({
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
-        alert('Permission to access camera roll is required!')
+        Alert.alert(
+          'Permission Required',
+          'Permission to access camera roll is required!'
+        )
         return
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images', 'videos'],
         allowsMultipleSelection: true,
         allowsEditing: false,
         quality: 0.5,
       })
-
       if (!result.canceled) {
         const selectedAssets = await Promise.all(
           result.assets.map(async asset => {
             const base64 = await FileSystem.readAsStringAsync(asset.uri, {
               encoding: FileSystem.EncodingType.Base64,
             })
-            return {
-              uri: asset.uri,
-              label: '',
-              base64,
-            }
+            return { uri: asset.uri, label: '', base64 }
           })
         )
         setPhotos([...photos, ...selectedAssets])
       } else {
-        alert('You did not select any image.')
+        Alert.alert('No Selection', 'You did not select any image.')
       }
     } catch (error) {
       console.error('Error picking image:', error)
+      Alert.alert('Error', 'Failed to pick images.')
     }
+  }
+
+  // Helper function to conditionally render a field:
+  const renderEditableField = (
+    label,
+    value,
+    onChange,
+    keyboardType = 'default'
+  ) => {
+    return (
+      <>
+        <ThemedText style={styles.label}>{label}:</ThemedText>
+        {isEditing ? (
+          <TextInput
+            style={styles.input}
+            placeholder={label}
+            value={value}
+            onChangeText={onChange}
+            keyboardType={keyboardType}
+          />
+        ) : (
+          <Text style={[styles.input, styles.readOnlyText]}>{value}</Text>
+        )}
+      </>
+    )
   }
 
   return (
     <KeyboardAwareScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Create Inspection Report</Text>
 
-      {/* Display Project ID (optional) */}
+      {/* Edit Mode Toggle Button */}
+      <TouchableOpacity
+        style={styles.editToggleButton}
+        onPress={toggleEditMode}
+      >
+        <Text style={styles.editToggleButtonText}>
+          {isEditing ? 'Switch to Read-Only' : 'Switch to Edit Mode'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Display Project ID */}
       {projectId && (
         <Text style={styles.projectIdText}>Project ID: {projectId}</Text>
       )}
 
-      {/* Customer Field */}
+      {/* Render conditional fields (only editable when in edit mode) */}
+      {renderEditableField('Customer', customer, setCustomer)}
+      {renderEditableField('Address', address, setAddress)}
+      {renderEditableField("Inspector's Name", inspectorName, setInspectorName)}
+      {renderEditableField('Contact Name', contactName, setContactName)}
+      {renderEditableField(
+        'Contact Number',
+        contactNumber,
+        setContactNumber,
+        'phone-pad'
+      )}
+
+      {/* Other fields always editable for the inspection report */}
+      <ThemedText style={styles.label}>
+        Hours to Complete Inspection:
+      </ThemedText>
       <TextInput
         style={styles.input}
-        placeholder="Customer"
-        value={customer}
-        onChangeText={text => setCustomer(text)}
-      />
-
-      {/* Address Field */}
-      <TextInput
-        style={styles.input}
-        placeholder="Address"
-        value={address}
-        onChangeText={text => setAddress(text)}
-      />
-
-      {/* Date Picker */}
-      <TouchableOpacity
-        onPress={() => setShowDatePicker(true)}
-        style={styles.dateButton}
-      >
-        <Text style={styles.dateButtonText}>Select Date</Text>
-      </TouchableOpacity>
-      <Text style={styles.selectedDateText}>
-        Selected Date: {date.toLocaleDateString()}
-      </Text>
-
-      {/* Inspector Name */}
-      <TextInput
-        style={styles.input}
-        placeholder="Inspector's Name"
-        value={inspectorName}
-        onChangeText={text => setInspectorName(text)}
-      />
-
-      {/* Reason for Inspection */}
-      <TextInput
-        style={styles.input}
-        placeholder="Reason for Inspection"
-        value={reason}
-        onChangeText={text => setReason(text)}
-      />
-
-      {/* Hours to Complete Inspection */}
-      <TextInput
-        style={styles.input}
-        placeholder="Hours to Complete Inspection"
+        placeholder="Enter hours"
         value={hours}
-        onChangeText={text => setHours(text)}
+        onChangeText={setHours}
         keyboardType="numeric"
       />
 
-      {/* Contact Name */}
+      <ThemedText style={styles.label}>Inspection Results:</ThemedText>
       <TextInput
-        style={styles.input}
-        placeholder="Contact Name"
-        value={contactName}
-        onChangeText={text => setContactName(text)}
-      />
-
-      {/* Contact Number */}
-      <TextInput
-        style={styles.input}
-        placeholder="Contact Number"
-        value={contactNumber}
-        onChangeText={text => setContactNumber(text)}
-        keyboardType="phone-pad"
-      />
-
-      {/* Inspection Results */}
-      <TextInput
-        style={styles.textArea}
-        placeholder="Inspection Results"
+        style={[styles.input, styles.textArea]}
+        placeholder="Enter inspection results"
         value={inspectionResults}
-        onChangeText={text => setInspectionResults(text)}
+        onChangeText={setInspectionResults}
         multiline
       />
 
-      {/* Recommended Actions */}
+      <ThemedText style={styles.label}>Recommended Actions:</ThemedText>
       <TextInput
-        style={styles.textArea}
-        placeholder="Recommended Actions"
+        style={[styles.input, styles.textArea]}
+        placeholder="Enter recommended actions"
         value={recommendedActions}
-        onChangeText={text => setRecommendedActions(text)}
+        onChangeText={setRecommendedActions}
         multiline
       />
 
-      {/* Remediation Required Switch */}
+      {/* Switches for project-level fields (always interactable) */}
       <View style={styles.checkboxContainer}>
         <Switch
-          value={project.remediationRequired || false}
+          value={project?.remediationRequired || false}
           onValueChange={value =>
             handleSwitchChange('remediationRequired', value)
           }
         />
         <Text style={styles.checkboxLabel}>Remediation Required</Text>
       </View>
-
-      {/* Equipment On Site Switch */}
       <View style={styles.checkboxContainer}>
         <Switch
-          value={project.equipmentOnSite || false}
+          value={project?.equipmentOnSite || false}
           onValueChange={value => handleSwitchChange('equipmentOnSite', value)}
         />
         <Text style={styles.checkboxLabel}>Equipment On Site</Text>
       </View>
-
-      {/* Site Complete Switch */}
       <View style={styles.checkboxContainer}>
         <Switch
-          value={project.siteComplete || false}
+          value={project?.siteComplete || false}
           onValueChange={value => handleSwitchChange('siteComplete', value)}
         />
         <Text style={styles.checkboxLabel}>Site Complete</Text>
       </View>
 
-      {/* Photos */}
+      {/* Photos Section */}
       <ThemedView style={styles.photoSection}>
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <ThemedText style={styles.subtitle} type="subtitle">
-            Photos
-          </ThemedText>
-          <Pressable onPress={pickImageAsync}>
+        <View style={styles.photosHeader}>
+          <ThemedText style={styles.subtitle}>Photos</ThemedText>
+          <TouchableOpacity onPress={pickImageAsync}>
             <IconSymbol name="photo.badge.plus" size={30} color="#008000" />
-          </Pressable>
+          </TouchableOpacity>
         </View>
         {photos.map((photo, index) => (
           <View key={index} style={styles.photoItem}>
             <Image source={{ uri: photo.uri }} style={styles.photoImage} />
-            <TextInput
-              style={styles.photoLabelInput}
-              value={photo.label}
-              onChangeText={text => handlePhotoLabelChange(text, index)}
-              placeholder="Label this photo"
-            />
+            {isEditing ? (
+              <TextInput
+                style={styles.photoLabelInput}
+                value={photo.label}
+                onChangeText={text => handlePhotoLabelChange(text, index)}
+                placeholder="Label this photo"
+              />
+            ) : (
+              <Text style={[styles.photoLabelInput, styles.readOnlyText]}>
+                {photo.label}
+              </Text>
+            )}
             <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
               <ThemedText style={styles.removeText}>Remove</ThemedText>
             </TouchableOpacity>
@@ -280,7 +269,7 @@ const InspectionForm = ({
         {isSaving ? (
           <ActivityIndicator size="large" color="#0000ff" />
         ) : (
-          <Button title="Generate & Save PDF" onPress={handleGeneratePdf} />
+          <Button title="Save Report" onPress={handleGeneratePdf} />
         )}
       </ThemedView>
     </KeyboardAwareScrollView>
@@ -292,7 +281,7 @@ export default InspectionForm
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    paddingBottom: 96, // Equivalent to pb-24 in NativeWind
+    paddingBottom: 96,
   },
   title: {
     fontSize: 24,
@@ -304,23 +293,26 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: 10,
   },
+  label: {
+    fontSize: 16,
+    color: '#2C3E50',
+    marginBottom: 4,
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
-    padding: 8,
+    padding: 12,
     marginBottom: 16,
     backgroundColor: 'white',
+    fontSize: 16,
+  },
+  readOnlyText: {
+    backgroundColor: '#eee',
   },
   textArea: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 8,
     height: 100,
     textAlignVertical: 'top',
-    marginBottom: 16,
-    backgroundColor: 'white',
   },
   dateButton: {
     backgroundColor: '#3498db',
@@ -352,16 +344,25 @@ const styles = StyleSheet.create({
     padding: 5,
     borderRadius: 8,
   },
+  photosHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   photoItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
   photoImage: {
-    width: 48, // Equivalent to w-12 in NativeWind
-    height: 48, // Equivalent to h-12 in NativeWind
-    marginRight: 8,
+    width: 48,
+    height: 48,
     borderRadius: 4,
+    marginRight: 8,
   },
   photoLabelInput: {
     flex: 1,
@@ -370,6 +371,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 8,
     backgroundColor: 'white',
+    fontSize: 14,
   },
   removeText: {
     color: 'red',
@@ -379,9 +381,15 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginTop: 16,
   },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
+  editToggleButton: {
+    backgroundColor: '#2C3E50',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignSelf: 'flex-end',
+  },
+  editToggleButtonText: {
+    color: 'white',
+    fontSize: 14,
   },
 })

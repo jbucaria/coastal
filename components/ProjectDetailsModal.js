@@ -1,7 +1,7 @@
 // components/ProjectDetailsModal.js
 
-import { router } from 'expo-router' // Ensure correct import
 import React from 'react'
+import { router } from 'expo-router' // Ensure correct import
 import {
   Modal,
   View,
@@ -9,7 +9,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Switch,
   Image,
   SafeAreaView,
   Alert,
@@ -28,17 +27,6 @@ const ProjectDetailsModal = ({
   setSelectedProject,
 }) => {
   if (!project) return null
-
-  const handleSwitchChange = (field, value) => {
-    // Update local state first for immediate UI feedback
-    setSelectedProject(prevProject => ({
-      ...prevProject,
-      [field]: value,
-    }))
-
-    // Then update Firestore
-    onUpdateProject(project.id, field, value)
-  }
 
   const openGoogleMaps = address => {
     const url = Platform.select({
@@ -106,7 +94,11 @@ const ProjectDetailsModal = ({
             >
               <Text style={styles.projectModalTitle}>Project Details</Text>
 
-              {/* Display project fields */}
+              {project.projectId && (
+                <Text style={styles.projectFieldValue}>
+                  Project ID: {project.projectId}
+                </Text>
+              )}
               <Text style={styles.projectFieldLabel}>Address:</Text>
               <Text style={styles.projectFieldValue}>{project.address}</Text>
 

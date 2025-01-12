@@ -1,38 +1,10 @@
-// utils/handleGeneratePdf.js
-
-import * as FileSystem from 'expo-file-system'
-import * as Sharing from 'expo-sharing'
-import * as Print from 'expo-print'
-import * as Linking from 'expo-linking'
-import { Alert } from 'react-native'
 import { generateReportHTML } from '../components/ReportTemplate'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import {
-  collection,
-  addDoc,
-  doc,
-  updateDoc,
-  query,
-  where,
-  getDocs,
-} from 'firebase/firestore'
+import { doc, updateDoc } from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
+import { Alert } from 'react-native'
+import { generatePDF } from './pdfGenerator' // Import the new PDF generation function
 
-/**
- * handleGeneratePdf
- *
- * Revised Option B: Instead of storing the inspection report in a subcollection,
- * this function saves/updates all inspection report data in the same project document.
- *
- * Expected formData fields include:
- * - projectId (ID of the parent project document)
- * - address (and possibly other inspection report fields such as hours, inspectionResults, recommendedActions, photos, etc.)
- *
- * Photos are uploaded to Storage under a path containing the projectId,
- * and the generated PDF is uploaded under `projects/{projectId}/pdfs/`.
- *
- * Finally, the parent project document is updated with the inspection report data.
- */
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator
 
@@ -45,12 +17,7 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
       return
     }
 
-    // 1. (Optional) Check for duplicate inspection report info.
-    // For example, if you want to check that an inspection report has not been generated already,
-    // you could query a specific field in the project document.
-    // (This example does not include a duplicate check.)
-
-    // 2. Upload Photos to Firebase Storage
+    // 1. Upload Photos to Firebase Storage
     const photoUrls = await Promise.all(
       formData.photos.map(async (photo, index) => {
         const storageRef = ref(
@@ -65,45 +32,27 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
       })
     )
 
-    // 3. Update formData with processed photo URLs, a lowercase version of the address, and a timestamp
+    // 2. Update formData with processed photo URLs, a lowercase version of the address, and a timestamp
     formData.photos = photoUrls
     formData.lowercaseAddress = formData.address.toLowerCase()
     formData.timestamp = new Date()
 
-    // 4. Generate HTML and Convert to PDF
-    const html = await generateReportHTML(formData)
-    const sanitizedAddress = formData.address
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .replace(/_+/g, '_')
-      .substring(0, 50)
-    const fileName = sanitizedAddress
-      ? `${sanitizedAddress}_Inspection_Report.pdf`
-      : 'Inspection_Report.pdf'
-    const { uri: pdfLocalUri } = await Print.printToFileAsync({ html })
+    // 3. Generate PDF
+    // const { pdfFileName, pdfDownloadURL } = await generatePDF(formData)
 
-    // 5. Upload the generated PDF to Firebase Storage
-    // Save PDF in a folder under this project, e.g., "pdfs"
-    const pdfStorageRef = ref(storage, `projects/${projectId}/pdfs/${fileName}`)
-    const pdfResponse = await fetch(pdfLocalUri)
-    const pdfBlob = await pdfResponse.blob()
-    await uploadBytes(pdfStorageRef, pdfBlob)
-    const pdfDownloadURL = await getDownloadURL(pdfStorageRef)
+    // 4. Prepare the updated inspection report data.
+    // const updatedReportData = {
+    //   ...formData,
+    //   pdfFileName,
+    //   pdfDownloadURL,
+    // }
 
-    // 6. Prepare the updated inspection report data.
-    // (This includes all fields from formData plus the PDF info.)
-    const updatedReportData = {
-      ...formData,
-      pdfFileName: fileName,
-      pdfDownloadURL: pdfDownloadURL,
-    }
-
-    // 7. Update the parent project document with the inspection report data.
-    // This updates the project document at 'projects/{projectId}'
+    // 5. Update the parent project document with the inspection report data.
     const projectRef = doc(firestore, 'projects', projectId)
-    await updateDoc(projectRef, updatedReportData)
+    await updateDoc(projectRef, formData)
     console.log('Project (with inspection report info) updated successfully.')
 
-    // 8. Provide user feedback and sharing options.
+    // 6. Provide user feedback and sharing options.
     Alert.alert(
       'File Saved',
       'The report has been saved and shared. What would you like to do?',
@@ -129,18 +78,10 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
         {
           text: 'Share',
           onPress: async () => {
-            try {
-              await Sharing.shareAsync(pdfLocalUri, {
-                dialogTitle: 'Share Inspection Report',
-                mimeType: 'application/pdf',
-                UTI: 'public.content',
-              })
-            } catch (error) {
-              console.error('Error sharing file:', error)
-              Alert.alert('Error', 'Failed to share the report')
-            } finally {
-              setIsSaving(false)
-            }
+            // Note: Sharing action might require the local PDF file path, which isn't available here.
+            // You'll need to adjust this if you want to share directly from this function.
+            Alert.alert('Share', 'Sharing functionality not implemented here.')
+            setIsSaving(false)
           },
         },
       ],

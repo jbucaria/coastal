@@ -1,46 +1,75 @@
-// App.js
-
-import { router } from 'expo-router'
 import React, { useState, useEffect } from 'react'
 import { Alert } from 'react-native'
 import InspectionForm from '@/components/InspectionForm'
 import { handleGeneratePdf } from '@/utils/generatePdf'
 import { useLocalSearchParams } from 'expo-router'
-import { auth } from '@/firebaseConfig'
+import { firestore } from '@/firebaseConfig'
+import { onSnapshot, doc, updateDoc } from 'firebase/firestore'
 
 export default function App() {
   const params = useLocalSearchParams()
-  const { projectId } = params // Extract projectId from params
+  const { projectId } = params // Still using projectId from params for document lookup
 
-  const [customer, setCustomer] = useState(params.customer || '')
-  const [address, setAddress] = useState(params.address || '')
+  const [customer, setCustomer] = useState('')
+  const [address, setAddress] = useState('')
   const [date, setDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [reason, setReason] = useState(params.reason || '')
-  const [contactName, setContactName] = useState(params.contactName || '')
-  const [contactNumber, setContactNumber] = useState(params.contactNumber || '')
-  const [inspectorName, setInspectorName] = useState(params.inspectorName || '')
+  const [reason, setReason] = useState('')
+  const [contactName, setContactName] = useState('')
+  const [contactNumber, setContactNumber] = useState('')
+  const [inspectorName, setInspectorName] = useState('')
   const [hours, setHours] = useState('')
   const [inspectionResults, setInspectionResults] = useState('')
   const [recommendedActions, setRecommendedActions] = useState('')
   const [photos, setPhotos] = useState([])
   const [isSaving, setIsSaving] = useState(false)
-  const [project, setProject] = useState({
-    remediationRequired: params.remediationRequired === 'true' || false,
-    equipmentOnSite: params.equipmentOnSite === 'true' || false,
-    siteComplete: params.siteComplete === 'true' || false,
-  })
+  const [project, setProject] = useState({})
+  // const [projectId, setProjectId] = useState('')
 
   useEffect(() => {
-    // Fetch inspector name from Firebase Auth if not provided in params
+    if (projectId) {
+      const unsubscribe = onSnapshot(
+        doc(firestore, 'projects', projectId),
+        docSnapshot => {
+          if (docSnapshot.exists()) {
+            const data = docSnapshot.data()
+            setCustomer(data.customer || '')
+            setAddress(data.address || '')
 
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      if (user) {
-        setInspectorName(user.displayName || user.email || 'Unknown') // Adjust based on your Firebase user object structure
-      }
-    })
-    return () => unsubscribe() // Clean up subscription on unmount
-  }, [])
+            // Parse the string date into a Date object
+            if (data.date && typeof data.date === 'string') {
+              const [month, day, year] = data.date.split('/').map(Number)
+              setDate(new Date(year, month - 1, day)) // Month is 0-indexed in JS Date
+            } else {
+              setDate(new Date()) // Fallback if date is not in expected format
+            }
+
+            setReason(data.reason || '')
+            setInspectorName(data.inspectorName || '')
+            setContactName(data.contactName || '')
+            setContactNumber(data.contactNumber || '')
+            setHours(data.hours || '')
+            setInspectionResults(data.inspectionResults || '')
+            setRecommendedActions(data.recommendedActions || '')
+            setPhotos(data.photos || [])
+            setProject({ id: docSnapshot.id, ...data })
+          } else {
+            console.error('Project does not exist:', projectId)
+            Alert.alert('Error', 'The project does not exist.')
+          }
+        },
+        error => {
+          console.error('Error listening for project updates:', error)
+          Alert.alert(
+            'Error',
+            'Could not fetch project details. Please try again later.'
+          )
+        }
+      )
+
+      return () => unsubscribe()
+    }
+  }, [projectId])
 
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(false)
@@ -53,7 +82,7 @@ export default function App() {
     const fields = {
       Customer: customer,
       Address: address,
-      'Date of Inspection': date,
+      // 'Date of Inspection': date,
       'Reason for Inspection': reason,
       "Inspector's Name": inspectorName,
       'Hours to Complete Inspection': hours,
@@ -106,7 +135,7 @@ export default function App() {
       if (!validationResult) return
 
       const formData = {
-        projectId, // Now projectId is defined and passed from params
+        projectId,
         customer,
         address,
         date: date.toLocaleDateString(),
@@ -156,7 +185,8 @@ export default function App() {
       contactNumber={contactNumber}
       project={project}
       setProject={setProject}
-      projectId={projectId} // Pass projectId to InspectionForm if needed
+      projectId={projectId}
+      firestore={firestore}
     />
   )
 }
