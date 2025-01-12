@@ -19,15 +19,18 @@ import * as ImagePicker from 'expo-image-picker'
 const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
   const [newProject, setNewProject] = useState({
     street: '',
-    city: '',
-    state: '',
-    zip: '',
-    customer: '',
-    contactName: '',
-    contactNumber: '',
-    inspectorName: '',
-    reason: '',
-    jobType: '',
+    city: 'Tampa',
+    state: 'FL',
+    zip: '34665',
+    customer: 'DR Horton',
+    contactName: 'John Doe',
+    contactNumber: '727-555-1234',
+    inspectorName: 'John N. Doe',
+    reason: ' leak in garage',
+    jobType: 'inspection',
+    inspectinResults: '',
+    hours: '',
+    recommendedActions: '',
     photos: [],
     remediationRequired: false,
     equipmentOnSite: false,
@@ -88,44 +91,32 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
 
     try {
       // Basic Validation (Optional but Recommended)
-      // if (
-      //   !newProject.street ||
-      //   !newProject.city ||
-      //   !newProject.state ||
-      //   !newProject.zip ||
-      //   !newProject.customer
-      // ) {
-      //   Alert.alert('Validation Error', 'Please fill out all required fields.')
-      //   setIsSubmitting(false)
-      //   return
-      // }
+      if (
+        !newProject.street ||
+        !newProject.city ||
+        !newProject.state ||
+        !newProject.zip ||
+        !newProject.customer
+      ) {
+        Alert.alert('Validation Error', 'Please fill out all required fields.')
+        setIsSubmitting(false)
+        return
+      }
+
+      // Format phone number
+      const formattedNumber = newProject.contactNumber
+        .replace(/\D/g, '')
+        .replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')
 
       const projectData = {
         ...newProject,
+        contactNumber: formattedNumber, // Save formatted number
         address: `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`,
         createdAt: new Date(),
       }
 
       // Pass the project data to the parent component
       await onCreateProject(projectData)
-
-      // Reset form
-      setNewProject({
-        street: '',
-        city: '',
-        state: '',
-        zip: '',
-        customer: '',
-        contactName: '',
-        contactNumber: '',
-        inspectorName: '',
-        reason: '',
-        jobType: '',
-        photos: [],
-        remediationRequired: false,
-        equipmentOnSite: false,
-        siteComplete: false,
-      })
 
       Alert.alert('Success', 'Project created successfully.')
 

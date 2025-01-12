@@ -11,13 +11,28 @@ import {
   collection,
   addDoc,
   doc,
-  setDoc,
+  updateDoc,
   query,
   where,
   getDocs,
 } from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
 
+/**
+ * handleGeneratePdf
+ *
+ * Revised Option B: Instead of storing the inspection report in a subcollection,
+ * this function saves/updates all inspection report data in the same project document.
+ *
+ * Expected formData fields include:
+ * - projectId (ID of the parent project document)
+ * - address (and possibly other inspection report fields such as hours, inspectionResults, recommendedActions, photos, etc.)
+ *
+ * Photos are uploaded to Storage under a path containing the projectId,
+ * and the generated PDF is uploaded under `projects/{projectId}/pdfs/`.
+ *
+ * Finally, the parent project document is updated with the inspection report data.
+ */
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator
 
@@ -30,39 +45,17 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
       return
     }
 
-    // **1. Check for Duplicate Inspection Reports within the Same Project**
-    const lowercaseAddress = formData.address.toLowerCase()
-    const inspectionReportsRef = collection(
-      firestore,
-      'projects',
-      projectId,
-      'inspectionReports'
-    )
-    const addressQuery = query(
-      inspectionReportsRef,
-      where('lowercaseAddress', '==', lowercaseAddress)
-    )
-    const querySnapshot = await getDocs(addressQuery)
+    // 1. (Optional) Check for duplicate inspection report info.
+    // For example, if you want to check that an inspection report has not been generated already,
+    // you could query a specific field in the project document.
+    // (This example does not include a duplicate check.)
 
-    if (!querySnapshot.empty) {
-      Alert.alert(
-        'Duplicate Address',
-        'An inspection report with this address already exists for this project.',
-        [{ text: 'OK', onPress: () => setIsSaving(false) }]
-      )
-      return
-    }
-
-    // **2. Create a New Inspection Report Document Reference**
-    const newReportDocRef = doc(inspectionReportsRef) // Auto-generated ID
-    const reportId = newReportDocRef.id
-
-    // **3. Upload Photos to Firebase Storage**
+    // 2. Upload Photos to Firebase Storage
     const photoUrls = await Promise.all(
       formData.photos.map(async (photo, index) => {
         const storageRef = ref(
           storage,
-          `projects/${projectId}/inspectionReports/${reportId}/photos/${Date.now()}_${index}`
+          `projects/${projectId}/photos/${Date.now()}_${index}`
         )
         const img = await fetch(photo.uri)
         const blob = await img.blob()
@@ -72,47 +65,45 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
       })
     )
 
-    // **4. Update Form Data with Photo URLs and Additional Fields**
+    // 3. Update formData with processed photo URLs, a lowercase version of the address, and a timestamp
     formData.photos = photoUrls
-    formData.lowercaseAddress = lowercaseAddress
+    formData.lowercaseAddress = formData.address.toLowerCase()
     formData.timestamp = new Date()
 
-    // **5. Generate HTML and Convert to PDF**
+    // 4. Generate HTML and Convert to PDF
     const html = await generateReportHTML(formData)
-
     const sanitizedAddress = formData.address
       .replace(/[^a-zA-Z0-9]/g, '_')
       .replace(/_+/g, '_')
       .substring(0, 50)
-
     const fileName = sanitizedAddress
       ? `${sanitizedAddress}_Inspection_Report.pdf`
       : 'Inspection_Report.pdf'
+    const { uri: pdfLocalUri } = await Print.printToFileAsync({ html })
 
-    const { uri } = await Print.printToFileAsync({ html })
-
-    // **6. Upload PDF to Firebase Storage**
-    const pdfStorageRef = ref(
-      storage,
-      `projects/${projectId}/inspectionReports/${reportId}/${fileName}`
-    )
-    const pdfResponse = await fetch(uri)
+    // 5. Upload the generated PDF to Firebase Storage
+    // Save PDF in a folder under this project, e.g., "pdfs"
+    const pdfStorageRef = ref(storage, `projects/${projectId}/pdfs/${fileName}`)
+    const pdfResponse = await fetch(pdfLocalUri)
     const pdfBlob = await pdfResponse.blob()
     await uploadBytes(pdfStorageRef, pdfBlob)
     const pdfDownloadURL = await getDownloadURL(pdfStorageRef)
 
-    // **7. Save Inspection Report Data to Firestore**
-    const reportData = {
+    // 6. Prepare the updated inspection report data.
+    // (This includes all fields from formData plus the PDF info.)
+    const updatedReportData = {
       ...formData,
       pdfFileName: fileName,
       pdfDownloadURL: pdfDownloadURL,
     }
 
-    await setDoc(newReportDocRef, reportData) // Write data to Firestore
+    // 7. Update the parent project document with the inspection report data.
+    // This updates the project document at 'projects/{projectId}'
+    const projectRef = doc(firestore, 'projects', projectId)
+    await updateDoc(projectRef, updatedReportData)
+    console.log('Project (with inspection report info) updated successfully.')
 
-    console.log('Inspection Report created with ID:', reportId)
-
-    // **8. Provide User Feedback and Sharing Options**
+    // 8. Provide user feedback and sharing options.
     Alert.alert(
       'File Saved',
       'The report has been saved and shared. What would you like to do?',
@@ -139,7 +130,7 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
           text: 'Share',
           onPress: async () => {
             try {
-              await Sharing.shareAsync(uri, {
+              await Sharing.shareAsync(pdfLocalUri, {
                 dialogTitle: 'Share Inspection Report',
                 mimeType: 'application/pdf',
                 UTI: 'public.content',
@@ -161,6 +152,6 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
       'Error',
       'An error occurred while generating or saving the report'
     )
-    setIsSaving(false) // Ensure loading stops in case of an error
+    setIsSaving(false)
   }
 }

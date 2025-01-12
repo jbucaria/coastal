@@ -73,12 +73,6 @@ const Index = () => {
       console.log('Project created with ID:', docRef.id)
       setModalVisible(false)
       Alert.alert('Success', 'Project created successfully.')
-
-      // Optionally, navigate to the Inspection Screen with the new projectId
-      router.push({
-        pathname: '/inspection',
-        params: { projectId: docRef.id },
-      })
     } catch (error) {
       console.error('Error creating project:', error)
       Alert.alert('Error', 'Failed to create the project. Please try again.')
