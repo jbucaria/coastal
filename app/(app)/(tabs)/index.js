@@ -1,5 +1,3 @@
-// screens/Index.js
-
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
@@ -9,7 +7,10 @@ import {
   Alert,
   StyleSheet,
   TouchableOpacity,
+  Text,
+  Platform,
 } from 'react-native'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import {
   collection,
   addDoc,
@@ -32,6 +33,9 @@ const Index = () => {
   const [selectedProject, setSelectedProject] = useState(null)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [projects, setProjects] = useState([])
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [filteredProjects, setFilteredProjects] = useState([])
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -40,8 +44,11 @@ const Index = () => {
         const projectsData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
+          // Assuming 'date' is stored as a Firebase Timestamp
+          date: doc.data().date ? new Date(doc.data().date) : null,
         }))
         setProjects(projectsData)
+        filterProjectsByDate(projectsData)
       },
       error => {
         console.error('Error fetching projects:', error)
@@ -53,7 +60,35 @@ const Index = () => {
     )
 
     return () => unsubscribe()
-  }, [setProjects])
+  }, []) // Empty dependency array since we fetch all projects once
+
+  const filterProjectsByDate = projectsList => {
+    if (!selectedDate) return setFilteredProjects(projectsList)
+
+    const startOfDay = new Date(selectedDate)
+    startOfDay.setHours(0, 0, 0, 0) // Start of the selected day
+
+    const endOfDay = new Date(selectedDate)
+    endOfDay.setHours(23, 59, 59, 999) // End of the selected day
+
+    const filtered = projectsList.filter(project => {
+      if (!project.createdAt) return false // Skip projects without a creation date
+
+      const projectDate = project.createdAt.toDate() // Convert Timestamp to JavaScript Date
+
+      return projectDate >= startOfDay && projectDate <= endOfDay
+    })
+
+    setFilteredProjects(filtered)
+  }
+
+  const handleDateChange = (event, date) => {
+    setShowDatePicker(Platform.OS === 'ios')
+    if (date) {
+      setSelectedDate(date)
+      filterProjectsByDate(projects)
+    }
+  }
 
   const handleProjectPress = project => {
     setSelectedProject(project)
@@ -126,8 +161,26 @@ const Index = () => {
       resizeMode="cover"
     >
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.datePickerContainer}>
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            style={styles.dateButton}
+          >
+            <Text style={styles.dateButtonText}>
+              {selectedDate ? selectedDate.toDateString() : 'Select Date'}
+            </Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate || new Date()}
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+            />
+          )}
+        </View>
         <ScrollView style={styles.scrollView}>
-          {projects.map(project => (
+          {filteredProjects.map(project => (
             <ProjectCard
               key={project.id}
               project={project}
@@ -190,5 +243,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  datePickerContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    padding: 10,
+    borderRadius: 8,
+    flexDirection: 'row',
+  },
+  dateDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  selectedDateText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  calendarIcon: {
+    padding: 8,
   },
 })
