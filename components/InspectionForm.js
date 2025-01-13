@@ -245,18 +245,14 @@ const InspectionForm = ({
         {photos.map((photo, index) => (
           <View key={index} style={styles.photoItem}>
             <Image source={{ uri: photo.uri }} style={styles.photoImage} />
-            {isEditing ? (
-              <TextInput
-                style={styles.photoLabelInput}
-                value={photo.label}
-                onChangeText={text => handlePhotoLabelChange(text, index)}
-                placeholder="Label this photo"
-              />
-            ) : (
-              <Text style={[styles.photoLabelInput, styles.readOnlyText]}>
-                {photo.label}
-              </Text>
-            )}
+
+            <TextInput
+              style={styles.photoLabelInput}
+              value={photo.label}
+              onChangeText={text => handlePhotoLabelChange(text, index)}
+              placeholder="Label this photo"
+            />
+
             <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
               <ThemedText style={styles.removeText}>Remove</ThemedText>
             </TouchableOpacity>

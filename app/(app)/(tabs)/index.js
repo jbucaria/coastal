@@ -34,7 +34,7 @@ const Index = () => {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [projects, setProjects] = useState([])
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(new Date())
   const [filteredProjects, setFilteredProjects] = useState([])
 
   useEffect(() => {
@@ -247,23 +247,14 @@ const styles = StyleSheet.create({
   datePickerContainer: {
     alignItems: 'center',
     marginBottom: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  dateButton: {
+    backgroundColor: '#3498db',
     padding: 10,
     borderRadius: 8,
-    flexDirection: 'row',
   },
-  dateDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  selectedDateText: {
+  dateButtonText: {
+    color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  calendarIcon: {
-    padding: 8,
   },
 })

@@ -57,22 +57,16 @@ const ProjectDetailsModal = ({
 
   const handleInspection = () => {
     if (!project) {
-      Alert.alert('Error', 'No project selected for inspection.')
+      Alert.alert('Error', 'No project selected for inspection or viewing.')
       return
     }
+
+    const route = project.inspectionComplete ? '/viewReport' : '/inspection'
+
     router.push({
-      pathname: '/inspection', // Ensure this path matches your routes
+      pathname: route,
       params: {
-        projectId: project.id, // Pass the project ID here
-        address: project.address,
-        inspectorName: project.inspectorName || '',
-        customer: project.customer || '',
-        contactName: project.contactName || '',
-        contactNumber: project.contactNumber || '',
-        reason: project.reason || '',
-        remediationRequired: project.remediationRequired || false,
-        equipmentOnSite: project.equipmentOnSite || false,
-        siteComplete: project.siteComplete || false,
+        projectId: project.id,
       },
     })
     onClose()
@@ -183,9 +177,12 @@ const ProjectDetailsModal = ({
                   onPress={handleInspection}
                   style={styles.actionButton}
                 >
-                  <Text style={styles.actionButtonText}>Start Inspection</Text>
+                  <Text style={styles.actionButtonText}>
+                    {project.inspectionComplete
+                      ? 'View Report'
+                      : 'Start Inspection'}
+                  </Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
                   onPress={onDeleteProject}
                   style={[styles.actionButton, styles.deleteButton]}

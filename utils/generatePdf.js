@@ -7,6 +7,17 @@ import { generatePDF } from './pdfGenerator' // Import the new PDF generation fu
 
 export const handleGeneratePdf = async (formData, setIsSaving) => {
   setIsSaving(true) // Start showing indicator
+  const onReportComplete = async (projectId, field, value) => {
+    try {
+      await updateDoc(doc(firestore, 'projects', projectId), {
+        [field]: value,
+      })
+      console.log(`Project field ${field} updated to ${value}`)
+    } catch (error) {
+      console.error('Error updating project:', error)
+      Alert.alert('Error', 'Failed to update the project. Please try again.')
+    }
+  }
 
   try {
     const { projectId } = formData
@@ -51,6 +62,14 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
     const projectRef = doc(firestore, 'projects', projectId)
     await updateDoc(projectRef, formData)
     console.log('Project (with inspection report info) updated successfully.')
+
+    if (projectId) {
+      await onReportComplete(projectId, 'inspectionComplete', true)
+    } else {
+      console.error(
+        'Project ID is missing. Cannot mark inspection as complete.'
+      )
+    }
 
     // 6. Provide user feedback and sharing options.
     Alert.alert(

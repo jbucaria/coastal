@@ -27,7 +27,9 @@ import { useThemeColor } from '@/hooks/useThemeColor'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const EditReportPage = () => {
-  const { id } = useLocalSearchParams()
+  const params = useLocalSearchParams()
+  const projectId = params.projectId
+  const [project, setProject] = useState(null)
   const [report, setReport] = useState(null)
   const [editedReport, setEditedReport] = useState({})
   const [photos, setPhotos] = useState([])
@@ -37,28 +39,35 @@ const EditReportPage = () => {
   const textColor = useThemeColor({}, 'text')
 
   useEffect(() => {
-    if (id) {
-      const fetchReport = async () => {
-        try {
-          const reportRef = doc(firestore, 'inspectionReports', id)
-          const reportDoc = await getDoc(reportRef)
-          if (reportDoc.exists()) {
-            const reportData = reportDoc.data()
-            setReport(reportData)
-            setEditedReport(reportData)
-            setPhotos(reportData.photos || [])
-          } else {
-            console.error('No such report!')
-          }
-        } catch (error) {
-          console.error('Error fetching report:', error)
-        }
-      }
-      fetchReport()
-    }
-  }, [id])
+    const fetchProjectAndReport = async () => {
+      try {
+        const projectRef = doc(firestore, 'projects', projectId)
+        const projectSnap = await getDoc(projectRef)
+        if (projectSnap.exists()) {
+          setProject({ id: projectSnap.id, ...projectSnap.data() })
 
-  if (!report || Object.keys(editedReport).length === 0) {
+          // Assuming the report data is directly under the project document
+          const reportData = projectSnap.data().report || projectSnap.data() // Adjust based on how you store report data
+          setReport(reportData)
+          setEditedReport({ ...reportData })
+          setPhotos(reportData.photos || [])
+        } else {
+          console.log('No such project!')
+          Alert.alert('Error', 'Project not found')
+        }
+      } catch (error) {
+        console.error('Error fetching project and report:', error)
+        Alert.alert(
+          'Error',
+          'Could not fetch project or report. Please try again later.'
+        )
+      }
+    }
+
+    fetchProjectAndReport()
+  }, [projectId])
+
+  if (Object.keys(editedReport).length === 0) {
     return <Text>Loading...</Text>
   }
 

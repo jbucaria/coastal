@@ -45,14 +45,27 @@ const ReportsPage = () => {
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [editedReport, setEditedReport] = useState(null)
   const [projects, setProjects] = useState([])
+  const [filters, setFilters] = useState({
+    remediationRequired: false,
+    equipmentOnSite: false,
+    siteComplete: false,
+  })
 
   useEffect(() => {
     const projectsRef = collection(firestore, 'projects')
-    const q = query(
+    let q = query(
       projectsRef,
-      where('siteComplete', '==', true), // Filter for completed projects
-      orderBy('createdAt', 'desc') // Assuming you want to order by creation date
+      where('inspectionComplete', '==', true), // Always fetch completed inspections
+      orderBy('createdAt', 'desc')
     )
+
+    // Apply additional filters based on state
+    Object.entries(filters).forEach(([field, value]) => {
+      if (value) {
+        q = query(q, where(field, '==', true))
+      }
+    })
+
     const unsubscribe = onSnapshot(
       q,
       snapshot => {
@@ -60,7 +73,7 @@ const ReportsPage = () => {
           id: doc.id,
           ...doc.data(),
         }))
-        setReports(projectsData)
+        setReports(projectsData) // No need for applyFilters since we apply in the query
       },
       error => {
         console.error('Error fetching projects:', error)
@@ -72,7 +85,19 @@ const ReportsPage = () => {
     )
 
     return () => unsubscribe()
-  }, [setReports])
+  }, [filters])
+
+  // New function to apply filters
+  const applyFilters = projects => {
+    return projects.filter(report => {
+      if (filters.allSites) return true
+      if (filters.remediationRequired && !report.remediationRequired)
+        return false
+      if (filters.equipmentOnSite && !report.equipmentOnSite) return false
+      if (filters.siteComplete && !report.siteComplete) return false
+      return true
+    })
+  }
 
   const handleReportPress = report => {
     setSelectedReport(report)
@@ -119,7 +144,7 @@ const ReportsPage = () => {
               const storage = getStorage()
               const deletePromises = []
 
-              // Ensure 'photos' is an array of objects with 'uri'
+              // Delete photos if they exist
               if (selectedReport.photos && selectedReport.photos.length > 0) {
                 for (let photo of selectedReport.photos) {
                   if (photo.uri) {
@@ -132,36 +157,35 @@ const ReportsPage = () => {
 
                     const photoRef = ref(storage, path)
                     deletePromises.push(deleteObject(photoRef))
-                  } else {
-                    console.warn('Photo object has no URI:', photo)
                   }
                 }
-
-                // Correctly construct the PDF path with projectId and reportId
-                const pdfFileName = selectedReport.pdfFileName
-                const pdfPath = `projects/${selectedReport.projectId}/inspectionReports/${selectedReport.id}/${pdfFileName}`
-                console.log('PDF Path:', pdfPath)
-
-                // Delete the PDF file
-                const pdfRef = ref(storage, pdfPath)
-                deletePromises.push(deleteObject(pdfRef))
-
-                // Wait for all deletions to complete
-                await Promise.all(deletePromises)
-                console.log('All photos and PDF deleted successfully')
               }
 
-              // Correctly reference the Firestore document path
+              // Delete the PDF if it exists
+              if (selectedReport.pdfDownloadURL) {
+                // Assuming pdfDownloadURL contains the full path to the file in storage
+                const pdfUrl = new URL(selectedReport.pdfDownloadURL)
+                let pdfPath = decodeURIComponent(
+                  pdfUrl.pathname.substring(pdfUrl.pathname.indexOf('/o/') + 3)
+                )
+                pdfPath = pdfPath.split('?')[0] // Remove query parameters
+                const pdfRef = ref(storage, pdfPath)
+                deletePromises.push(deleteObject(pdfRef))
+              }
+
+              // Wait for all deletions to complete
+              await Promise.all(deletePromises)
+              console.log('All photos and PDF deleted successfully')
+
+              // Delete the report document from Firestore
               const reportDocRef = doc(
                 firestore,
                 'projects',
-                selectedReport.projectId,
-                'inspectionReports',
-                selectedReport.id
+                selectedReport.projectId
               )
 
-              // Delete the report document from Firestore
               await deleteDoc(reportDocRef)
+              console.log('Report document deleted successfully')
 
               Alert.alert(
                 'Success',
@@ -169,7 +193,6 @@ const ReportsPage = () => {
               )
 
               setModalVisible(false)
-              console.log('Report deleted successfully')
             } catch (error) {
               Alert.alert(
                 'Error',
@@ -185,7 +208,6 @@ const ReportsPage = () => {
       { cancelable: false }
     )
   }
-
   // 3) This function saves photos to the iOS Photo Library
   const requestMediaLibraryPermissions = async () => {
     const { status } = await MediaLibrary.requestPermissionsAsync()
@@ -290,6 +312,35 @@ const ReportsPage = () => {
       </ThemedView>
     </TouchableOpacity>
   )
+
+  const handleViewReport = () => {
+    if (!selectedReport) {
+      Alert.alert('Error', 'No report selected to view.')
+      return
+    }
+    router.push({
+      pathname: '/viewReport', // Ensure this path matches your routes
+      params: {
+        projectId: selectedReport.id, // Assuming `id` is the correct field for report or project ID
+      },
+    })
+    setModalVisible(false)
+  }
+
+  const handleEditReport = () => {
+    if (!selectedReport) {
+      Alert.alert('Error', 'No report selected to view.')
+      return
+    }
+    router.push({
+      pathname: '/editReportScreen', // Ensure this path matches your routes
+      params: {
+        projectId: selectedReport.id, // Assuming `id` is the correct field for report or project ID
+      },
+    })
+    setModalVisible(false)
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ThemedView style={styles.container}>
@@ -300,6 +351,46 @@ const ReportsPage = () => {
           placeholder="Search by address..."
           placeholderTextColor={textColor}
         />
+        <View style={styles.filterContainer}>
+          {['remediationRequired', 'equipmentOnSite', 'siteComplete'].map(
+            filter => (
+              <TouchableOpacity
+                key={filter}
+                onPress={() => {
+                  setFilters(prev => ({
+                    remediationRequired:
+                      filter === 'remediationRequired'
+                        ? !prev.remediationRequired
+                        : false,
+                    equipmentOnSite:
+                      filter === 'equipmentOnSite'
+                        ? !prev.equipmentOnSite
+                        : false,
+                    siteComplete:
+                      filter === 'siteComplete' ? !prev.siteComplete : false,
+                  }))
+                }}
+                style={[
+                  styles.filterButton,
+                  filters[filter] && styles.activeFilter,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filters[filter] && styles.activeFilterText,
+                  ]}
+                >
+                  {filter === 'remediationRequired'
+                    ? 'Remediation'
+                    : filter === 'equipmentOnSite'
+                    ? 'Equipment'
+                    : 'Completed'}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
+        </View>
         <FlatList
           data={filteredReports}
           keyExtractor={item => item.id}
@@ -321,15 +412,11 @@ const ReportsPage = () => {
               <View style={styles.optionContainer}>
                 <View style={styles.iconRow}>
                   <TouchableOpacity
-                    onPress={() => {
-                      router.push({
-                        pathname: '/viewReport', // Adjust the route to match your setup
-                        params: { projectId: reports.projectId },
-                      })
-                    }}
-                    style={styles.viewButton}
+                    onPress={handleViewReport}
+                    style={styles.iconOption}
                   >
-                    <Text style={styles.viewButtonText}>View Report</Text>
+                    <IconSymbol name="eye" size={50} color="#2C3E50" />
+                    <Text style={styles.iconLabel}>View Report</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.iconOption}
@@ -347,12 +434,7 @@ const ReportsPage = () => {
                 <View style={styles.iconRow}>
                   <TouchableOpacity
                     style={styles.iconOption}
-                    onPress={() => {
-                      // Navigate to Edit page in expo-router
-                      // Or you could do setIsEditing(true) if you wanted an internal editor
-                      router.push(`/editReportScreen?id=${selectedReport.id}`)
-                      setModalVisible(false)
-                    }}
+                    onPress={handleEditReport}
                   >
                     <IconSymbol name="pencil" size={50} color="#2C3E50" />
                     <ThemedText style={styles.iconLabel}>Edit</ThemedText>
@@ -440,6 +522,26 @@ const ReportsPage = () => {
 export default ReportsPage
 
 const styles = StyleSheet.create({
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  filterButton: {
+    padding: 8,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  activeFilter: {
+    backgroundColor: '#3498db',
+  },
+  filterButtonText: {
+    color: '#333',
+  },
+  activeFilterText: {
+    color: 'white',
+  },
   container: {
     flex: 1,
     padding: 20,

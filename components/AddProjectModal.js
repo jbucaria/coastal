@@ -32,6 +32,7 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     hours: '',
     recommendedActions: '',
     photos: [],
+    inspectionComplete: false,
     remediationRequired: false,
     equipmentOnSite: false,
     siteComplete: false,

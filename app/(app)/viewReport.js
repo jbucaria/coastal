@@ -1,5 +1,3 @@
-// screens/ViewReport.js
-
 import React, { useState, useEffect } from 'react'
 import {
   View,
@@ -13,36 +11,34 @@ import {
   Linking,
   Platform,
 } from 'react-native'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { doc, getDoc } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { useLocalSearchParams, router } from 'expo-router'
 
 const ViewReport = () => {
   const params = useLocalSearchParams()
-  const [projects, setProjects] = useState([])
-  const projectId = params.projectId // Assuming the report ID is passed as projectId
+  const projectId = params.projectId
+  const [project, setProject] = useState(null)
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(firestore, 'projects'),
-      snapshot => {
-        const projectsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-        setProjects(projectsData)
-      },
-      error => {
-        console.error('Error fetching projects:', error)
-        Alert.alert(
-          'Error',
-          'Could not fetch projects. Please try again later.'
-        )
+    const fetchProject = async () => {
+      try {
+        const projectRef = doc(firestore, 'projects', projectId)
+        const projectSnap = await getDoc(projectRef)
+        if (projectSnap.exists()) {
+          setProject({ id: projectSnap.id, ...projectSnap.data() })
+        } else {
+          console.log('No such project!')
+          Alert.alert('Error', 'Project not found')
+        }
+      } catch (error) {
+        console.error('Error fetching project:', error)
+        Alert.alert('Error', 'Could not fetch project. Please try again later.')
       }
-    )
+    }
 
-    return () => unsubscribe()
-  }, [setProjects])
+    fetchProject()
+  }, [projectId])
 
   const openGoogleMaps = address => {
     const url = Platform.select({
@@ -73,68 +69,78 @@ const ViewReport = () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
-        <Text style={styles.reportTitle}>Inspection Report</Text>
+        {project ? (
+          <>
+            <Text style={styles.reportTitle}>Inspection Report</Text>
 
-        <Text style={styles.reportFieldLabel}>Address:</Text>
-        <Text
-          style={[styles.reportFieldValue, styles.clickableText]}
-          onPress={() => openGoogleMaps(projects.address)}
-        >
-          {projects.address}
-        </Text>
+            <Text style={styles.reportFieldLabel}>Address:</Text>
+            <Text
+              style={[styles.reportFieldValue, styles.clickableText]}
+              onPress={() => openGoogleMaps(project.address)}
+            >
+              {project.address}
+            </Text>
 
-        <Text style={styles.reportFieldLabel}>Customer:</Text>
-        <Text style={styles.reportFieldValue}>{projects.customer}</Text>
+            <Text style={styles.reportFieldLabel}>Customer:</Text>
+            <Text style={styles.reportFieldValue}>{project.customer}</Text>
 
-        <Text style={styles.reportFieldLabel}>Inspector:</Text>
-        <Text style={styles.reportFieldValue}>{projects.inspectorName}</Text>
+            <Text style={styles.reportFieldLabel}>Inspector:</Text>
+            <Text style={styles.reportFieldValue}>{project.inspectorName}</Text>
 
-        <Text style={styles.reportFieldLabel}>Contact Name:</Text>
-        <Text style={styles.reportFieldValue}>{projects.contactName}</Text>
+            <Text style={styles.reportFieldLabel}>Contact Name:</Text>
+            <Text style={styles.reportFieldValue}>{project.contactName}</Text>
 
-        <Text style={styles.reportFieldLabel}>Contact Number:</Text>
-        <Text style={styles.reportFieldValue}>{projects.contactNumber}</Text>
+            <Text style={styles.reportFieldLabel}>Contact Number:</Text>
+            <Text style={styles.reportFieldValue}>{project.contactNumber}</Text>
 
-        <Text style={styles.reportFieldLabel}>Reason for Inspection:</Text>
-        <Text style={styles.reportFieldValue}>{projects.reason}</Text>
+            <Text style={styles.reportFieldLabel}>Reason for Inspection:</Text>
+            <Text style={styles.reportFieldValue}>{project.reason}</Text>
 
-        <Text style={styles.reportFieldLabel}>Inspection Results:</Text>
-        <Text style={[styles.reportFieldValue, styles.multiLineText]}>
-          {projects.inspectionResults}
-        </Text>
+            <Text style={styles.reportFieldLabel}>Inspection Results:</Text>
+            <Text style={[styles.reportFieldValue, styles.multiLineText]}>
+              {project.inspectionResults}
+            </Text>
 
-        <Text style={styles.reportFieldLabel}>Recommended Actions:</Text>
-        <Text style={[styles.reportFieldValue, styles.multiLineText]}>
-          {projects.recommendedActions}
-        </Text>
+            <Text style={styles.reportFieldLabel}>Recommended Actions:</Text>
+            <Text style={[styles.reportFieldValue, styles.multiLineText]}>
+              {project.recommendedActions}
+            </Text>
 
-        {/* Photos */}
-        {projects.photos && projects.photos.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.reportPhotos}
-          >
-            {projects.photos.map((photo, index) => (
-              <Image
-                key={index}
-                source={{ uri: photo.uri }}
-                style={styles.reportPhoto}
-              />
-            ))}
-          </ScrollView>
+            {/* Photos */}
+            {project.photos && project.photos.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.reportPhotos}
+              >
+                {project.photos.map((photo, index) => (
+                  <View key={index} style={styles.photoContainer}>
+                    <Image
+                      source={{ uri: photo.uri }}
+                      style={styles.reportPhoto}
+                    />
+                    {photo.label && (
+                      <Text style={styles.photoLabel}>{photo.label}</Text>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={styles.noPhotosText}>No photos available</Text>
+            )}
+
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.actionButton}
+              >
+                <Text style={styles.actionButtonText}>Back</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         ) : (
-          <Text style={styles.noPhotosText}>No photos available</Text>
+          <Text style={styles.loadingText}>Loading...</Text>
         )}
-
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.actionButton}
-          >
-            <Text style={styles.actionButtonText}>Back</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </SafeAreaView>
   )
@@ -203,6 +209,12 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: 'white',
     fontSize: 16,
+  },
+  loadingText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 18,
+    color: '#2C3E50',
   },
 })
 
