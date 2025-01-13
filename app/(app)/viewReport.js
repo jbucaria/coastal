@@ -19,6 +19,8 @@ const ViewReport = () => {
   const params = useLocalSearchParams()
   const projectId = params.projectId
   const [project, setProject] = useState(null)
+  const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [showFullImage, setShowFullImage] = useState(false)
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -39,6 +41,11 @@ const ViewReport = () => {
 
     fetchProject()
   }, [projectId])
+
+  const handlePhotoPress = photo => {
+    setSelectedPhoto(photo.uri) // Assuming 'uri' is the field where the photo URL is stored
+    setShowFullImage(true)
+  }
 
   const openGoogleMaps = address => {
     const url = Platform.select({
@@ -66,13 +73,28 @@ const ViewReport = () => {
     }
   }
 
+  const handleCall = phoneNumber => {
+    let phoneUrl =
+      Platform.OS === 'android'
+        ? `tel:${phoneNumber}`
+        : `telprompt:${phoneNumber}`
+    Linking.canOpenURL(phoneUrl)
+      .then(supported => {
+        if (!supported) {
+          Alert.alert('Phone number is not available')
+        } else {
+          return Linking.openURL(phoneUrl)
+        }
+      })
+      .catch(err => console.error('An error occurred', err))
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
         {project ? (
           <>
             <Text style={styles.reportTitle}>Inspection Report</Text>
-
             <Text style={styles.reportFieldLabel}>Address:</Text>
             <Text
               style={[styles.reportFieldValue, styles.clickableText]}
@@ -80,32 +102,28 @@ const ViewReport = () => {
             >
               {project.address}
             </Text>
-
             <Text style={styles.reportFieldLabel}>Customer:</Text>
             <Text style={styles.reportFieldValue}>{project.customer}</Text>
-
             <Text style={styles.reportFieldLabel}>Inspector:</Text>
             <Text style={styles.reportFieldValue}>{project.inspectorName}</Text>
-
             <Text style={styles.reportFieldLabel}>Contact Name:</Text>
             <Text style={styles.reportFieldValue}>{project.contactName}</Text>
-
             <Text style={styles.reportFieldLabel}>Contact Number:</Text>
-            <Text style={styles.reportFieldValue}>{project.contactNumber}</Text>
-
+            <TouchableOpacity onPress={() => handleCall(project.contactNumber)}>
+              <Text style={[styles.reportFieldValue, styles.clickableText]}>
+                {project.contactNumber}
+              </Text>
+            </TouchableOpacity>
             <Text style={styles.reportFieldLabel}>Reason for Inspection:</Text>
             <Text style={styles.reportFieldValue}>{project.reason}</Text>
-
             <Text style={styles.reportFieldLabel}>Inspection Results:</Text>
             <Text style={[styles.reportFieldValue, styles.multiLineText]}>
               {project.inspectionResults}
             </Text>
-
             <Text style={styles.reportFieldLabel}>Recommended Actions:</Text>
             <Text style={[styles.reportFieldValue, styles.multiLineText]}>
               {project.recommendedActions}
             </Text>
-
             {/* Photos */}
             {project.photos && project.photos.length > 0 ? (
               <ScrollView
@@ -114,7 +132,10 @@ const ViewReport = () => {
                 style={styles.reportPhotos}
               >
                 {project.photos.map((photo, index) => (
-                  <View key={index} style={styles.photoContainer}>
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => handlePhotoPress(photo)}
+                  >
                     <Image
                       source={{ uri: photo.uri }}
                       style={styles.reportPhoto}
@@ -122,13 +143,12 @@ const ViewReport = () => {
                     {photo.label && (
                       <Text style={styles.photoLabel}>{photo.label}</Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
             ) : (
               <Text style={styles.noPhotosText}>No photos available</Text>
             )}
-
             <View style={styles.actionButtonsContainer}>
               <TouchableOpacity
                 onPress={() => router.back()}
@@ -142,6 +162,23 @@ const ViewReport = () => {
           <Text style={styles.loadingText}>Loading...</Text>
         )}
       </ScrollView>
+
+      {/* Full Image Preview */}
+      {showFullImage && (
+        <View style={styles.fullImageContainer}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setShowFullImage(false)}
+          >
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+          <Image
+            source={{ uri: selectedPhoto }}
+            style={styles.fullImage}
+            resizeMode="contain"
+          />
+        </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -215,6 +252,32 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 18,
     color: '#2C3E50',
+  },
+  fullImageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullImage: {
+    width: '90%',
+    height: '90%',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    padding: 10,
+    borderRadius: 50,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
   },
 })
 

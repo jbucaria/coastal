@@ -9,7 +9,7 @@ import {
   Text,
 } from 'react-native'
 
-const PhotoModal = ({ visible, photo, onClose, setModalOptionsVisible }) => {
+const PhotoModal = ({ visible, photo, onClose }) => {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -18,15 +18,14 @@ const PhotoModal = ({ visible, photo, onClose, setModalOptionsVisible }) => {
     }
   }, [visible])
 
-  // Callback for when the image loads successfully
   const onImageLoad = () => {
     setIsLoading(false)
+    console.log('Image loaded successfully')
   }
 
-  // Callback for when image load fails
-  const onImageLoadError = () => {
+  const onImageLoadError = error => {
     setIsLoading(false)
-    console.error('Image failed to load')
+    console.error('Image failed to load:', error)
   }
 
   return (
@@ -50,16 +49,15 @@ const PhotoModal = ({ visible, photo, onClose, setModalOptionsVisible }) => {
                 style={styles.loadingIndicator}
               />
             )}
-            {photo && (
+            {photo ? (
               <Image
                 source={{ uri: photo }}
-                style={styles.fullPhoto}
-                resizeMode="contain"
+                style={[styles.fullPhoto, { width: '100%', height: '100%' }]} // explicit dimensions
+                resizeMode="cover" // or 'stretch' if 'contain' doesn't work
                 onLoad={onImageLoad}
                 onError={onImageLoadError}
               />
-            )}
-            {!photo && !isLoading && (
+            ) : (
               <Text style={styles.photoLoadingText}>No Photo Available</Text>
             )}
           </View>
@@ -74,7 +72,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.9)',
   },
   photoModalTouchable: {
     flex: 1,
@@ -97,7 +95,7 @@ const styles = StyleSheet.create({
   },
   loadingIndicator: {
     position: 'absolute',
-    zIndex: 1, // Ensure the loader appears above the image while it's loading
+    zIndex: 1,
   },
 })
 

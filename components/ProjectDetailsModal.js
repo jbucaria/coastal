@@ -55,6 +55,22 @@ const ProjectDetailsModal = ({
     }
   }
 
+  const handleCall = phoneNumber => {
+    let phoneUrl =
+      Platform.OS === 'android'
+        ? `tel:${phoneNumber}`
+        : `telprompt:${phoneNumber}`
+    Linking.canOpenURL(phoneUrl)
+      .then(supported => {
+        if (!supported) {
+          Alert.alert('Phone number is not available')
+        } else {
+          return Linking.openURL(phoneUrl)
+        }
+      })
+      .catch(err => console.error('An error occurred', err))
+  }
+
   const handleInspection = () => {
     if (!project) {
       Alert.alert('Error', 'No project selected for inspection or viewing.')
@@ -107,9 +123,13 @@ const ProjectDetailsModal = ({
               </Text>
 
               <Text style={styles.projectFieldLabel}>Contact Number:</Text>
-              <Text style={styles.projectFieldValue}>
-                {project.contactNumber || 'N/A'}
-              </Text>
+              <TouchableOpacity
+                onPress={() => handleCall(project.contactNumber)}
+              >
+                <Text style={[styles.reportFieldValue, styles.clickableText]}>
+                  {project.contactNumber}
+                </Text>
+              </TouchableOpacity>
 
               <Text style={styles.projectFieldLabel}>Inspector:</Text>
               <View style={styles.inspectorRowModal}>
@@ -206,6 +226,10 @@ const ProjectDetailsModal = ({
 }
 
 const styles = StyleSheet.create({
+  clickableText: {
+    color: 'blue',
+    textDecorationLine: 'underline',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
