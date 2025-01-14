@@ -23,10 +23,12 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     state: 'FL',
     zip: '34665',
     customer: 'DR Horton',
-    contactName: 'John Doe',
-    contactNumber: '727-555-1234',
+    customerName: 'John Doe',
+    customerNumber: '727-555-1234',
+    homeOwnerName: 'Jane Doe',
+    homeOwnerNumber: '727-555-5678',
     inspectorName: 'John N. Doe',
-    reason: ' leak in garage',
+    reason: 'leak in garage',
     jobType: 'inspection',
     inspectinResults: '',
     hours: '',
@@ -64,7 +66,7 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
         const blob = await response.blob()
         const fileRef = ref(
           storage,
-          `projectPhotos/${Date.now()}_${asset.fileName}` // Ensure 'fileName' is correct
+          `projectPhotos/${Date.now()}_${asset.fileName}`
         )
         await uploadBytes(fileRef, blob)
         const downloadURL = await getDownloadURL(fileRef)
@@ -106,9 +108,11 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
       }
 
       // Format phone number
-      const formattedNumber = newProject.contactNumber
-        .replace(/\D/g, '')
-        .replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')
+      const formattedNumber =
+        newProject.customerNumber ||
+        newProject.homeOwnerNumber
+          .replace(/\D/g, '')
+          .replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')
 
       const projectData = {
         ...newProject,
@@ -121,8 +125,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
       await onCreateProject(projectData)
 
       Alert.alert('Success', 'Project created successfully.')
-
-      // Close the modal
       onClose()
     } catch (error) {
       console.error('Error creating project:', error)
@@ -148,7 +150,8 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
             >
               <Text style={styles.modalTitle}>Create New Project</Text>
 
-              {/* Street */}
+              {/* SECTION: Address Fields */}
+              <Text style={styles.sectionTitle}>Address</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="Street"
@@ -157,7 +160,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
                   setNewProject({ ...newProject, street: text })
                 }
               />
-              {/* City */}
               <TextInput
                 style={styles.modalInput}
                 placeholder="City"
@@ -166,7 +168,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
                   setNewProject({ ...newProject, city: text })
                 }
               />
-              {/* State */}
               <TextInput
                 style={styles.modalInput}
                 placeholder="State"
@@ -175,7 +176,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
                   setNewProject({ ...newProject, state: text })
                 }
               />
-              {/* Zip */}
               <TextInput
                 style={styles.modalInput}
                 placeholder="ZIP"
@@ -185,35 +185,57 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
                 }
                 keyboardType="numeric"
               />
-              {/* Customer */}
+
+              {/* SECTION: Customer Info */}
+              <Text style={styles.sectionTitle}>Customer Info</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Customer"
+                placeholder="Company / Customer Name"
                 value={newProject.customer}
                 onChangeText={text =>
                   setNewProject({ ...newProject, customer: text })
                 }
               />
-              {/* Homeowner Name */}
               <TextInput
                 style={styles.modalInput}
-                placeholder="Homeowner Name"
-                value={newProject.contactName}
+                placeholder="Customer Contact Name"
+                value={newProject.customerName}
                 onChangeText={text =>
-                  setNewProject({ ...newProject, contactName: text })
+                  setNewProject({ ...newProject, customerName: text })
                 }
               />
-              {/* Homeowner Number */}
               <TextInput
                 style={styles.modalInput}
-                placeholder="Homeowner Number"
-                value={newProject.contactNumber}
+                placeholder="Customer Contact Number"
+                value={newProject.customerNumber}
                 onChangeText={text =>
-                  setNewProject({ ...newProject, contactNumber: text })
+                  setNewProject({ ...newProject, customerNumber: text })
                 }
                 keyboardType="phone-pad"
               />
-              {/* Inspector Name */}
+
+              {/* SECTION: Homeowner Info */}
+              <Text style={styles.sectionTitle}>Homeowner Info</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Homeowner Name"
+                value={newProject.homeOwnerName}
+                onChangeText={text =>
+                  setNewProject({ ...newProject, homeOwnerName: text })
+                }
+              />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Homeowner Number"
+                value={newProject.homeOwnerNumber}
+                onChangeText={text =>
+                  setNewProject({ ...newProject, homeOwnerNumber: text })
+                }
+                keyboardType="phone-pad"
+              />
+
+              {/* SECTION: Project Details */}
+              <Text style={styles.sectionTitle}>Project Details</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="Inspector Name"
@@ -222,7 +244,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
                   setNewProject({ ...newProject, inspectorName: text })
                 }
               />
-              {/* Reason */}
               <TextInput
                 style={styles.modalInput}
                 placeholder="Reason for Inspection"
@@ -231,7 +252,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
                   setNewProject({ ...newProject, reason: text })
                 }
               />
-              {/* Job Type */}
               <TextInput
                 style={styles.modalInput}
                 placeholder="Type of Job"
@@ -307,6 +327,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  fullWidthModal: {
+    flex: 1,
+    width: '100%',
+  },
+  modalContent: {
+    flexGrow: 1,
+    backgroundColor: 'white',
+    padding: 20,
+  },
   modalContainer: {
     padding: 0,
   },
@@ -317,14 +346,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#2C3E50',
   },
-  fullWidthModal: {
-    flex: 1,
-    width: '100%',
-  },
-  modalContent: {
-    flexGrow: 1,
-    backgroundColor: 'white',
-    padding: 20,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2C3E50',
+    marginVertical: 8,
   },
   modalInput: {
     backgroundColor: '#f0f0f0',

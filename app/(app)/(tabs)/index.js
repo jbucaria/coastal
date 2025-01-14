@@ -19,6 +19,7 @@ import {
   doc,
   updateDoc,
 } from 'firebase/firestore'
+import { getStorage, ref, deleteObject } from 'firebase/storage'
 import { firestore } from '@/firebaseConfig'
 import ProjectCard from '@/components/ProjectCard'
 import AddProjectModal from '@/components/AddProjectModal'
@@ -36,6 +37,25 @@ const Index = () => {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [filteredProjects, setFilteredProjects] = useState([])
+  const storage = getStorage()
+
+  // Helper function: convert a Firebase download URL into a Storage path.
+  // This is necessary because deleteObject() requires a reference path
+  // like 'projectPhotos/1688253006242_file.jpg', not the download URL.
+  const getFirebasePathFromUrl = downloadURL => {
+    try {
+      // After the "/o/", we have the encoded path.
+      // Example: ".../o/projectPhotos%2Fsomefile.jpg?alt=media..."
+      const pathSegment = downloadURL.split('/o/')[1]
+      // Remove query params, e.g. "?alt=media&token=..."
+      const noQuery = pathSegment.split('?')[0]
+      // Decode "%2F" back to "/"
+      return decodeURIComponent(noQuery)
+    } catch (error) {
+      console.error('Error parsing Storage path from URL:', downloadURL, error)
+      return null
+    }
+  }
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -101,9 +121,9 @@ const Index = () => {
         ...projectData,
         createdAt: new Date(),
       })
-      console.log('Project created with ID:', docRef.id)
+
       await updateDoc(docRef, { projectId: docRef.id })
-      console.log('Project document updated with its own ID.')
+
       setModalVisible(false)
       Alert.alert('Success', 'Project created successfully.')
     } catch (error) {
@@ -125,6 +145,7 @@ const Index = () => {
 
   const handleDeleteProject = async () => {
     if (!selectedProject) return
+
     Alert.alert(
       'Confirm Deletion',
       'Are you sure you want to delete this project and all its photos?',
@@ -134,12 +155,36 @@ const Index = () => {
           text: 'OK',
           onPress: async () => {
             try {
-              // TODO: Delete photos from Firebase Storage if necessary
+              // 1) If photos exist, delete them first
+              if (selectedProject.photos && selectedProject.photos.length > 0) {
+                const deletePromises = selectedProject.photos.map(
+                  async photoURL => {
+                    try {
+                      const path = getFirebasePathFromUrl(photoURL)
+                      if (path) {
+                        const fileRef = ref(storage, path)
+                        await deleteObject(fileRef)
+                        console.log('Photo deleted:', photoURL)
+                      }
+                    } catch (err) {
+                      console.error('Error deleting photo from Storage:', err)
+                    }
+                  }
+                )
+                await Promise.all(deletePromises)
+              }
+
+              // 2) Then delete the Firestore document
               await deleteDoc(doc(firestore, 'projects', selectedProject.id))
-              Alert.alert('Success', 'The project has been deleted.')
+              Alert.alert(
+                'Success',
+                'Project and its photos have been deleted.'
+              )
+
+              // Clean up local state/UI
               setModalOptionsVisible(false)
               setSelectedProject(null)
-              // onSnapshot will automatically update the projects list
+              // If you're using onSnapshot or a similar listener, it should auto-update the list
             } catch (error) {
               Alert.alert(
                 'Error',

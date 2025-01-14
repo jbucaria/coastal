@@ -2,7 +2,7 @@
 import { getCurrentLocation } from './getCurrentLocation'
 import Constants from 'expo-constants'
 
-const apiKey = Constants.expoConfig?.extra?.googleMapsApiKey
+const apiKey = 'AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs'
 
 export const getTravelTime = async destination => {
   try {
@@ -21,13 +21,21 @@ export const getTravelTime = async destination => {
     if (data.status === 'OK') {
       const leg = data.routes[0].legs[0]
       return {
-        durationText: leg.duration.text, // e.g., "25 mins"
-        durationValue: leg.duration.value, // in seconds
-        distanceText: leg.distance.text, // e.g., "10 km"
+        durationText: leg.duration.text,
+        durationValue: leg.duration.value,
+        distanceText: leg.distance.text,
         distanceValue: leg.distance.value,
       }
     } else {
-      throw new Error(`Directions request failed: ${data.status}`)
+      // Log detailed error response
+      console.error('Directions API Response:', JSON.stringify(data, null, 2))
+
+      // Throw a more detailed error
+      throw new Error(
+        `Directions request failed: ${data.status}. Error message: ${
+          data.error_message || 'No detailed error message provided.'
+        }`
+      )
     }
   } catch (error) {
     console.error('Error fetching travel time:', error)

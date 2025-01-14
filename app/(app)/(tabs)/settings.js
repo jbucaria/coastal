@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router'
 import { IconSymbol } from '@/components/ui/IconSymbol' // Adjust the import path as needed
 import useProjectStore from '@/store/projectStore'
 import useInspectionStore from '@/store/inspectionStore'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 const Settings = () => {
   const projects = useProjectStore(state => state.projects)
@@ -91,114 +92,118 @@ const Settings = () => {
   }
 
   return (
-    <ScrollView>
-      <View className="flex-1 bg-gray-100 p-4">
-        <Text className="text-xl font-bold mb-4">Settings</Text>
+    <SafeAreaView>
+      <ScrollView>
+        <View className="flex-1 bg-gray-100 p-4">
+          <Text className="text-xl font-bold mb-4">Settings</Text>
 
-        <View className="mb-4">
-          <Text className="text-base text-gray-700 mb-1">Username</Text>
-          <TextInput
-            className="border border-gray-300 rounded p-2 bg-white"
-            value={username}
-            onChangeText={setUsername}
-            placeholder="Enter your username"
-          />
-        </View>
-
-        <View className="mb-4">
-          <Text className="text-base text-gray-700 mb-1">Email</Text>
-          <TextInput
-            className="border border-gray-300 rounded p-2 bg-white"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholder="Enter your email"
-          />
-        </View>
-
-        <TouchableOpacity onPress={handleUpdateInfo}>
-          <View className="bg-[#2C3E50] rounded-full py-3 mb-4">
-            <Text className="text-center text-white text-lg">Update Info</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={handleLogout}>
-          <View className="px-4 py-2 bg-[#e74c3c] rounded-full flex-row items-center">
-            <IconSymbol
-              name="arrow.left.square"
-              size={24}
-              color="white"
-              className="mr-2"
+          <View className="mb-4">
+            <Text className="text-base text-gray-700 mb-1">Username</Text>
+            <TextInput
+              className="border border-gray-300 rounded p-2 bg-white"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Enter your username"
             />
-            <Text className="mx-2 text-lg text-white">Logout</Text>
           </View>
-        </TouchableOpacity>
-        <View>
-          {projects.map(project => (
-            <TouchableOpacity
-              key={project.id}
-              onPress={() => handlePress(project)}
-            >
-              <Text>Address: {project.address}</Text>
-              <Text>ID: {project.id}</Text>
-              {/* Add other project details as needed */}
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={styles.container}>
-          <ScrollView>
-            {reports.map(report => (
+
+          <View className="mb-4">
+            <Text className="text-base text-gray-700 mb-1">Email</Text>
+            <TextInput
+              className="border border-gray-300 rounded p-2 bg-white"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholder="Enter your email"
+            />
+          </View>
+
+          <TouchableOpacity onPress={handleUpdateInfo}>
+            <View className="bg-[#2C3E50] rounded-full py-3 mb-4">
+              <Text className="text-center text-white text-lg">
+                Update Info
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleLogout}>
+            <View className="px-4 py-2 bg-[#e74c3c] rounded-full flex-row items-center">
+              <IconSymbol
+                name="arrow.left.square"
+                size={24}
+                color="white"
+                className="mr-2"
+              />
+              <Text className="mx-2 text-lg text-white">Logout</Text>
+            </View>
+          </TouchableOpacity>
+          <View>
+            {projects.map(project => (
               <TouchableOpacity
-                key={report.id}
-                onPress={() => handleReportPress(report)}
-                style={styles.reportCard}
+                key={project.id}
+                onPress={() => handlePress(project)}
               >
-                <Text style={styles.reportTitle}>Inspection Report</Text>
-                <Text style={styles.reportAddress}>{report.address}</Text>
-                <Text style={styles.reportId}>ID: {report.id}</Text>
-                <Text style={styles.reportDetails}>
-                  Inspector: {report.inspectorName || 'N/A'}
-                  {report.remediationRequired && (
-                    <Text style={styles.remediation}> R</Text>
-                  )}
-                </Text>
-                <Text style={styles.reportJobType}>
-                  Job Type: {report.jobType || 'N/A'}
-                </Text>
-                <Text style={styles.reportTimestamp}>
-                  Date:{' '}
-                  {report.timestamp
-                    ? new Date(
-                        report.timestamp.seconds * 1000
-                      ).toLocaleDateString()
-                    : 'N/A'}
-                </Text>
-                {report.pdfDownloadURL && (
-                  <Text style={styles.reportPdf}>
-                    PDF:{' '}
-                    <Text
-                      style={styles.link}
-                      onPress={() => Linking.openURL(report.pdfDownloadURL)}
-                    >
-                      View
-                    </Text>
-                  </Text>
-                )}
+                <Text>Address: {project.address}</Text>
+                <Text>ID: {project.id}</Text>
+                {/* Add other project details as needed */}
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
+          <View style={styles.container}>
+            <ScrollView>
+              {reports.map(report => (
+                <TouchableOpacity
+                  key={report.id}
+                  onPress={() => handleReportPress(report)}
+                  style={styles.reportCard}
+                >
+                  <Text style={styles.reportTitle}>Inspection Report</Text>
+                  <Text style={styles.reportAddress}>{report.address}</Text>
+                  <Text style={styles.reportId}>ID: {report.id}</Text>
+                  <Text style={styles.reportDetails}>
+                    Inspector: {report.inspectorName || 'N/A'}
+                    {report.remediationRequired && (
+                      <Text style={styles.remediation}> R</Text>
+                    )}
+                  </Text>
+                  <Text style={styles.reportJobType}>
+                    Job Type: {report.jobType || 'N/A'}
+                  </Text>
+                  <Text style={styles.reportTimestamp}>
+                    Date:{' '}
+                    {report.timestamp
+                      ? new Date(
+                          report.timestamp.seconds * 1000
+                        ).toLocaleDateString()
+                      : 'N/A'}
+                  </Text>
+                  {report.pdfDownloadURL && (
+                    <Text style={styles.reportPdf}>
+                      PDF:{' '}
+                      <Text
+                        style={styles.link}
+                        onPress={() => Linking.openURL(report.pdfDownloadURL)}
+                      >
+                        View
+                      </Text>
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-          {/* Optional Debug View */}
-          <View style={styles.debugContainer}>
-            <Text style={styles.debugTitle}>Inspection Store State:</Text>
-            <Text style={styles.debugText}>
-              {JSON.stringify(inspectionState, null, 2)}
-            </Text>
+            {/* Optional Debug View */}
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugTitle}>Inspection Store State:</Text>
+              <Text style={styles.debugText}>
+                {JSON.stringify(inspectionState, null, 2)}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   )
 }
 

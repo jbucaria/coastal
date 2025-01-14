@@ -1,11 +1,11 @@
-import * as FileSystem from 'expo-file-system'
+// In pdfGenerator.js
 import * as Print from 'expo-print'
-import * as Sharing from 'expo-sharing'
-import { generateReportHTML } from '../components/ReportTemplate'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { storage } from '@/firebaseConfig'
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { generateReportHTML } from '@/components/ReportTemplate'
 
-export const generatePDF = async formData => {
+const storage = getStorage()
+
+export const pdfGenerator = async formData => {
   const html = await generateReportHTML(formData)
   const sanitizedAddress = formData.address
     .replace(/[^a-zA-Z0-9]/g, '_')
@@ -26,5 +26,5 @@ export const generatePDF = async formData => {
   await uploadBytes(pdfStorageRef, pdfBlob)
   const pdfDownloadURL = await getDownloadURL(pdfStorageRef)
 
-  return { pdfFileName: fileName, pdfDownloadURL }
+  return { pdfFileName: fileName, pdfDownloadURL } // Ensure this is returned
 }

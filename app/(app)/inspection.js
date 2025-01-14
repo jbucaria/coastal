@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Alert } from 'react-native'
 import InspectionForm from '@/components/InspectionForm'
-import { handleGeneratePdf } from '@/utils/generatePdf'
+import { handleGenerateReport } from '@/utils/generateReport'
 import { useLocalSearchParams } from 'expo-router'
 import { firestore } from '@/firebaseConfig'
 import { onSnapshot, doc, updateDoc } from 'firebase/firestore'
@@ -15,8 +15,8 @@ export default function App() {
   const [date, setDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [reason, setReason] = useState('')
-  const [contactName, setContactName] = useState('')
-  const [contactNumber, setContactNumber] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customerNumber, setCustomerNumber] = useState('')
   const [inspectorName, setInspectorName] = useState('')
   const [hours, setHours] = useState('')
   const [inspectionResults, setInspectionResults] = useState('')
@@ -24,6 +24,8 @@ export default function App() {
   const [photos, setPhotos] = useState([])
   const [isSaving, setIsSaving] = useState(false)
   const [project, setProject] = useState({})
+  const [homeOwnerName, setHomeOwnerName] = useState('')
+  const [homeOwnerNumber, setHomeOwnerNumber] = useState('')
   // const [projectId, setProjectId] = useState('')
 
   useEffect(() => {
@@ -46,12 +48,14 @@ export default function App() {
 
             setReason(data.reason || '')
             setInspectorName(data.inspectorName || '')
-            setContactName(data.contactName || '')
-            setContactNumber(data.contactNumber || '')
+            setCustomerName(data.customerName || '')
+            setCustomerNumber(data.customerNumber || '')
             setHours(data.hours || '')
             setInspectionResults(data.inspectionResults || '')
             setRecommendedActions(data.recommendedActions || '')
             setPhotos(data.photos || [])
+            setHomeOwnerName(data.homeOwnerName || '')
+            setHomeOwnerNumber(data.homeOwnerNumber || '')
             setProject({ id: docSnapshot.id, ...data })
           } else {
             console.error('Project does not exist:', projectId)
@@ -86,8 +90,8 @@ export default function App() {
       'Reason for Inspection': reason,
       "Inspector's Name": inspectorName,
       'Hours to Complete Inspection': hours,
-      'Contact Name': contactName,
-      'Contact Number': contactNumber,
+      'Contact Name': customerName,
+      'Contact Number': customerNumber,
       'Inspection Results': inspectionResults,
       'Recommended Actions': recommendedActions,
     }
@@ -141,15 +145,17 @@ export default function App() {
         date: date.toLocaleDateString(),
         reason,
         inspectorName,
-        contactName,
-        contactNumber,
+        customerName,
+        customerNumber,
+        homeOwnerName,
+        homeOwnerNumber,
         hours,
         inspectionResults,
         recommendedActions,
         photos: photos,
         onSite: false,
       }
-      await handleGeneratePdf(formData, setIsSaving)
+      await handleGenerateReport(formData, setIsSaving)
     } catch (error) {
       console.error('Error generating PDF:', error)
     }
@@ -180,10 +186,10 @@ export default function App() {
       isSaving={isSaving}
       handleDateChange={handleDateChange}
       handleGeneratePdf={handleGeneratePdfLocal}
-      contactName={contactName}
-      setContactName={setContactName}
-      setContactNumber={setContactNumber}
-      contactNumber={contactNumber}
+      contactName={customerName}
+      setCustomertName={setCustomerName}
+      setCustomerNumber={setCustomerNumber}
+      customertNumber={customerNumber}
       project={project}
       setProject={setProject}
       projectId={projectId}

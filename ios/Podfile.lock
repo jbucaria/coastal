@@ -246,6 +246,8 @@ PODS:
     - ExpoModulesCore
   - ExpoLinking (7.0.3):
     - ExpoModulesCore
+  - ExpoLocation (18.0.5):
+    - ExpoModulesCore
   - ExpoMediaLibrary (17.0.4):
     - ExpoModulesCore
     - React-Core
@@ -2183,6 +2185,7 @@ DEPENDENCIES:
   - ExpoImagePicker (from `../node_modules/expo-image-picker/ios`)
   - ExpoKeepAwake (from `../node_modules/expo-keep-awake/ios`)
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
+  - ExpoLocation (from `../node_modules/expo-location/ios`)
   - ExpoMediaLibrary (from `../node_modules/expo-media-library/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoPrint (from `../node_modules/expo-print/ios`)
@@ -2322,6 +2325,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-keep-awake/ios"
   ExpoLinking:
     :path: "../node_modules/expo-linking/ios"
+  ExpoLocation:
+    :path: "../node_modules/expo-location/ios"
   ExpoMediaLibrary:
     :path: "../node_modules/expo-media-library/ios"
   ExpoModulesCore:
@@ -2509,6 +2514,7 @@ SPEC CHECKSUMS:
   ExpoImagePicker: 440a560c9bfc63edae854d08b9f12f75bd11c112
   ExpoKeepAwake: 783e68647b969b210a786047c3daa7b753dcac1f
   ExpoLinking: a8332a219379ba80f8e612d5a5de4a3da446886e
+  ExpoLocation: a4b472b3cb2d42f1a3f3d7e2ec0e7a4db061ea22
   ExpoMediaLibrary: 634d8bc2ddb2f6e0f6fd2045ce5ebbc253007114
   ExpoModulesCore: f7db8b4faee7e5b94ad55f2bf781781a0bcf934d
   ExpoPrint: 3f9f5a5a19dbda5b30963d5bf078918f024aa29d

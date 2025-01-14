@@ -22,11 +22,6 @@
     <string>1.0.0</string>
     <key>CFBundleSignature</key>
     <string>????</string>
-    <key>LSApplicationQueriesSchemes</key>
-<array>
-    <string>comgooglemaps</string>
-    <!-- Add other schemes as needed -->
-</array>
     <key>CFBundleURLTypes</key>
     <array>
       <dict>
@@ -51,6 +46,10 @@
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+      <string>comgooglemaps</string>
+    </array>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -64,8 +63,16 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your camera</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>$(PRODUCT_NAME) needs access to your location even when the app is not in use to provide you with real-time updates.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to use your location to enhance your experience with location-based features.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to save photos</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>The app accesses your photos to let you share them with your friends.</string>
     <key>NSUserActivityTypes</key>

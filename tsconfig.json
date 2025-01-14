@@ -16,6 +16,8 @@
     "app/(tabs)/explore.js",
     "app/(tabs)/_layout.js",
     "app/+not-found.js",
-    "app/_layout.js"
+    "app/_layout.js",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ]
 }
