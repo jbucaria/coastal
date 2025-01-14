@@ -26,12 +26,8 @@ const InspectionForm = ({
   setCustomer,
   address,
   setAddress,
-  date,
-  setShowDatePicker,
   inspectorName,
   setInspectorName,
-  reason,
-  setReason,
   hours,
   setHours,
   inspectionResults,
@@ -73,8 +69,6 @@ const InspectionForm = ({
   const handleSwitchChange = (field, value) => {
     if (project) {
       setProject({ ...project, [field]: value })
-      console.log('Project updated:', project, field, value)
-      // You can also call an external update function (e.g., onUpdateProject) here.
     } else {
       console.error('Project is undefined, cannot update:', field)
     }

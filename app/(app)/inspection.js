@@ -147,6 +147,7 @@ export default function App() {
         inspectionResults,
         recommendedActions,
         photos: photos,
+        onSite: false,
       }
       await handleGeneratePdf(formData, setIsSaving)
     } catch (error) {

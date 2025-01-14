@@ -1,62 +1,35 @@
 {
   "expo": {
-    "name": "Coastal",
-    "slug": "Coastal",
+    "name": "YourAppName",
+    "slug": "your-app-name",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.jbucaria.Coastal",
-      "googleServicesFile": "./GoogleService-Info.plist",
-      "infoPlist": {
-        "LSApplicationQueriesSchemes": ["comgooglemaps"]
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff",
-        "googleServicesFile": "./GoogleService-Info.plist"
-      },
-      "permissions": ["android.permission.RECORD_AUDIO"],
-      "package": "com.jbucaria.coastal1"
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "The app accesses your photos to let you share them with your friends."
-        }
-      ],
-      "expo-asset"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": "618e04fc-22cb-4d24-9bf7-530fb7444d97"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
-    "owner": "jbucaria"
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "openaiKey": "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",
+      "googleMapsApiKey": "yAIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs"
+    }
   }
 }

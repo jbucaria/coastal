@@ -212,6 +212,7 @@ const Index = () => {
           setSelectedPhoto={setSelectedPhoto}
           setModalOptionsVisible={setModalOptionsVisible}
           setSelectedProject={setSelectedProject}
+          setProject={setSelectedProject}
         />
 
         <PhotoModal

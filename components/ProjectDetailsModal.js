@@ -1,7 +1,6 @@
 // components/ProjectDetailsModal.js
-
 import React from 'react'
-import { router } from 'expo-router' // Ensure correct import
+import { router } from 'expo-router'
 import {
   Modal,
   View,
@@ -14,13 +13,16 @@ import {
   Alert,
   Platform,
   Linking,
+  Switch,
 } from 'react-native'
+import { getTravelTime } from '@/utils/getTravelTime'
 
 const ProjectDetailsModal = ({
   visible,
   project,
+  setProject,
   onClose,
-  onUpdateProject,
+  onUpdateProject, // Function passed from parent to update Firestore
   onDeleteProject,
   setSelectedPhoto,
   setModalOptionsVisible,
@@ -28,35 +30,46 @@ const ProjectDetailsModal = ({
 }) => {
   if (!project) return null
 
-  const openGoogleMaps = address => {
-    const url = Platform.select({
-      ios: `comgooglemaps://?q=${encodeURIComponent(address)}`,
-      android: `geo:0,0?q=${encodeURIComponent(address)}`,
-    })
+  const openGoogleMapsWithETA = async address => {
+    try {
+      // Retrieve travel time info using user's current location as the origin
+      const travelInfo = await getTravelTime(address)
 
-    if (Platform.OS === 'ios') {
-      Linking.canOpenURL('comgooglemaps://')
-        .then(supported => {
-          if (supported) {
-            return Linking.openURL(url)
-          } else {
-            // If Google Maps is not installed, open in browser
-            console.log('Google Maps not installed, opening in browser')
-            return Linking.openURL(
-              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                address
-              )}`
-            )
-          }
-        })
-        .catch(err => console.error('An error occurred', err))
-    } else {
-      Linking.openURL(url).catch(err => console.error('An error occurred', err))
+      // Display the travel time (ETA) to the user
+      Alert.alert(
+        'Estimated Travel Time',
+        `Approximately ${travelInfo.durationText} to reach your destination.`
+      )
+
+      // Construct the URL for the maps application
+      const url = Platform.select({
+        ios: `comgooglemaps://?q=${encodeURIComponent(address)}`,
+        android: `geo:0,0?q=${encodeURIComponent(address)}`,
+      })
+
+      // Try to open the maps app
+      if (Platform.OS === 'ios') {
+        const supported = await Linking.canOpenURL('comgooglemaps://')
+        if (supported) {
+          await Linking.openURL(url)
+        } else {
+          await Linking.openURL(
+            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              address
+            )}`
+          )
+        }
+      } else {
+        await Linking.openURL(url)
+      }
+    } catch (error) {
+      console.error('Error opening maps with ETA:', error)
+      Alert.alert('Error', 'Failed to retrieve travel time information.')
     }
   }
 
   const handleCall = phoneNumber => {
-    let phoneUrl =
+    const phoneUrl =
       Platform.OS === 'android'
         ? `tel:${phoneNumber}`
         : `telprompt:${phoneNumber}`
@@ -76,9 +89,7 @@ const ProjectDetailsModal = ({
       Alert.alert('Error', 'No project selected for inspection or viewing.')
       return
     }
-
     const route = project.inspectionComplete ? '/viewReport' : '/inspection'
-
     router.push({
       pathname: route,
       params: {
@@ -86,6 +97,34 @@ const ProjectDetailsModal = ({
       },
     })
     onClose()
+  }
+
+  const handleSwitchChange = async (field, value) => {
+    if (project && setProject) {
+      // Update local state for immediate UI feedback
+      setProject(prev => ({ ...prev, [field]: value }))
+      console.log('Local project updated:', field, value)
+      // Optionally update Firestore here if onUpdateProject is provided.
+      if (onUpdateProject) {
+        try {
+          await onUpdateProject(project.id, field, value)
+          console.log(`Firestore updated: ${field} set to ${value}`)
+        } catch (error) {
+          console.error('Error updating project in Firestore:', error)
+          Alert.alert(
+            'Error',
+            'Failed to update the project. Please try again.'
+          )
+          // Optionally, roll back the state if the update fails:
+          setProject(prev => ({ ...prev, [field]: !value }))
+        }
+      }
+    } else {
+      console.error(
+        'setProject function is undefined. Make sure it is passed from the parent.'
+      )
+      Alert.alert('Error', 'Project is undefined. Cannot update.')
+    }
   }
 
   return (
@@ -109,8 +148,12 @@ const ProjectDetailsModal = ({
                   Project ID: {project.projectId}
                 </Text>
               )}
+
               <Text style={styles.projectFieldLabel}>Address:</Text>
-              <Text style={styles.projectFieldValue}>{project.address}</Text>
+
+              <Text style={styles.projectFieldValue}>
+                {project.address || 'N/A'}
+              </Text>
 
               <Text style={styles.projectFieldLabel}>Customer:</Text>
               <Text style={styles.projectFieldValue}>
@@ -126,8 +169,8 @@ const ProjectDetailsModal = ({
               <TouchableOpacity
                 onPress={() => handleCall(project.contactNumber)}
               >
-                <Text style={[styles.reportFieldValue, styles.clickableText]}>
-                  {project.contactNumber}
+                <Text style={[styles.projectFieldValue, styles.clickableText]}>
+                  {project.contactNumber || 'N/A'}
                 </Text>
               </TouchableOpacity>
 
@@ -146,10 +189,16 @@ const ProjectDetailsModal = ({
                 {project.reason || 'N/A'}
               </Text>
 
-              <Text style={styles.projectFieldLabel}>Job Type:</Text>
-              <Text style={styles.projectFieldValue}>
-                {project.jobType || 'N/A'}
-              </Text>
+              {/* New On Site Switch */}
+              {!project.inspectionComplete && (
+                <View style={styles.checkboxContainer}>
+                  <Switch
+                    value={project.onSite || false}
+                    onValueChange={value => handleSwitchChange('onSite', value)}
+                  />
+                  <Text style={styles.checkboxLabel}>On Site</Text>
+                </View>
+              )}
 
               {/* Photos */}
               {project.photos && project.photos.length > 0 ? (
@@ -179,7 +228,7 @@ const ProjectDetailsModal = ({
                 <TouchableOpacity
                   onPress={() => {
                     if (project.address) {
-                      openGoogleMaps(project.address)
+                      openGoogleMapsWithETA(project.address)
                       onClose()
                     } else {
                       Alert.alert(
@@ -203,7 +252,7 @@ const ProjectDetailsModal = ({
                       : 'Start Inspection'}
                   </Text>
                 </TouchableOpacity>
-                {/* Conditionally render the Delete Project button */}
+
                 {!project.inspectionComplete && (
                   <TouchableOpacity
                     onPress={onDeleteProject}
@@ -281,6 +330,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 4,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  checkboxLabel: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#2C3E50',
   },
   projectPhotos: {
     marginTop: 12,

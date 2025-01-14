@@ -46,6 +46,11 @@ const ProjectCard = ({ project, onPress }) => {
           <IconSymbol name="text.document" size={30} color="green" />
         </View>
       )}
+      {project.onSite && ( // Conditional rendering of the document icon
+        <View style={styles.documentIcon}>
+          <IconSymbol name="person.crop.square" size={30} color="green" />
+        </View>
+      )}
     </TouchableOpacity>
   )
 }
