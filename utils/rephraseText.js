@@ -3,8 +3,7 @@
 export const rephraseText = async inputText => {
   // IMPORTANT: Do not hard-code your API key in production!
   // Instead, load it from an environment variable or secure storage.
-  const apiKey =
-    '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' // Replace with your API key
+  const apiKey = '' // Replace with your API key
 
   // Construct the messages array for the chat API.
   // The system message sets the behavior, and the user message includes your prompt.
