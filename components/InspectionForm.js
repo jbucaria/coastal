@@ -13,21 +13,25 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native'
-import { updateDoc, doc } from 'firebase/firestore'
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller'
 import { ThemedText } from '@/components/ThemedText'
 import { ThemedView } from '@/components/ThemedView'
 import { IconSymbol } from '@/components/ui/IconSymbol'
+import { rephraseText } from '@/utils/rephraseText' // Import the function that calls OpenAI
 
 const InspectionForm = ({
   customer,
   setCustomer,
   address,
   setAddress,
+  date,
+  setShowDatePicker,
   inspectorName,
   setInspectorName,
+  reason,
+  setReason,
   hours,
   setHours,
   inspectionResults,
@@ -45,34 +49,34 @@ const InspectionForm = ({
   project,
   setProject,
   projectId,
-  firestore, // Firestore instance
 }) => {
-  // isEditing controls whether full form fields are editable
-  const [isEditing, setIsEditing] = useState(false)
-
-  // For toggling the editing mode:
-  const toggleEditMode = () => setIsEditing(prev => !prev)
-
-  const onUpdateProject = async (projectId, field, value) => {
+  // Handler for rephrasing inspection results using OpenAI’s API
+  const handleRephraseInspectionResults = async () => {
     try {
-      await updateDoc(doc(firestore, 'projects', projectId), {
-        [field]: value,
-      })
-      console.log(`Project field ${field} updated to ${value}`)
+      const newText = await rephraseText(inspectionResults)
+      setInspectionResults(newText)
     } catch (error) {
-      console.error('Error updating project:', error)
-      Alert.alert('Error', 'Failed to update the project. Please try again.')
+      Alert.alert('Error', 'Failed to rephrase inspection results.')
+    }
+  }
+
+  // Handler for rephrasing recommended actions using OpenAI’s API
+  const handleRephraseRecommendedActions = async () => {
+    try {
+      const newText = await rephraseText(recommendedActions)
+      setRecommendedActions(newText)
+    } catch (error) {
+      Alert.alert('Error', 'Failed to rephrase recommended actions.')
     }
   }
 
   const handleSwitchChange = (field, value) => {
-    // Update local state for immediate feedback
-    setProject(prev => ({ ...prev, [field]: value }))
-    // Update Firestore if projectId is present
-    if (projectId) {
-      onUpdateProject(projectId, field, value)
+    if (project) {
+      setProject({ ...project, [field]: value })
+      console.log('Project updated:', project, field, value)
+      // You can also call an external update function (e.g., onUpdateProject) here.
     } else {
-      console.error('Project ID is missing. Cannot update Firestore.')
+      console.error('Project is undefined, cannot update:', field)
     }
   }
 
@@ -123,63 +127,55 @@ const InspectionForm = ({
     }
   }
 
-  // Helper function to conditionally render a field:
-  const renderEditableField = (
-    label,
-    value,
-    onChange,
-    keyboardType = 'default'
-  ) => {
-    return (
-      <>
-        <ThemedText style={styles.label}>{label}:</ThemedText>
-        {isEditing ? (
-          <TextInput
-            style={styles.input}
-            placeholder={label}
-            value={value}
-            onChangeText={onChange}
-            keyboardType={keyboardType}
-          />
-        ) : (
-          <Text style={[styles.input, styles.readOnlyText]}>{value}</Text>
-        )}
-      </>
-    )
-  }
-
   return (
     <KeyboardAwareScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Create Inspection Report</Text>
 
-      {/* Edit Mode Toggle Button */}
-      <TouchableOpacity
-        style={styles.editToggleButton}
-        onPress={toggleEditMode}
-      >
-        <Text style={styles.editToggleButtonText}>
-          {isEditing ? 'Switch to Read-Only' : 'Switch to Edit Mode'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Display Project ID */}
       {projectId && (
         <Text style={styles.projectIdText}>Project ID: {projectId}</Text>
       )}
 
-      {/* Render conditional fields (only editable when in edit mode) */}
-      {renderEditableField('Customer', customer, setCustomer)}
-      {renderEditableField('Address', address, setAddress)}
-      {renderEditableField("Inspector's Name", inspectorName, setInspectorName)}
-      {renderEditableField('Contact Name', contactName, setContactName)}
-      {renderEditableField(
-        'Contact Number',
-        contactNumber,
-        setContactNumber,
-        'phone-pad'
-      )}
+      <ThemedText style={styles.label}>Customer:</ThemedText>
+      <TextInput
+        style={styles.input}
+        placeholder="Customer"
+        value={customer}
+        onChangeText={setCustomer}
+      />
 
-      {/* Other fields always editable for the inspection report */}
+      <ThemedText style={styles.label}>Address:</ThemedText>
+      <TextInput
+        style={styles.input}
+        placeholder="Address"
+        value={address}
+        onChangeText={setAddress}
+      />
+
+      <ThemedText style={styles.label}>Inspector's Name:</ThemedText>
+      <TextInput
+        style={styles.input}
+        placeholder="Inspector's Name"
+        value={inspectorName}
+        onChangeText={setInspectorName}
+      />
+
+      <ThemedText style={styles.label}>Contact Name:</ThemedText>
+      <TextInput
+        style={styles.input}
+        placeholder="Contact Name"
+        value={contactName}
+        onChangeText={setContactName}
+      />
+
+      <ThemedText style={styles.label}>Contact Number:</ThemedText>
+      <TextInput
+        style={styles.input}
+        placeholder="Contact Number"
+        value={contactNumber}
+        onChangeText={setContactNumber}
+        keyboardType="phone-pad"
+      />
+
       <ThemedText style={styles.label}>
         Hours to Complete Inspection:
       </ThemedText>
@@ -199,6 +195,14 @@ const InspectionForm = ({
         onChangeText={setInspectionResults}
         multiline
       />
+      <TouchableOpacity
+        style={styles.rephraseButton}
+        onPress={handleRephraseInspectionResults}
+      >
+        <Text style={styles.rephraseButtonText}>
+          Rephrase Inspection Results
+        </Text>
+      </TouchableOpacity>
 
       <ThemedText style={styles.label}>Recommended Actions:</ThemedText>
       <TextInput
@@ -208,8 +212,16 @@ const InspectionForm = ({
         onChangeText={setRecommendedActions}
         multiline
       />
+      <TouchableOpacity
+        style={styles.rephraseButton}
+        onPress={handleRephraseRecommendedActions}
+      >
+        <Text style={styles.rephraseButtonText}>
+          Rephrase Recommended Actions
+        </Text>
+      </TouchableOpacity>
 
-      {/* Switches for project-level fields (always interactable) */}
+      {/* Project-level Switches */}
       <View style={styles.checkboxContainer}>
         <Switch
           value={project?.remediationRequired || false}
@@ -237,7 +249,9 @@ const InspectionForm = ({
       {/* Photos Section */}
       <ThemedView style={styles.photoSection}>
         <View style={styles.photosHeader}>
-          <ThemedText style={styles.subtitle}>Photos</ThemedText>
+          <ThemedText style={styles.subtitle} type="subtitle">
+            Photos
+          </ThemedText>
           <TouchableOpacity onPress={pickImageAsync}>
             <IconSymbol name="photo.badge.plus" size={30} color="#008000" />
           </TouchableOpacity>
@@ -245,14 +259,12 @@ const InspectionForm = ({
         {photos.map((photo, index) => (
           <View key={index} style={styles.photoItem}>
             <Image source={{ uri: photo.uri }} style={styles.photoImage} />
-
             <TextInput
               style={styles.photoLabelInput}
               value={photo.label}
               onChangeText={text => handlePhotoLabelChange(text, index)}
               placeholder="Label this photo"
             />
-
             <TouchableOpacity onPress={() => handleRemovePhoto(index)}>
               <ThemedText style={styles.removeText}>Remove</ThemedText>
             </TouchableOpacity>
@@ -303,27 +315,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     fontSize: 16,
   },
-  readOnlyText: {
-    backgroundColor: '#eee',
-  },
   textArea: {
     height: 100,
     textAlignVertical: 'top',
-  },
-  dateButton: {
-    backgroundColor: '#3498db',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    alignItems: 'center',
-  },
-  dateButtonText: {
-    color: 'white',
-    fontSize: 16,
-  },
-  selectedDateText: {
-    fontSize: 16,
-    marginBottom: 16,
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -377,14 +371,15 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginTop: 16,
   },
-  editToggleButton: {
-    backgroundColor: '#2C3E50',
-    padding: 8,
+  rephraseButton: {
+    backgroundColor: '#95a5a6',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
+    alignSelf: 'flex-start',
     marginBottom: 16,
-    alignSelf: 'flex-end',
   },
-  editToggleButtonText: {
+  rephraseButtonText: {
     color: 'white',
     fontSize: 14,
   },

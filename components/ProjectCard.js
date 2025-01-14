@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const ProjectCard = ({ project, onPress }) => {
   // Determine background color based on project status
@@ -33,10 +34,18 @@ const ProjectCard = ({ project, onPress }) => {
           {project.siteComplete && (
             <Text style={styles.remediationIndicator}> C</Text>
           )}
+          {/* {project.inspectionComplete && (
+            <Text style={styles.inspectionCompleteIndicator}> ✓</Text>
+          )} */}
         </View>
         <Text style={styles.jobType}>Job Type: {project.jobType || 'N/A'}</Text>
         <Text style={styles.jobType}>ID: {project.projectId || 'N/A'}</Text>
       </View>
+      {project.inspectionComplete && ( // Conditional rendering of the document icon
+        <View style={styles.documentIcon}>
+          <IconSymbol name="text.document" size={30} color="green" />
+        </View>
+      )}
     </TouchableOpacity>
   )
 }
@@ -47,6 +56,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 8,
     marginTop: 3,
+    position: 'relative', // Necessary for absolute positioning of child elements
   },
   cardContent: {},
   projectAddress: { color: 'black', fontSize: 16, fontWeight: 'bold' },
@@ -58,7 +68,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 4,
   },
+  inspectionCompleteIndicator: {
+    color: 'green',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
   jobType: { color: 'black', fontSize: 14, marginTop: 4 },
+  documentIcon: {
+    position: 'absolute',
+    bottom: 10, // Adjust based on your design preference
+    right: 10, // Adjust based on your design preference
+  },
 })
 
 export default ProjectCard

@@ -14,7 +14,12 @@ import * as ImagePicker from 'expo-image-picker'
 import * as Print from 'expo-print'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import { firestore, storage } from '@/firebaseConfig'
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import {
+  getDownloadURL,
+  ref,
+  uploadBytes,
+  deleteObject,
+} from 'firebase/storage'
 import { useLocalSearchParams, router } from 'expo-router'
 import {
   KeyboardToolbar,
@@ -46,11 +51,15 @@ const EditReportPage = () => {
         if (projectSnap.exists()) {
           setProject({ id: projectSnap.id, ...projectSnap.data() })
 
-          // Assuming the report data is directly under the project document
-          const reportData = projectSnap.data().report || projectSnap.data() // Adjust based on how you store report data
+          const reportData = projectSnap.data().report || projectSnap.data()
           setReport(reportData)
           setEditedReport({ ...reportData })
-          setPhotos(reportData.photos || [])
+          // Ensure photos have uri or downloadURL
+          setPhotos(
+            (reportData.photos || []).map(photo => ({
+              uri: photo.uri || photo.downloadURL,
+            }))
+          )
         } else {
           console.log('No such project!')
           Alert.alert('Error', 'Project not found')
@@ -84,7 +93,18 @@ const EditReportPage = () => {
     })
 
     if (!result.canceled) {
-      setPhotos([...photos, { uri: result.assets[0].uri }])
+      // Check if the photo has already been added (by comparing URIs)
+      const newPhotoUri = result.assets[0].uri
+      if (
+        !photos.some(
+          photo =>
+            photo.uri === newPhotoUri || photo.downloadURL === newPhotoUri
+        )
+      ) {
+        setPhotos([...photos, { uri: newPhotoUri }])
+      } else {
+        Alert.alert('Duplicate Photo', 'This photo has already been added.')
+      }
     }
   }
 
@@ -92,75 +112,85 @@ const EditReportPage = () => {
     setIsSaving(true)
     setUploadProgress(0)
     try {
-      const reportRef = doc(firestore, 'inspectionReports', id)
+      const projectRef = doc(firestore, 'projects', projectId)
 
-      // Handle photo uploads
       const newPhotos = []
       for (const photo of photos) {
         if (photo.uri && !photo.downloadURL) {
-          const response = await fetch(photo.uri)
-          const blob = await response.blob()
-          const filename = `inspectionPhotos/${Date.now()}-${Math.random()
-            .toString(36)
-            .substring(7)}.jpg`
-          const storageRef = ref(storage, filename)
-          await uploadBytes(storageRef, blob)
-          const downloadURL = await getDownloadURL(storageRef)
-          newPhotos.push({ uri: downloadURL })
+          try {
+            const filename = `projects/${projectId}/${Date.now()}-${Math.random()
+              .toString(36)
+              .substring(7)}.jpg`
+            const storageRef = ref(storage, filename)
+
+            // Attempt to get the download URL; if it fails, upload the photo
+            await getDownloadURL(storageRef).catch(async () => {
+              const response = await fetch(photo.uri)
+              const blob = await response.blob()
+              await uploadBytes(storageRef, blob)
+              const downloadURL = await getDownloadURL(storageRef)
+              newPhotos.push({ uri: downloadURL })
+            })
+          } catch (error) {
+            console.error('Error uploading photo:', error)
+          }
         } else {
-          newPhotos.push(photo)
+          // If photo already has a downloadURL, it's already in storage, so we just use that
+          newPhotos.push({ uri: photo.downloadURL })
         }
       }
 
-      // Update Firestore
-      await updateDoc(reportRef, {
+      // Update Firestore document
+      await updateDoc(projectRef, {
         ...editedReport,
-        photos: newPhotos.map(p => ({ uri: p.uri })), // Ensure all photos have only uri field
+        photos: newPhotos, // Use newPhotos which now contains only the correct URIs or downloadURLs
       })
 
-      // Generate new PDF with updated data
-      const newHtml = await generateReportHTML({
-        ...editedReport,
-        photos: newPhotos,
-      })
-      const sanitizedAddress = editedReport.address
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .substring(0, 50)
-      const fileName = sanitizedAddress
-        ? `${sanitizedAddress}_Inspection_Report.pdf`
-        : 'Inspection_Report.pdf'
-      const { uri: newUri } = await Print.printToFileAsync({ html: newHtml })
-
-      // Upload new PDF to Firebase Storage with progress tracking
-      const pdfStorageRef = ref(storage, `inspectionReports/${fileName}`)
-      const response = await fetch(newUri)
-      const blob = await response.blob()
-
-      await uploadBytes(pdfStorageRef, blob, {
-        onUploadProgress: snapshot => {
-          const progress =
-            (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          setUploadProgress(progress)
-        },
-      })
-
-      const newPdfDownloadURL = await getDownloadURL(pdfStorageRef)
-
-      // Update Firestore with new PDF URL
-      await updateDoc(reportRef, {
-        pdfFileName: fileName,
-        pdfDownloadURL: newPdfDownloadURL,
-      })
-
-      Alert.alert('Success', 'Report and PDF have been updated')
+      Alert.alert('Success', 'Project has been updated')
     } catch (error) {
-      console.error('Error updating report and PDF:', error)
-      Alert.alert('Error', 'Failed to update the report or regenerate the PDF')
+      console.error('Error updating project:', error)
+      Alert.alert('Error', 'Failed to update the project. Please try again.')
     } finally {
       setIsSaving(false)
       setUploadProgress(0)
       router.back()
+    }
+  }
+
+  const handleRemovePhoto = async index => {
+    const photoToRemove = photos[index]
+    if (photoToRemove.uri) {
+      try {
+        let storagePath
+
+        // Extract the path from the URI
+        const url = new URL(photoToRemove.uri)
+        storagePath = decodeURIComponent(
+          url.pathname.substring(url.pathname.indexOf('/o/') + 3)
+        ).split('?')[0] // Extract path and remove query parameters
+
+        const storageRef = ref(storage, storagePath)
+        await deleteObject(storageRef)
+        console.log('Photo deleted from storage:', storagePath)
+
+        // Remove from local state
+        const updatedPhotos = [...photos]
+        updatedPhotos.splice(index, 1)
+        setPhotos(updatedPhotos)
+
+        // Update Firestore to reflect the removal
+        const projectRef = doc(firestore, 'projects', projectId)
+        await updateDoc(projectRef, {
+          photos: updatedPhotos.map(p => ({ uri: p.uri || p.downloadURL })),
+        })
+      } catch (error) {
+        console.error('Error removing photo:', error)
+        Alert.alert('Error', 'Failed to remove the photo. Please try again.')
+        // If deletion from storage fails, still remove from local state to avoid inconsistency
+        const updatedPhotos = [...photos]
+        updatedPhotos.splice(index, 1)
+        setPhotos(updatedPhotos)
+      }
     }
   }
 
@@ -272,9 +302,7 @@ const EditReportPage = () => {
                 <Image source={{ uri: photo.uri }} style={styles.photoImage} />
                 <TouchableOpacity
                   style={styles.deletePhotoButton}
-                  onPress={() =>
-                    setPhotos(photos.filter((_, i) => i !== index))
-                  }
+                  onPress={() => handleRemovePhoto(index)}
                 >
                   <ThemedText style={styles.deletePhotoButtonText}>
                     X

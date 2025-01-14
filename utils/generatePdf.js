@@ -3,6 +3,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { doc, updateDoc } from 'firebase/firestore'
 import { storage, firestore } from '@/firebaseConfig'
 import { Alert } from 'react-native'
+import { router } from 'expo-router'
 import { generatePDF } from './pdfGenerator' // Import the new PDF generation function
 
 export const handleGeneratePdf = async (formData, setIsSaving) => {
@@ -74,36 +75,8 @@ export const handleGeneratePdf = async (formData, setIsSaving) => {
     // 6. Provide user feedback and sharing options.
     Alert.alert(
       'File Saved',
-      'The report has been saved and shared. What would you like to do?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-          onPress: () => setIsSaving(false),
-        },
-        {
-          text: 'View',
-          onPress: async () => {
-            try {
-              await Linking.openURL(pdfDownloadURL)
-            } catch (error) {
-              console.error('Error opening PDF:', error)
-              Alert.alert('Error', 'Failed to open the PDF. Please try again.')
-            } finally {
-              setIsSaving(false)
-            }
-          },
-        },
-        {
-          text: 'Share',
-          onPress: async () => {
-            // Note: Sharing action might require the local PDF file path, which isn't available here.
-            // You'll need to adjust this if you want to share directly from this function.
-            Alert.alert('Share', 'Sharing functionality not implemented here.')
-            setIsSaving(false)
-          },
-        },
-      ],
+      'The report has been saved.',
+      router.push('(tabs)'),
       { cancelable: false }
     )
   } catch (err) {

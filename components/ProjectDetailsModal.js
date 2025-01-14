@@ -203,12 +203,15 @@ const ProjectDetailsModal = ({
                       : 'Start Inspection'}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={onDeleteProject}
-                  style={[styles.actionButton, styles.deleteButton]}
-                >
-                  <Text style={styles.actionButtonText}>Delete Project</Text>
-                </TouchableOpacity>
+                {/* Conditionally render the Delete Project button */}
+                {!project.inspectionComplete && (
+                  <TouchableOpacity
+                    onPress={onDeleteProject}
+                    style={[styles.actionButton, styles.deleteButton]}
+                  >
+                    <Text style={styles.actionButtonText}>Delete Project</Text>
+                  </TouchableOpacity>
+                )}
 
                 <TouchableOpacity
                   onPress={onClose}
