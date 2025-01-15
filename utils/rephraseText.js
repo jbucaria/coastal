@@ -1,7 +1,7 @@
 // utils/rephraseText.js
 import Constants from 'expo-constants'
 
-const apiKey = Constants.expoConfig?.extra?.openaiKey
+const apiKey = ''
 
 export const rephraseText = async inputText => {
   const messages = [

@@ -59,13 +59,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {
-      "eas": {
-        "projectId": "618e04fc-22cb-4d24-9bf7-530fb7444d97"
-      },
-      "openaiKey": "OPENAI_API_KEY",
-      "googleMapsApiKey": "GOOGLE_MAPS_API_KEY"
-    },
+
     "owner": "jbucaria"
   }
 }

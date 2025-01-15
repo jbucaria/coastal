@@ -1,8 +1,8 @@
 // utils/getTravelTime.js
 import { getCurrentLocation } from './getCurrentLocation'
-import Constants from 'expo-constants'
+// import { GOOGLE_MAPS_API_KEY } from '@/env'
 
-const apiKey = 'AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs'
+const apiKey = ''
 
 export const getTravelTime = async destination => {
   try {

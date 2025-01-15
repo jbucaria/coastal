@@ -59,10 +59,6 @@ export const handleGenerateReport = async (formData, setIsSaving) => {
     formData.lowercaseAddress = formData.address.toLowerCase()
     formData.timestamp = new Date()
 
-    // (Optional) Generate HTML with generateReportHTML if needed:
-    // const html = await generateReportHTML(formData)
-    // and then use it in PDF generation if required
-
     // 3. Update the project document in Firestore with the updated inspection report data.
     const projectRef = doc(firestore, 'projects', projectId)
     await updateDoc(projectRef, formData)
