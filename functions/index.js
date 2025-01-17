@@ -1,26 +1,19 @@
-const { onDocumentCreated } = require('firebase-functions/v2/firestore')
-const admin = require('firebase-admin')
-admin.initializeApp()
+const functions = require('firebase-functions')
 
-exports.sendNotification = onDocumentCreated(
-  'inspectionReports/{reportId}',
-  event => {
-    const report = event.data.after.data() // Access the new document data
-    const payload = {
-      notification: {
-        title: 'New Inspection Report',
-        body: `New report added for ${report.address}`,
-      },
-      data: {
-        reportId: event.params.reportId,
-        address: report.address,
-      },
-    }
-
-    // Using the new send method
-    return admin.messaging().send({
-      ...payload,
-      topic: 'newReports',
-    })
+exports.getApiKey = functions.https.onCall(async (data, context) => {
+  // Validation or auth check could go here
+  const keys = {
+    google: process.env.GOOGLE_API_KEY,
+    openai: process.env.OPENAI_API_KEY,
+    firebase: process.env.FIRE_CONFIG_API_KEY,
   }
-)
+
+  if (!keys.google || !keys.openai || !keys.firebase) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'API keys not found'
+    )
+  }
+
+  return keys
+})
