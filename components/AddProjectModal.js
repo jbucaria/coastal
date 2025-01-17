@@ -1,27 +1,36 @@
-// components/AddProjectModal.js
-
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   Modal,
   View,
   Text,
   TextInput,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Image,
   SafeAreaView,
   Alert,
+  ScrollView,
 } from 'react-native'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { storage, firestore } from '@/firebaseConfig'
+import { initializeApp } from 'firebase/app'
+import { getFunctions, httpsCallable } from 'firebase/functions'
 import * as ImagePicker from 'expo-image-picker'
+import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete'
+import 'react-native-get-random-values'
 
-const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
+const AddProjectModal = ({
+  visible,
+  onClose,
+  onCreateProject,
+  googleApiKey,
+}) => {
   const [newProject, setNewProject] = useState({
     street: '',
-    city: 'Tampa',
-    state: 'FL',
-    zip: '34665',
+    apt: '',
+    city: '',
+    state: '',
+    zip: '',
     customer: 'DR Horton',
     customerName: 'John Doe',
     customerNumber: '727-555-1234',
@@ -30,7 +39,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     inspectorName: 'John N. Doe',
     reason: 'leak in garage',
     jobType: 'inspection',
-    inspectinResults: '',
     hours: '',
     recommendedActions: '',
     photos: [],
@@ -40,8 +48,59 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     equipmentOnSite: false,
     siteComplete: false,
   })
-
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // useEffect(() => {
+  //   console.log('Updated newProject:', newProject)
+  // }, [newProject])
+
+  const parseAddressComponents = addressComponents => {
+    const components = {
+      street: '',
+      city: '',
+      state: '',
+      zip: '',
+    }
+
+    addressComponents.forEach(component => {
+      if (component.types.includes('street_number')) {
+        components.street = component.long_name + ' '
+      }
+      if (component.types.includes('route')) {
+        components.street += component.long_name
+      }
+      if (component.types.includes('locality')) {
+        components.city = component.long_name
+      }
+      if (component.types.includes('administrative_area_level_1')) {
+        components.state = component.short_name
+      }
+      if (component.types.includes('postal_code')) {
+        components.zip = component.long_name
+      }
+    })
+
+    return components
+  }
+
+  const handleAutocompletePress = (data, details = null) => {
+    if (details && details.address_components) {
+      const parsed = parseAddressComponents(details.address_components)
+      setNewProject(prev => ({
+        ...prev,
+        street: parsed.street,
+        city: parsed.city,
+        state: parsed.state,
+        zip: parsed.zip,
+      }))
+    } else {
+      console.log('No details returned:', data)
+      setNewProject(prev => ({
+        ...prev,
+        street: data.description,
+      }))
+    }
+  }
 
   const handleAddPhoto = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -54,7 +113,7 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.7,
     })
@@ -94,7 +153,6 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
     setIsSubmitting(true)
 
     try {
-      // Basic Validation (Optional but Recommended)
       if (
         !newProject.street ||
         !newProject.city ||
@@ -107,21 +165,23 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
         return
       }
 
-      // Format phone number
       const formattedNumber =
         newProject.customerNumber ||
         newProject.homeOwnerNumber
           .replace(/\D/g, '')
           .replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')
 
+      const composedAddress = `${newProject.street}${
+        newProject.apt ? ' Apt ' + newProject.apt : ''
+      }, ${newProject.city}, ${newProject.state} ${newProject.zip}`
+
       const projectData = {
         ...newProject,
-        contactNumber: formattedNumber, // Save formatted number
-        address: `${newProject.street}, ${newProject.city}, ${newProject.state} ${newProject.zip}`,
+        contactNumber: formattedNumber,
+        address: composedAddress,
         createdAt: new Date(),
       }
 
-      // Pass the project data to the parent component
       await onCreateProject(projectData)
 
       Alert.alert('Success', 'Project created successfully.')
@@ -141,183 +201,210 @@ const AddProjectModal = ({ visible, onClose, onCreateProject }) => {
       visible={visible}
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.modalOverlay}>
-        <View style={styles.modalBackground}>
-          <SafeAreaView style={styles.fullWidthModal}>
-            <ScrollView
-              style={styles.modalContent}
-              contentContainerStyle={styles.modalContainer}
-            >
-              <Text style={styles.modalTitle}>Create New Project</Text>
+      <View style={styles.modalBackground}>
+        <SafeAreaView style={styles.fullWidthModal}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.modalContent}
+          >
+            <GooglePlacesAutocomplete
+              ref={ref}
+              filterReverseGeocodingByTypes={['locality']}
+              debounce={500}
+              disableScroll={true}
+              placeholder="Enter address"
+              onPress={handleAutocompletePress}
+              query={{
+                key: 'AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs', // Replace with your API key
+                language: 'en',
+                components: 'country:us',
+              }}
+              fetchDetails={true}
+              styles={{
+                textInputContainer: styles.autocompleteContainer,
+                textInput: styles.modalInput,
+                listView: {
+                  backgroundColor: 'white',
+                  maxHeight: 200,
+                  elevation: 5,
+                  zIndex: 5,
+                },
+              }}
+            />
+            <Text style={styles.modalTitle}>Create New Project</Text>
 
-              {/* SECTION: Address Fields */}
-              <Text style={styles.sectionTitle}>Address</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Street"
-                value={newProject.street}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, street: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="City"
-                value={newProject.city}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, city: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="State"
-                value={newProject.state}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, state: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="ZIP"
-                value={newProject.zip}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, zip: text })
-                }
-                keyboardType="numeric"
-              />
+            {/* SECTION: Address Fields */}
+            <Text style={styles.sectionTitle}>Address</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Street"
+              value={newProject.street}
+              onChangeText={text =>
+                setNewProject({ ...newProject, street: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Apt # (optional)"
+              value={newProject.apt}
+              onChangeText={text => setNewProject({ ...newProject, apt: text })}
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="City"
+              value={newProject.city}
+              onChangeText={text =>
+                setNewProject({ ...newProject, city: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="State"
+              value={newProject.state}
+              onChangeText={text =>
+                setNewProject({ ...newProject, state: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="ZIP"
+              value={newProject.zip}
+              onChangeText={text => setNewProject({ ...newProject, zip: text })}
+              keyboardType="numeric"
+            />
 
-              {/* SECTION: Customer Info */}
-              <Text style={styles.sectionTitle}>Customer Info</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Company / Customer Name"
-                value={newProject.customer}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, customer: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Customer Contact Name"
-                value={newProject.customerName}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, customerName: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Customer Contact Number"
-                value={newProject.customerNumber}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, customerNumber: text })
-                }
-                keyboardType="phone-pad"
-              />
+            {/* SECTION: Customer Info */}
+            <Text style={styles.sectionTitle}>Customer Info</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Company / Customer Name"
+              value={newProject.customer}
+              onChangeText={text =>
+                setNewProject({ ...newProject, customer: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Customer Contact Name"
+              value={newProject.customerName}
+              onChangeText={text =>
+                setNewProject({ ...newProject, customerName: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Customer Contact Number"
+              value={newProject.customerNumber}
+              onChangeText={text =>
+                setNewProject({ ...newProject, customerNumber: text })
+              }
+              keyboardType="phone-pad"
+            />
 
-              {/* SECTION: Homeowner Info */}
-              <Text style={styles.sectionTitle}>Homeowner Info</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Homeowner Name"
-                value={newProject.homeOwnerName}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, homeOwnerName: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Homeowner Number"
-                value={newProject.homeOwnerNumber}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, homeOwnerNumber: text })
-                }
-                keyboardType="phone-pad"
-              />
+            {/* SECTION: Homeowner Info */}
+            <Text style={styles.sectionTitle}>Homeowner Info</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Homeowner Name"
+              value={newProject.homeOwnerName}
+              onChangeText={text =>
+                setNewProject({ ...newProject, homeOwnerName: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Homeowner Number"
+              value={newProject.homeOwnerNumber}
+              onChangeText={text =>
+                setNewProject({ ...newProject, homeOwnerNumber: text })
+              }
+              keyboardType="phone-pad"
+            />
 
-              {/* SECTION: Project Details */}
-              <Text style={styles.sectionTitle}>Project Details</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Inspector Name"
-                value={newProject.inspectorName}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, inspectorName: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Reason for Inspection"
-                value={newProject.reason}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, reason: text })
-                }
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Type of Job"
-                value={newProject.jobType}
-                onChangeText={text =>
-                  setNewProject({ ...newProject, jobType: text })
-                }
-              />
+            {/* SECTION: Project Details */}
+            <Text style={styles.sectionTitle}>Project Details</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Inspector Name"
+              value={newProject.inspectorName}
+              onChangeText={text =>
+                setNewProject({ ...newProject, inspectorName: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Reason for Inspection"
+              value={newProject.reason}
+              onChangeText={text =>
+                setNewProject({ ...newProject, reason: text })
+              }
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Type of Job"
+              value={newProject.jobType}
+              onChangeText={text =>
+                setNewProject({ ...newProject, jobType: text })
+              }
+            />
 
-              {/* PHOTOS PREVIEW */}
-              {newProject.photos.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.photosPreview}
-                >
-                  {newProject.photos.map((uri, index) => (
-                    <Image
-                      key={index}
-                      source={{ uri }}
-                      style={styles.photoThumbnail}
-                    />
-                  ))}
-                </ScrollView>
-              )}
-
-              {/* Add Photo Button */}
-              <TouchableOpacity
-                onPress={handleAddPhoto}
-                style={styles.addPhotoButton}
-              >
-                <Text style={styles.addPhotoButtonText}>Add Photo</Text>
-              </TouchableOpacity>
-
-              {/* CREATE & CANCEL Buttons */}
-              <View style={styles.modalButtonContainer}>
-                <TouchableOpacity
-                  onPress={handleCreateProject}
-                  style={[
-                    styles.modalButton,
-                    styles.createButton,
-                    isSubmitting && styles.disabledButton,
-                  ]}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.modalButtonText}>
-                    {isSubmitting ? 'Creating...' : 'Create'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={onClose}
-                  style={[styles.modalButton, styles.cancelButton]}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
-                </TouchableOpacity>
+            {/* PHOTOS PREVIEW */}
+            {newProject.photos.length > 0 && (
+              <View style={styles.photosPreview}>
+                {newProject.photos.map((uri, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri }}
+                    style={styles.photoThumbnail}
+                  />
+                ))}
               </View>
-            </ScrollView>
-          </SafeAreaView>
-        </View>
-      </SafeAreaView>
+            )}
+
+            {/* Add Photo Button */}
+            <TouchableOpacity
+              onPress={handleAddPhoto}
+              style={styles.addPhotoButton}
+            >
+              <Text style={styles.addPhotoButtonText}>Add Photo</Text>
+            </TouchableOpacity>
+
+            {/* CREATE & CANCEL Buttons */}
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity
+                onPress={handleCreateProject}
+                style={[
+                  styles.modalButton,
+                  styles.createButton,
+                  isSubmitting && styles.disabledButton,
+                ]}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.modalButtonText}>
+                  {isSubmitting ? 'Creating...' : 'Create'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onClose}
+                style={[styles.modalButton, styles.cancelButton]}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
+  autocompleteContainer: {
+    width: '100%',
+    paddingHorizontal: 0,
+    marginBottom: 12,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -330,11 +417,14 @@ const styles = StyleSheet.create({
   fullWidthModal: {
     flex: 1,
     width: '100%',
+    maxHeight: '100%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   modalContent: {
     flexGrow: 1,
-    backgroundColor: 'white',
-    padding: 20,
+    padding: 20, // Padding inside ScrollView content
   },
   modalContainer: {
     padding: 0,
@@ -363,6 +453,7 @@ const styles = StyleSheet.create({
   },
   photosPreview: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginVertical: 8,
   },
   photoThumbnail: {
@@ -370,6 +461,7 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 8,
     marginRight: 8,
+    marginBottom: 8,
   },
   addPhotoButton: {
     backgroundColor: '#1ABC9C',
@@ -410,5 +502,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 })
-
 export default AddProjectModal

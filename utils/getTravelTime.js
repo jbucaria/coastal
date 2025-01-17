@@ -1,6 +1,5 @@
 // utils/getTravelTime.js
 import { getCurrentLocation } from './getCurrentLocation'
-// import { GOOGLE_MAPS_API_KEY } from '@/env'
 
 const apiKey = ''
 

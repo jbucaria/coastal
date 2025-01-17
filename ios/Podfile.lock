@@ -1562,6 +1562,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-get-random-values (1.11.0):
+    - React-Core
   - react-native-keyboard-controller (1.15.2):
     - DoubleConversion
     - glog
@@ -2231,6 +2233,7 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - react-native-date-picker (from `../node_modules/react-native-date-picker`)
+  - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - react-native-keyboard-controller (from `../node_modules/react-native-keyboard-controller`)
   - react-native-pdf (from `../node_modules/react-native-pdf`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
@@ -2414,6 +2417,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   react-native-date-picker:
     :path: "../node_modules/react-native-date-picker"
+  react-native-get-random-values:
+    :path: "../node_modules/react-native-get-random-values"
   react-native-keyboard-controller:
     :path: "../node_modules/react-native-keyboard-controller"
   react-native-pdf:
@@ -2559,6 +2564,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: c174e11bdea12dce07df8669d6c0dc97eb0c7706
   React-microtasksnativemodule: 8a80099ad7391f4e13a48b12796d96680f120dc6
   react-native-date-picker: 543274fea228bdf7427a917d19b71f8f6eca7a72
+  react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
   react-native-keyboard-controller: dbd7fb6a233505f937c9242d6d8bb5ebe659ec32
   react-native-pdf: 612757482d19b59e9c2ff42148118248b9080950
   react-native-safe-area-context: 458f6b948437afcb59198016b26bbd02ff9c3b47
