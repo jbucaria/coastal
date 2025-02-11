@@ -20,7 +20,6 @@ import { Picker } from '@react-native-picker/picker'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import 'react-native-get-random-values'
 import * as ImagePicker from 'expo-image-picker'
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete'
 import { collection, getDocs } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
@@ -29,8 +28,10 @@ import { useUserStore } from '@/store/useUserStore'
 import PhotoGallery from '@/components/PhotoGallery'
 import { formatPhoneNumber } from '@/utils/helpers'
 import { IconSymbol } from '@/components/ui/IconSymbol'
-import AddressModal from '../../components/AddressModal'
+import AddressModal from '@/components/AddressModal'
+import BuilderModal from '@/components/BuilderModal'
 import { formatAddress } from '@/utils/helpers'
+import useAuthStore from '@/store/useAuthStore'
 
 // Initial ticket state object
 const initialTicketStatus = {
@@ -69,6 +70,7 @@ const initialTicketStatus = {
 const CreateTicketScreen = () => {
   const router = useRouter()
   const { user } = useUserStore()
+  const { accessToken } = useAuthStore()
 
   // Main state variables
   const [newTicket, setNewTicket] = useState(initialTicketStatus)
@@ -412,46 +414,13 @@ const CreateTicketScreen = () => {
               </View>
 
               {/* Builder Modal */}
-              <Modal
+              <BuilderModal
                 visible={builderModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setBuilderModalVisible(false)}
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Select Builder</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="Search builder by name..."
-                      value={customerSearchQuery}
-                      onChangeText={setCustomerSearchQuery}
-                    />
-                    <ScrollView style={styles.modalList}>
-                      {customerSuggestions.map(cust => (
-                        <TouchableOpacity
-                          key={cust.id}
-                          onPress={() => {
-                            handleSelectCustomer(cust)
-                            setBuilderModalVisible(false)
-                          }}
-                          style={styles.modalItem}
-                        >
-                          <Text style={styles.modalItemText}>
-                            {cust.displayName}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                    <TouchableOpacity
-                      onPress={() => setBuilderModalVisible(false)}
-                    >
-                      <Text style={styles.modalClose}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </Modal>
-
+                onClose={() => setBuilderModalVisible(false)}
+                onSelectCustomer={handleSelectCustomer}
+                allCustomers={allCustomers}
+                accessToken={accessToken}
+              />
               {/* Homeowner Section */}
               <View style={styles.card}>
                 <View
