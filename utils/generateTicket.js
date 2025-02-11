@@ -81,17 +81,13 @@ export const handleCreateTicket = async (
       return
     }
 
-    const formattedNumber = newTicket.customerNumber
-      .replace(/\D/g, '')
-      .replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')
-
     const composedAddress = `${newTicket.street}${
       newTicket.apt ? ' Apt ' + newTicket.apt : ''
     }, ${newTicket.city}, ${newTicket.state} ${newTicket.zip}`
 
     const ticketData = {
       ...newTicket,
-      contactNumber: formattedNumber,
+
       address: composedAddress,
       startDate: selectedDate,
       startTime: startTime,

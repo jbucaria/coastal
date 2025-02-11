@@ -10,7 +10,7 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
     return null
   }
 
-  const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/invoice?`
+  const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/invoice?minorversion=65`
 
   const headers = {
     Authorization: `Bearer ${accessToken}`,

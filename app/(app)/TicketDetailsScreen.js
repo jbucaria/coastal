@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   SafeAreaView,
   Animated,
@@ -26,6 +26,15 @@ import { deleteTicket } from '@/utils/deleteTicket'
 import useProjectStore from '@/store/useProjectStore'
 import { ETAButton } from '@/components/EtaButton'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
+import { formatPhoneNumber } from '@/utils/helpers'
+
+// A helper to open Google Maps (if needed)
+const openGoogleMapsWithETA = address => {
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+    address
+  )}`
+  Linking.openURL(url).catch(err => console.error('Error opening maps:', err))
+}
 
 const TicketDetailsScreen = () => {
   const router = useRouter()
@@ -35,13 +44,6 @@ const TicketDetailsScreen = () => {
   const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const scrollY = useRef(new Animated.Value(0)).current
-
-  // const scrollY = useRef(new Animated.Value(0)).current
-  // const headerTranslateY = scrollY.interpolate({
-  //   inputRange: [0, 100],
-  //   outputRange: [0, -100],
-  //   extrapolate: 'clamp',
-  // })
 
   useEffect(() => {
     if (!projectId) return
@@ -163,37 +165,6 @@ const TicketDetailsScreen = () => {
     })
   }
 
-  const handleSiteComplete = async () => {
-    const newStatus = !ticket.siteComplete
-    const actionText = newStatus ? 'complete' : 'incomplete'
-    Alert.alert(
-      'Confirm',
-      `Are you sure you want to mark this site as ${actionText}?`,
-      [
-        {
-          text: 'Yes',
-          onPress: async () => {
-            try {
-              const projectRef = doc(firestore, 'tickets', ticket.id)
-              await updateDoc(projectRef, { siteComplete: newStatus })
-              Alert.alert('Success', `Site marked as ${actionText}.`)
-              router.push('/(tabs)')
-            } catch (error) {
-              console.error(`Error marking site as ${actionText}:`, error)
-              Alert.alert('Error', `Failed to mark the site as ${actionText}.`)
-            }
-          },
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-          onPress: () => router.push('/(tabs)'),
-        },
-      ]
-    )
-  }
-
-  // Define options for the header modal – note the delete option is now included.
   const options = [
     {
       label: 'Delete Ticket',
@@ -256,7 +227,6 @@ const TicketDetailsScreen = () => {
         title="Ticket Details"
         onBack={() => router.back()}
         onOptions={() => {}}
-        // translateY={headerTranslateY}
         options={options}
       />
       <Animated.ScrollView
@@ -277,52 +247,61 @@ const TicketDetailsScreen = () => {
             status={eta === 'N/A' ? 'delayed' : 'normal'}
           />
         </View>
+        {/* Contact Info Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Contact Info</Text>
           <View style={styles.contactSection}>
-            <Text style={styles.contactLabel}>Builder</Text>
-            <Text style={[styles.contactValue, styles.infoLine]}>
-              {ticket.customer || 'N/A'}
-            </Text>
-            <Text style={[styles.contactValue, styles.infoLine]}>
+            <Text style={styles.cardTitle}>Builder:</Text>
+
+            <Text style={styles.contactValue}>
+              <Text style={styles.contactLabel}>Name: </Text>
               {ticket.customerName || 'N/A'}
             </Text>
-            <Text style={[styles.contactValue, styles.infoLine]}>
+            <Text style={styles.contactValue}>
+              <Text style={styles.contactLabel}>Email: </Text>
               {ticket.customerEmail || 'N/A'}
             </Text>
             <Text
-              style={[styles.contactValue, styles.link, styles.infoLine]}
+              style={[styles.contactValue, styles.link]}
               onPress={() => handleCall(ticket.customerNumber)}
             >
-              {ticket.customerNumber || 'N/A'}
+              <Text style={styles.contactLabel}>Phone: </Text>
+              {ticket.customerNumber
+                ? formatPhoneNumber(ticket.customerNumber)
+                : 'N/A'}
             </Text>
           </View>
-          <View style={styles.contactSection}>
-            <Text style={styles.contactLabel}>Homeowner</Text>
-            <Text style={[styles.contactValue, styles.infoLine]}>
-              {ticket.homeOwnerName || 'N/A'}
-            </Text>
-            <Text
-              style={[styles.contactValue, styles.link, styles.infoLine]}
-              onPress={() => handleCall(ticket.homeOwnerNumber)}
-            >
-              {ticket.homeOwnerNumber || 'N/A'}
-            </Text>
-          </View>
+          {ticket.homeOwnerName && (
+            <View style={styles.contactSection}>
+              <Text style={styles.cardTitle}>Homeowner</Text>
+              <Text style={styles.contactValue}>
+                <Text style={styles.contactLabel}>Name: </Text>
+                {ticket.homeOwnerName || 'N/A'}
+              </Text>
+              <Text
+                style={[styles.contactValue, styles.link]}
+                onPress={() => handleCall(ticket.homeOwnerNumber)}
+              >
+                <Text style={styles.contactLabel}>Phone: </Text>
+                {ticket.homeOwnerNumber
+                  ? formatPhoneNumber(ticket.homeOwnerNumber)
+                  : 'N/A'}
+              </Text>
+            </View>
+          )}
         </View>
+        {/* Inspector & Reason Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Inspector & Reason</Text>
           <View style={styles.inspectorSection}>
             <Text style={styles.inspectorLabel}>Inspector:</Text>
-            <Text style={[styles.inspectorValue, styles.infoLine]}>
+            <Text style={styles.inspectorValue}>
               {ticket.inspectorName || 'N/A'}
             </Text>
           </View>
           <View style={styles.inspectorSection}>
             <Text style={styles.inspectorLabel}>Reason for Visit:</Text>
-            <Text style={[styles.inspectorValue, styles.infoLine]}>
-              {ticket.reason || 'N/A'}
-            </Text>
+            <Text style={styles.inspectorValue}>{ticket.reason || 'N/A'}</Text>
           </View>
         </View>
         <EquipmentModal
@@ -348,17 +327,17 @@ const TicketDetailsScreen = () => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Status</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.label}>Equipment Total:</Text>
+            <Text style={styles.infoLabel}>Equipment Total:</Text>
             <Text style={styles.infoValue}>{ticket.equipmentTotal || 0}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.label}>Measurements Required:</Text>
+            <Text style={styles.infoLabel}>Measurements Required:</Text>
             <Text style={styles.infoValue}>
               {ticket.remediationRequired ? 'True' : 'False'}
             </Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.label}>Inspection Needed:</Text>
+            <Text style={styles.infoLabel}>Inspection Needed:</Text>
             <Text style={styles.infoValue}>
               {ticket.inspectionComplete ? 'Complete' : 'Required'}
             </Text>
@@ -378,11 +357,16 @@ export default TicketDetailsScreen
 
 const styles = StyleSheet.create({
   addressText: {
+    color: '#14171A',
     fontSize: 16,
     fontWeight: '700',
-    color: '#14171A',
     marginBottom: 8,
     textAlign: 'center',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
   backButton: {
     marginRight: 10,
@@ -396,119 +380,214 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   cardTitle: {
+    color: '#14171A',
     fontSize: 16,
     fontWeight: '700',
-    marginBottom: 8,
-    color: '#14171A',
+    marginBottom: 10,
   },
-  clearSortButton: {
-    backgroundColor: '#F2F3F5',
-    borderRadius: 25,
-    marginLeft: 6,
-    padding: 6,
+  contactLabel: {
+    color: '#333333',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  contactSection: {
+    borderTopWidth: 1,
+    borderColor: '#ddd',
+    marginVertical: 5,
+    paddingVertical: 5,
+  },
+  contactValue: {
+    color: '#555555',
+    fontSize: 16,
+    marginBottom: 4,
   },
   container: {
-    backgroundColor: 'white',
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    // flex: 1,
+    // padding: 5,
+    backgroundColor: '#ffffff',
   },
-  datePicker: {
-    alignItems: 'center',
-    backgroundColor: '#F2F3F5',
-    borderRadius: 25,
-    flex: 1,
-    flexDirection: 'row',
-    marginRight: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-  },
-  dateText: {
-    color: '#333',
+  infoLabel: {
+    color: '#14171A',
     fontSize: 14,
-    marginLeft: 10,
-  },
-  floatingButton: {
-    backgroundColor: '#1DA1F2',
-    borderRadius: 24,
-    flexDirection: 'row',
-    padding: 16,
-    alignItems: 'center',
-  },
-  floatingButtonContainer: {
-    bottom: 110,
-    position: 'absolute',
-    right: 24,
-  },
-  infoLine: {
-    lineHeight: 20,
+    fontWeight: '600',
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '700',
+  infoValue: {
     color: '#14171A',
+    fontSize: 14,
   },
-  link: {
-    color: '#1DA1F2',
-    textDecorationLine: 'underline',
-  },
-  noTicketsText: {
-    color: '#666',
+  inspectorLabel: {
+    color: '#333333',
     fontSize: 16,
-    marginTop: 20,
-    textAlign: 'center',
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  safeArea: {
-    backgroundColor: 'white',
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  inspectorSection: {
+    borderTopWidth: 1,
+    borderColor: '#ddd',
+    marginVertical: 5,
+    paddingVertical: 5,
   },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  searchBar: {
-    alignItems: 'center',
-    backgroundColor: '#F2F3F5',
-    borderRadius: 25,
-    flexDirection: 'row',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    width: '100%',
-  },
-  searchBarContainer: {
-    alignItems: 'center',
-    marginBottom: 12,
-    width: '100%',
-  },
-  searchInput: {
-    color: '#333',
+  inspectorValue: {
+    color: '#555555',
     fontSize: 16,
+    marginBottom: 4,
+  },
+  flex1: {
     flex: 1,
-    marginLeft: 10,
   },
-  sortButton: {
-    backgroundColor: '#F2F3F5',
-    borderRadius: 25,
-    padding: 8,
-  },
-  sortControls: {
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  topRow: {
-    alignItems: 'center',
+  infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 10,
+  },
+  modalCloseContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 5,
+  },
+  modalCloseText: {
+    color: '#2980b9',
+    fontSize: 16,
+  },
+  modalOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  navButton: {
+    backgroundColor: '#2980b9',
+    borderRadius: 5,
+    elevation: 3,
+    marginHorizontal: 5,
+    padding: 12,
+  },
+  navButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pickerContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    margin: 5,
+    padding: 5,
+    width: '80%',
+  },
+  photo: {
+    borderRadius: 5,
+    height: 100,
+    margin: 5,
+    width: 100,
+  },
+  photoWrapper: {
+    marginRight: 5,
+    position: 'relative',
+  },
+  photosContainer: {
+    marginVertical: 5,
+  },
+  removePhotoButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 15,
+    height: 24,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 5,
+    top: 5,
+    width: 24,
+  },
+  removePhotoText: {
+    color: 'red',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 60,
+    paddingBottom: 100,
+  },
+  scrollView: {
+    paddingHorizontal: 5,
+  },
+  searchSection: {
+    marginBottom: 5,
+    position: 'relative',
+    width: '100%',
+  },
+  sectionTitle: {
+    color: '#14171A',
+    fontSize: 18,
+    fontWeight: '600',
+    marginVertical: 5,
+  },
+  suggestionItem: {
+    borderBottomColor: '#eee',
+    borderBottomWidth: 1,
+    padding: 10,
+  },
+  suggestionText: {
+    color: '#14171A',
+    fontSize: 16,
+  },
+  suggestionsContainer: {
+    maxHeight: 150,
+  },
+  suggestionsWrapper: {
+    backgroundColor: '#ffffff',
+    borderColor: '#ccc',
+    borderRadius: 5,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 55,
+    zIndex: 999,
+  },
+  timePicker: {
+    flex: 1,
+  },
+  timePickerContainer: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 5,
+  },
+  toggleButton: {
+    alignItems: 'center',
+    backgroundColor: '#2980b9',
+    borderRadius: 5,
+    marginBottom: 5,
+    padding: 12,
+  },
+  toggleButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  stepContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 5,
+    marginBottom: 5,
+    padding: 5,
+  },
+  stepTitle: {
+    color: '#14171A',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
 })

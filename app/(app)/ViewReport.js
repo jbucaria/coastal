@@ -15,14 +15,13 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { doc, getDoc } from 'firebase/firestore'
-
 import { firestore } from '@/firebaseConfig'
 import { pdfGenerator } from '@/utils/pdfGenerator'
 import { IconSymbol } from '@/components/ui/IconSymbol'
+import useProjectStore from '@/store/useProjectStore'
 
 const ViewReport = () => {
-  const params = useLocalSearchParams()
-  const projectId = params.projectId
+  const { projectId } = useProjectStore()
   const [project, setProject] = useState(null)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [showFullImage, setShowFullImage] = useState(false)
