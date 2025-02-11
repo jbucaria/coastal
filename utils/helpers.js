@@ -44,3 +44,15 @@ export function setTimeToDate(baseDate, timeDate) {
   newDate.setHours(timeDate.getHours(), timeDate.getMinutes(), 0, 0)
   return newDate
 }
+
+export function formatAddress({ street, city, state, zip }) {
+  // Only include parts that are non-empty
+  const parts = []
+  if (street) parts.push(street)
+  if (city) parts.push(city)
+  if (state || zip) {
+    // Combine state and zip together (if both exist)
+    parts.push(`${state || ''}${zip ? ' ' + zip : ''}`.trim())
+  }
+  return parts.join(', ')
+}

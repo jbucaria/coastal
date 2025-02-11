@@ -30,6 +30,7 @@ import PhotoGallery from '@/components/PhotoGallery'
 import { formatPhoneNumber } from '@/utils/helpers'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import AddressModal from '../../components/AddressModal'
+import { formatAddress } from '@/utils/helpers'
 
 // Initial ticket state object
 const initialTicketStatus = {
@@ -352,7 +353,9 @@ const CreateTicketScreen = () => {
                 <Text style={styles.sectionTitle}>Address</Text>
                 <View style={styles.selectionContainer}>
                   <Text style={styles.selectionText}>
-                    {selectedAddress ? selectedAddress : 'No address selected'}
+                    {selectedAddress
+                      ? formatAddress(selectedAddress)
+                      : 'No address selected'}
                   </Text>
                   <TouchableOpacity
                     onPress={() => setAddressModalVisible(true)}

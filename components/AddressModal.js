@@ -37,15 +37,16 @@ const AddressModal = ({ visible, onClose, onAddressSelected }) => {
     onClose()
   }
 
-  // When saving the address, combine the fields into a formatted string.
   const handleSaveAddress = () => {
-    // Combine the fields; you can adjust the format as needed.
-    const formattedAddress = `${street}${street && ','} ${city}${
-      city && ','
-    } ${stateField} ${zip}`
-    onAddressSelected(formattedAddress)
-
-    // Optionally, reset the fields
+    const addressObj = {
+      street,
+      city,
+      state: stateField,
+      zip,
+    }
+    // Pass the object back to the parent
+    onAddressSelected(addressObj)
+    // Reset fields if desired
     setStreet('')
     setCity('')
     setStateField('')
