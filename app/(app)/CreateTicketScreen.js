@@ -29,6 +29,7 @@ import { useUserStore } from '@/store/useUserStore'
 import PhotoGallery from '@/components/PhotoGallery'
 import { formatPhoneNumber } from '@/utils/helpers'
 import { IconSymbol } from '@/components/ui/IconSymbol'
+import AddressModal from '../../components/AddressModal'
 
 // Initial ticket state object
 const initialTicketStatus = {
@@ -78,6 +79,7 @@ const CreateTicketScreen = () => {
   const [vacancy, setVacancy] = useState('')
   const [newNote, setNewNote] = useState('')
   const [selectedAddress, setSelectedAddress] = useState('')
+  const [manualAddress, setManualAddress] = useState('')
 
   // Modal visibility state
   const [addressModalVisible, setAddressModalVisible] = useState(false)
@@ -282,6 +284,10 @@ const CreateTicketScreen = () => {
     }
   }, [])
 
+  const handleAddressSelected = address => {
+    setSelectedAddress(address)
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.container}>
@@ -368,47 +374,11 @@ const CreateTicketScreen = () => {
               </View>
 
               {/* Address Modal */}
-              <Modal
+              <AddressModal
                 visible={addressModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setAddressModalVisible(false)}
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Select Address</Text>
-                    <GooglePlacesAutocomplete
-                      debounce={500}
-                      disableScroll={true}
-                      fetchDetails={true}
-                      onPress={(data, details) => {
-                        handleAutocompletePress(data, details)
-                        setAddressModalVisible(false)
-                      }}
-                      placeholder="Search address..."
-                      query={{
-                        key: 'AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs',
-                        language: 'en',
-                        components: 'country:us',
-                      }}
-                      styles={{
-                        textInputContainer: styles.autocompleteContainer,
-                        textInput: styles.modalInput,
-                        listView: {
-                          backgroundColor: 'white',
-                          elevation: 5,
-                          maxHeight: 200,
-                        },
-                      }}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setAddressModalVisible(false)}
-                    >
-                      <Text style={styles.modalClose}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </Modal>
+                onClose={() => setAddressModalVisible(false)}
+                onAddressSelected={handleAddressSelected}
+              />
 
               {/* Builder Selection Section */}
               <View style={styles.card}>
