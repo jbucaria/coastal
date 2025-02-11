@@ -17,6 +17,7 @@
     "app/_layout.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "components/ui/IconSymbol.js"
+    "components/ui/IconSymbol.tsx",
+    "components/ui/TabBarBackground.ios.js"
   ]
 }
