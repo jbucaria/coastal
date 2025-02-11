@@ -117,9 +117,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFF',
+    backgroundColor: 'transparent',
     borderBottomWidth: 1,
     borderBottomColor: '#E1E8ED',
+    marginBottom: 8,
   },
   topBarTitle: {
     flex: 1,

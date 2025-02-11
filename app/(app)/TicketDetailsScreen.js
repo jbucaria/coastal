@@ -283,6 +283,7 @@ const TicketDetailsScreen = () => {
                 onPress={() => handleCall(ticket.homeOwnerNumber)}
               >
                 <Text style={styles.contactLabel}>Phone: </Text>
+
                 {ticket.homeOwnerNumber
                   ? formatPhoneNumber(ticket.homeOwnerNumber)
                   : 'N/A'}
