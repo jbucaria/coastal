@@ -1,5 +1,4 @@
-// BuilderModal.js
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   View,
   Modal,
@@ -9,23 +8,20 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
 } from 'react-native'
 import { collection, addDoc } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
-// Import your QuickBooks helper (you need to implement this)
-// import { createCustomerInQuickBooks } from '@/utils/quickbooks'
+import { createCustomerInQuickBooks } from '@/utils/quickbooksApi'
+import useAuthStore from '@/store/useAuthStore'
+import KeyboardToolBar from './KeyboardToolBar'
 
-const BuilderModal = ({
-  visible,
-  onClose,
-  onSelectCustomer,
-  allCustomers,
-  accessToken,
-}) => {
-  // Mode toggling: false = search mode; true = add new mode
+const BuilderModal = ({ visible, onClose, onSelectCustomer, allCustomers }) => {
+  const { accessToken, quickBooksCompanyId } = useAuthStore()
+
   const [isAddingNew, setIsAddingNew] = useState(false)
-
-  // For search mode
   const [searchQuery, setSearchQuery] = useState('')
   const [suggestions, setSuggestions] = useState([])
 
@@ -36,6 +32,21 @@ const BuilderModal = ({
   const [newCompanyName, setNewCompanyName] = useState('')
   const [newCompanyAddress, setNewCompanyAddress] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Input refs for keyboard navigation and current index state
+  const nameRef = useRef(null)
+  const emailRef = useRef(null)
+  const phoneRef = useRef(null)
+  const companyNameRef = useRef(null)
+  const companyAddressRef = useRef(null)
+  const inputRefs = [
+    nameRef,
+    emailRef,
+    phoneRef,
+    companyNameRef,
+    companyAddressRef,
+  ]
+  const [currentInputIndex, setCurrentInputIndex] = useState(0)
 
   // Filter suggestions from allCustomers based on searchQuery
   useEffect(() => {
@@ -59,37 +70,29 @@ const BuilderModal = ({
 
   // Handler for saving a new customer
   const handleSaveNewCustomer = async () => {
-    if (!newName.trim() || !newEmail.trim()) {
-      alert('Name and Email are required.')
-      return
-    }
     setLoading(true)
     try {
       const newCustomer = {
-        displayName: newName,
-        email: newEmail,
-        phone: newPhone,
-        companyName: newCompanyName,
-        companyAddress: newCompanyAddress,
+        displayName: newName || '',
+        email: newEmail || '',
+        phone: newPhone || '',
+        companyName: newCompanyName || '',
+        companyAddress: newCompanyAddress || '',
       }
 
-      // Send the new customer to QuickBooks using your helper function.
-      // This function should use the access token and return the new QuickBooks customer id.
       const qbCustomerId = await createCustomerInQuickBooks(
         newCustomer,
+        quickBooksCompanyId,
         accessToken
       )
 
-      // Add the QuickBooks customer id to the new customer object.
       newCustomer.id = qbCustomerId
 
-      // Save the new customer to Firestore.
       await addDoc(collection(firestore, 'customers'), newCustomer)
 
-      // Pass the new customer back to the parent.
       onSelectCustomer(newCustomer)
 
-      // Reset the form fields.
+      // Reset form fields
       setNewName('')
       setNewEmail('')
       setNewPhone('')
@@ -131,52 +134,95 @@ const BuilderModal = ({
   )
 
   const renderAddNewMode = () => (
-    <View>
-      <TextInput
-        style={styles.modalInput}
-        placeholder="Name"
-        value={newName}
-        onChangeText={setNewName}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={100} // Adjust this offset as needed
+    >
+      <ScrollView contentContainerStyle={styles.addNewContainer}>
+        <TextInput
+          ref={nameRef}
+          style={styles.modalInput}
+          placeholder="Name"
+          value={newName}
+          onChangeText={setNewName}
+          onFocus={() => setCurrentInputIndex(0)}
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current.focus()}
+        />
+        <TextInput
+          ref={emailRef}
+          style={styles.modalInput}
+          placeholder="Email"
+          value={newEmail}
+          onChangeText={setNewEmail}
+          onFocus={() => setCurrentInputIndex(1)}
+          returnKeyType="next"
+          onSubmitEditing={() => phoneRef.current.focus()}
+        />
+        <TextInput
+          ref={phoneRef}
+          style={styles.modalInput}
+          placeholder="Phone Number"
+          value={newPhone}
+          onChangeText={setNewPhone}
+          keyboardType="phone-pad"
+          onFocus={() => setCurrentInputIndex(2)}
+          returnKeyType="next"
+          onSubmitEditing={() => companyNameRef.current.focus()}
+        />
+        <TextInput
+          ref={companyNameRef}
+          style={styles.modalInput}
+          placeholder="Company Name"
+          value={newCompanyName}
+          onChangeText={setNewCompanyName}
+          onFocus={() => setCurrentInputIndex(3)}
+          returnKeyType="next"
+          onSubmitEditing={() => companyAddressRef.current.focus()}
+        />
+        <TextInput
+          ref={companyAddressRef}
+          style={styles.modalInput}
+          placeholder="Company Address"
+          value={newCompanyAddress}
+          onChangeText={setNewCompanyAddress}
+          onFocus={() => setCurrentInputIndex(4)}
+          returnKeyType="done"
+          onSubmitEditing={() => Keyboard.dismiss()}
+        />
+        {loading ? (
+          <ActivityIndicator size="small" color="#2980b9" />
+        ) : (
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={handleSaveNewCustomer}
+          >
+            <Text style={styles.saveButtonText}>Save Customer</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+      <KeyboardToolBar
+        onPrevious={() => {
+          if (currentInputIndex > 0) {
+            const prevIndex = currentInputIndex - 1
+            setCurrentInputIndex(prevIndex)
+            inputRefs[prevIndex].current.focus()
+          }
+        }}
+        onNext={() => {
+          if (currentInputIndex < inputRefs.length - 1) {
+            const nextIndex = currentInputIndex + 1
+            setCurrentInputIndex(nextIndex)
+            inputRefs[nextIndex].current.focus()
+          }
+        }}
+        onDone={() => Keyboard.dismiss()}
       />
-      <TextInput
-        style={styles.modalInput}
-        placeholder="Email"
-        value={newEmail}
-        onChangeText={setNewEmail}
-      />
-      <TextInput
-        style={styles.modalInput}
-        placeholder="Phone Number"
-        value={newPhone}
-        onChangeText={setNewPhone}
-        keyboardType="phone-pad"
-      />
-      <TextInput
-        style={styles.modalInput}
-        placeholder="Company Name"
-        value={newCompanyName}
-        onChangeText={setNewCompanyName}
-      />
-      <TextInput
-        style={styles.modalInput}
-        placeholder="Company Address"
-        value={newCompanyAddress}
-        onChangeText={setNewCompanyAddress}
-      />
-      {loading ? (
-        <ActivityIndicator size="small" color="#2980b9" />
-      ) : (
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSaveNewCustomer}
-        >
-          <Text style={styles.saveButtonText}>Save Customer</Text>
-        </TouchableOpacity>
-      )}
       <TouchableOpacity onPress={() => setIsAddingNew(false)}>
         <Text style={styles.modalClose}>Back to Search</Text>
       </TouchableOpacity>
-    </View>
+    </KeyboardAvoidingView>
   )
 
   return (
@@ -202,12 +248,20 @@ const BuilderModal = ({
 export default BuilderModal
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+  addNewContainer: {
+    paddingBottom: 60, // Extra space for the keyboard toolbar
+  },
+  addNewText: {
+    fontSize: 16,
+    color: '#2980b9',
+    textAlign: 'center',
+    marginVertical: 10,
+  },
+  modalClose: {
+    color: '#2980b9',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 15,
   },
   modalContent: {
     width: '100%',
@@ -215,13 +269,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 20,
     elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 12,
-    textAlign: 'center',
-    color: '#333',
   },
   modalInput: {
     borderColor: '#ddd',
@@ -232,10 +279,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: '#333',
   },
-  modalList: {
-    maxHeight: 200,
-    marginBottom: 10,
-  },
   modalItem: {
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -245,11 +288,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#555',
   },
-  addNewText: {
-    fontSize: 16,
-    color: '#2980b9',
+  modalList: {
+    maxHeight: 200,
+    marginBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 12,
     textAlign: 'center',
-    marginVertical: 10,
+    color: '#333',
   },
   saveButton: {
     backgroundColor: '#2980b9',
@@ -261,11 +316,5 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontSize: 16,
-  },
-  modalClose: {
-    color: '#2980b9',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 15,
   },
 })

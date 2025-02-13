@@ -74,7 +74,7 @@ export const handleCreateTicket = async (
       !newTicket.city ||
       !newTicket.state ||
       !newTicket.zip ||
-      !newTicket.customer
+      !newTicket.customerId
     ) {
       Alert.alert('Validation Error', 'Please fill out all required fields.')
       setIsSubmitting(false)
@@ -84,6 +84,8 @@ export const handleCreateTicket = async (
     const composedAddress = `${newTicket.street}${
       newTicket.apt ? ' Apt ' + newTicket.apt : ''
     }, ${newTicket.city}, ${newTicket.state} ${newTicket.zip}`
+
+    console.log('newTicket', newTicket)
 
     const ticketData = {
       ...newTicket,
@@ -95,6 +97,7 @@ export const handleCreateTicket = async (
       createdAt: new Date(),
     }
 
+    console.log('ticketData', ticketData)
     // Upload photos to Firebase before creating the ticket
     const storage = getStorage()
     const uploadPromises = newTicket.ticketPhotos.map(async uri => {

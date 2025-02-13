@@ -58,9 +58,8 @@ export default function RootLayout() {
               quickBooksCompanyId: companyData.quickBooksCompanyId,
               clientId: companyData.clientId,
               accessToken: companyData.accessToken,
+              tokenExpiresAt: companyData.tokenExpiresAt,
             })
-
-            console.log('QuickBooks credentials stored in Zustand')
           } else {
             console.error('Company info not found in Firestore')
           }

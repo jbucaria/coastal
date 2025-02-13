@@ -125,7 +125,7 @@ export default function ViewRemediationScreen() {
                       const photoKey = photo.storagePath || `photo-${index}`
 
                       return (
-                        <TouchableOpacity
+                        <ToucbleOpacity
                           key={photoKey}
                           onPress={() => {
                             setSelectedPhoto(photo.downloadURL)
@@ -137,7 +137,7 @@ export default function ViewRemediationScreen() {
                             source={{ uri: photo.downloadURL }}
                             style={styles.photoImage}
                           />
-                        </TouchableOpacity>
+                        </ToucbleOpacity>
                       )
                     })}
                   </ScrollView>

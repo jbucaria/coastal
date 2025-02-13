@@ -21,7 +21,7 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
   const requestBody = {
     AutoDocNumber: true,
     CustomerRef: {
-      value: '188',
+      value: invoiceData.customerId,
     },
     BillEmail: {
       Address: invoiceData.customerEmail,

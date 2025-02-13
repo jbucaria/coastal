@@ -35,17 +35,18 @@ import useAuthStore from '@/store/useAuthStore'
 
 // Initial ticket state object
 const initialTicketStatus = {
-  street: '123 Main St',
+  street: '',
   apt: '',
-  city: 'Tampa',
-  state: 'FL',
-  zip: '33602',
+  city: '',
+  state: '',
+  zip: '',
   date: '',
   // Builder fields
   customer: '',
   customerName: '',
   customerNumber: '',
   customerEmail: '',
+  customerId: '',
   homeOwnerName: '',
   homeOwnerNumber: '',
   inspectorName: 'John Bucaria',
@@ -70,7 +71,6 @@ const initialTicketStatus = {
 const CreateTicketScreen = () => {
   const router = useRouter()
   const { user } = useUserStore()
-  const { accessToken } = useAuthStore()
 
   // Main state variables
   const [newTicket, setNewTicket] = useState(initialTicketStatus)
@@ -82,7 +82,6 @@ const CreateTicketScreen = () => {
   const [vacancy, setVacancy] = useState('')
   const [newNote, setNewNote] = useState('')
   const [selectedAddress, setSelectedAddress] = useState('')
-  const [manualAddress, setManualAddress] = useState('')
 
   // Modal visibility state
   const [addressModalVisible, setAddressModalVisible] = useState(false)
@@ -173,7 +172,7 @@ const CreateTicketScreen = () => {
   const handleSelectCustomer = selectedCustomer => {
     setNewTicket(prev => ({
       ...prev,
-      customer: selectedCustomer.id,
+      customerId: selectedCustomer.id,
       customerName: selectedCustomer.displayName || '',
       customerEmail: selectedCustomer.email || '',
       customerNumber: selectedCustomer.number || '',
@@ -289,6 +288,13 @@ const CreateTicketScreen = () => {
 
   const handleAddressSelected = address => {
     setSelectedAddress(address)
+    setNewTicket(prev => ({
+      ...prev,
+      street: address.street,
+      city: address.city,
+      state: address.state,
+      zip: address.zip,
+    }))
   }
 
   return (
@@ -354,7 +360,7 @@ const CreateTicketScreen = () => {
               <View style={styles.card}>
                 <Text style={styles.sectionTitle}>Address</Text>
                 <View style={styles.selectionContainer}>
-                  <Text style={styles.selectionText}>
+                  <Text style={[styles.selectionText, { flex: 1 }]}>
                     {selectedAddress
                       ? formatAddress(selectedAddress)
                       : 'No address selected'}
@@ -419,7 +425,6 @@ const CreateTicketScreen = () => {
                 onClose={() => setBuilderModalVisible(false)}
                 onSelectCustomer={handleSelectCustomer}
                 allCustomers={allCustomers}
-                accessToken={accessToken}
               />
               {/* Homeowner Section */}
               <View style={styles.card}>

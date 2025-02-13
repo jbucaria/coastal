@@ -1,13 +1,14 @@
 // utils/quickbooksApi.js
 import { Alert } from 'react-native'
-import useAuthStore from '@/store/useAuthStore'
 
 // ---------------------------------------------------------------------
 // 1. Create Invoice in QuickBooks (Save Invoice)
 // ---------------------------------------------------------------------
-export const createInvoiceInQuickBooks = async (invoiceData, accessToken) => {
-  const { quickBooksCompanyId } = useAuthStore.getState()
-
+export const createInvoiceInQuickBooks = async (
+  invoiceData,
+  accessToken,
+  quickBooksCompanyId
+) => {
   if (!quickBooksCompanyId || !accessToken) {
     Alert.alert('Error', 'Missing QuickBooks credentials.')
     console.error('QuickBooks Error: Missing token or Company ID')
@@ -210,5 +211,105 @@ export const createAndSendInvoiceInQuickBooks = async (
   return {
     createdInvoice: createResponse,
     sendResponse,
+  }
+}
+
+export const createCustomerInQuickBooks = async (
+  newCustomer,
+  quickBooksCompanyId,
+  accessToken
+) => {
+  if (!quickBooksCompanyId || !accessToken) {
+    Alert.alert('Error', 'Missing QuickBooks credentials.')
+    console.error('QuickBooks Error: Missing token or Company ID')
+    return null
+  }
+
+  const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/customer`
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  }
+
+  // Build the invoice creation payload
+  const requestBody = {
+    FullyQualifiedName: 'Acme Inc LLC',
+    PrimaryEmailAddr: {
+      Address: 'contact@acmeinc.com',
+    },
+    DisplayName: 'Acme Inc LLC',
+    Suffix: 'LLC',
+    Title: 'Dr',
+    MiddleName: 'Allen',
+    Notes: 'Created via our new API integration.',
+    FamilyName: 'Doe',
+    PrimaryPhone: {
+      FreeFormNumber: '(123) 456-7890',
+    },
+    CompanyName: 'Acme Inc',
+    BillAddr: {
+      CountrySubDivisionCode: 'NY',
+      City: 'New York',
+      PostalCode: '10001',
+      Line1: '456 Park Ave',
+      Country: 'USA',
+    },
+    GivenName: 'John',
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseText = await response.text()
+    let responseData
+    try {
+      responseData = JSON.parse(responseText)
+    } catch (error) {
+      console.error(
+        'Failed to parse JSON response from invoice creation:',
+        responseText
+      )
+      Alert.alert(
+        'Error',
+        'Invalid JSON from QuickBooks while creating invoice.'
+      )
+      return null
+    }
+
+    console.log(
+      'QuickBooks Create Customer Response:',
+      JSON.stringify(responseData, null, 2)
+    )
+
+    if (response.ok) {
+      return responseData
+    } else {
+      const errorDetails = responseData.fault?.error || []
+      let errorMessage = `QBO Create Customer Error: ${response.status} ${response.statusText}`
+      if (errorDetails.length > 0) {
+        // Log each error in detail
+        errorDetails.forEach((err, index) => {
+          console.error(`Error ${index}:`, JSON.stringify(err, null, 2))
+        })
+        errorMessage += `\nDetails: ${
+          errorDetails[0]?.message || 'Unknown Error'
+        }`
+      }
+      Alert.alert('Error', errorMessage)
+      return null
+    }
+  } catch (err) {
+    Alert.alert(
+      'Error',
+      'Failed to connect to QuickBooks API while creating customer.'
+    )
+    console.error('Network or Unexpected Error (create invoice):', err)
+    return null
   }
 }

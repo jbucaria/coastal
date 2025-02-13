@@ -36,7 +36,8 @@ const QuickBooksManagementScreen = () => {
   const [loadingItems, setLoadingItems] = useState(false)
 
   // Get QuickBooks auth values
-  const { quickBooksCompanyId, clientId, accessToken } = useAuthStore()
+  const { quickBooksCompanyId, clientId, accessToken, tokenExpiresAt } =
+    useAuthStore()
 
   // OAuth request for token management
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
@@ -49,6 +50,23 @@ const QuickBooksManagementScreen = () => {
     },
     discovery
   )
+
+  useEffect(() => {
+    const now = Date.now()
+    console.log('Current time:', now)
+    console.log('Token expires at:', tokenExpiresAt)
+    if (!accessToken || (tokenExpiresAt && now > tokenExpiresAt)) {
+      Alert.alert(
+        'Token Expired',
+        'Your access token has expired. Please refresh your token before proceeding.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Refresh Token', onPress: () => promptAsync() },
+        ],
+        { cancelable: true }
+      )
+    }
+  }, [accessToken, tokenExpiresAt, promptAsync])
 
   useEffect(() => {
     if (response?.type === 'success') {
@@ -241,6 +259,22 @@ const QuickBooksManagementScreen = () => {
             style={[
               styles.segmentText,
               activeTab === 'items' && styles.activeSegmentText,
+            ]}
+          >
+            Items
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.segmentButton,
+            activeTab === 'tokens' && styles.activeSegment,
+          ]}
+          onPress={() => setActiveTab('tokens')}
+        >
+          <Text
+            style={[
+              styles.segmentText,
+              activeTab === 'tokens' && styles.activeSegmentText,
             ]}
           >
             Items

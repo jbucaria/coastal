@@ -55,6 +55,8 @@ exports.quickBooksRedirectHandler = onRequest(async (req, res) => {
         .status(500)
         .send({ error: 'Failed to exchange tokens', details: tokenData })
     }
+    const expiresIn = tokenData.expires_in // e.g., 3600 seconds
+    const tokenExpiresAt = Date.now() + expiresIn * 1000
 
     // Store tokens in Firestore under tickets/{projectId}
     await firestore.collection('companyInfo').doc('Vj0FigLyhZCyprQ8iGGV').set(
@@ -62,6 +64,7 @@ exports.quickBooksRedirectHandler = onRequest(async (req, res) => {
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        tokenExpiresAt,
       },
       { merge: true }
     )

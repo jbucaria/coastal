@@ -26,12 +26,13 @@ const discovery = {
 
 const ViewInvoiceScreen = () => {
   const { projectId } = useProjectStore()
-  const { clientId, accessToken } = useAuthStore()
+  const { clientId, accessToken, tokenExpiresAt } = useAuthStore()
 
   // Invoice basic states
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
+  const [customerId, setCustomerId] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(new Date())
 
   // Instead of flattening line items, we now group them by room.
@@ -55,6 +56,23 @@ const ViewInvoiceScreen = () => {
   )
 
   useEffect(() => {
+    const now = Date.now()
+    console.log('Current time:', now)
+    console.log('Token expires at:', tokenExpiresAt)
+    if (!accessToken || (tokenExpiresAt && now > tokenExpiresAt)) {
+      Alert.alert(
+        'Token Expired',
+        'Your access token has expired. Please refresh your token before proceeding.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Refresh Token', onPress: () => promptAsync() },
+        ],
+        { cancelable: true }
+      )
+    }
+  }, [accessToken, tokenExpiresAt, promptAsync])
+
+  useEffect(() => {
     if (response?.type === 'success') {
       console.log('OAuth process completed successfully.')
     }
@@ -71,6 +89,7 @@ const ViewInvoiceScreen = () => {
           const data = docSnap.data()
           setCustomerName(data.customerName || 'Unknown')
           setCustomerEmail(data.customerEmail || 'No Email Provided')
+          setCustomerId(data.customerId || 'no-customer-id')
           setInvoiceDate(
             data.invoiceDate ? new Date(data.invoiceDate) : new Date()
           )
@@ -133,7 +152,7 @@ const ViewInvoiceScreen = () => {
       setIsSending(false)
       return
     }
-
+    console.log('creating invoice')
     const finalLineItems = []
     groupedLineItems.forEach(room => {
       room.measurements.forEach(item => {
@@ -157,13 +176,11 @@ const ViewInvoiceScreen = () => {
 
     const invoiceData = {
       customerEmail: customerEmail,
-      customerId: '3', // Replace with the actual QuickBooks Customer ID as needed
+      customerId: customerId, // Replace with the actual QuickBooks Customer ID as needed
       customerName: customerName,
       invoiceDate: invoiceDate.toISOString().split('T')[0], // YYYY-MM-DD format
       lineItems: finalLineItems,
     }
-
-    console.log('invoiceData', invoiceData)
 
     const result = await sendInvoiceToQuickBooks(
       invoiceData,

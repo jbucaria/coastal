@@ -9,19 +9,22 @@ const useAuthStore = create(
       clientId: null,
       accessToken: null,
       refreshToken: null,
+      tokenExpiresAt: null, // New field for the token's expiration timestamp
 
-      // ✅ Set credentials after login
+      // ✅ Set credentials after login (include tokenExpiresAt)
       setCredentials: ({
         quickBooksCompanyId,
         clientId,
         accessToken,
         refreshToken,
+        tokenExpiresAt,
       }) =>
         set({
           quickBooksCompanyId,
           clientId,
           accessToken,
           refreshToken,
+          tokenExpiresAt,
         }),
 
       // ✅ Clear credentials on logout
@@ -31,6 +34,7 @@ const useAuthStore = create(
           clientId: null,
           accessToken: null,
           refreshToken: null,
+          tokenExpiresAt: null,
         }),
     }),
     {
