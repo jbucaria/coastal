@@ -1,6 +1,6 @@
 // ViewRemediationScreen.js
 import React, { useEffect, useState } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import {
   SafeAreaView,
   ScrollView,
@@ -20,6 +20,7 @@ import useProjectStore from '@/store/useProjectStore'
 
 export default function ViewRemediationScreen() {
   const { projectId } = useProjectStore()
+
   const router = useRouter()
 
   const [remediationData, setRemediationData] = useState(null)
@@ -125,7 +126,7 @@ export default function ViewRemediationScreen() {
                       const photoKey = photo.storagePath || `photo-${index}`
 
                       return (
-                        <ToucbleOpacity
+                        <TouchableOpacity
                           key={photoKey}
                           onPress={() => {
                             setSelectedPhoto(photo.downloadURL)
@@ -137,7 +138,7 @@ export default function ViewRemediationScreen() {
                             source={{ uri: photo.downloadURL }}
                             style={styles.photoImage}
                           />
-                        </ToucbleOpacity>
+                        </TouchableOpacity>
                       )
                     })}
                   </ScrollView>

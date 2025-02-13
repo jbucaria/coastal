@@ -21,37 +21,35 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
   const requestBody = {
     AutoDocNumber: true,
     CustomerRef: {
-      value: invoiceData.customerId,
+      value: invoiceData.customerId, // QBO Customer ID from your screen data
     },
     BillEmail: {
-      Address: invoiceData.customerEmail,
+      Address: invoiceData.customerEmail, // Customer email from your screen
     },
     EmailStatus: 'NeedToSend',
     AllowOnlinePayment: true,
     AllowOnlineCreditCardPayment: true,
     AllowOnlineACHPayment: true,
+
+    // Use the invoice date provided by your screen (ensure it's in "YYYY-MM-DD" format)
+    TxnDate: invoiceData.invoiceDate,
+    CurrencyRef: { value: 'USD' },
+
+    // Build dynamic line items from your screen's data
     Line: invoiceData.lineItems.map(item => ({
       DetailType: 'SalesItemLineDetail',
-      // The Amount is the final line total (computed or overridden)
-      Amount: item.amount,
-      // Optionally, you can leave Description empty or set it if needed
+      Amount: item.amount, // Final computed line total
       Description: item.description,
       SalesItemLineDetail: {
-        ItemRef: {
-          value: item.itemId,
-        },
-        // Use the actual unitPrice and quantity
+        ItemRef: { value: item.itemId }, // QBO Item/Service ID
         UnitPrice: item.unitPrice,
         Qty: item.quantity,
       },
     })),
-    TxnDate: invoiceData.invoiceDate,
-    CurrencyRef: {
-      value: 'USD',
-    },
-    // Sum the amounts from each line item for the overall total
+
+    // Optionally, you can also include the overall total
     TotalAmt: invoiceData.lineItems.reduce(
-      (total, item) => total + item.amount,
+      (sum, item) => sum + (item.amount || 0),
       0
     ),
   }

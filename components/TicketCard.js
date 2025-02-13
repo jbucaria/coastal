@@ -6,6 +6,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol'
 import { MessageIndicator } from '@/components/MessageIndicator'
 import { updateDoc, doc } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
+import useProjectStore from '@/store/useProjectStore'
 
 const TicketCard = ({
   ticket,
@@ -52,12 +53,13 @@ const TicketCard = ({
     icons.push(
       <TouchableOpacity
         key="remediationRequired"
-        onPress={() =>
+        onPress={() => {
+          useProjectStore.getState().setProjectId(ticket.id)
+
           router.push({
             pathname: '/RemediationScreen',
-            params: { projectId: ticket.id },
           })
-        }
+        }}
       >
         <IconSymbol name="hammer.circle.fill" size={40} color="green" />
       </TouchableOpacity>

@@ -181,6 +181,7 @@ const ViewInvoiceScreen = () => {
       invoiceDate: invoiceDate.toISOString().split('T')[0], // YYYY-MM-DD format
       lineItems: finalLineItems,
     }
+    console.log('Invoice data:', invoiceData)
 
     const result = await sendInvoiceToQuickBooks(
       invoiceData,
@@ -284,13 +285,6 @@ const ViewInvoiceScreen = () => {
           ) : (
             <Text style={styles.buttonText}>Save Invoice To QB</Text>
           )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => promptAsync()}
-          style={styles.sendButton}
-        >
-          <Text style={styles.buttonText}>Get Auth Token</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
