@@ -229,9 +229,12 @@ const ViewInvoiceScreen = () => {
         <Text style={styles.sectionTitle}>Services & Costs</Text>
         {groupedLineItems.length > 0 ? (
           groupedLineItems.map(room => (
-            <View key={room.roomName} style={styles.roomGroup}>
+            <View
+              key={`${room.roomName}-${roomIndex}`}
+              style={styles.roomGroup}
+            >
               <Text style={styles.roomHeader}>{room.roomName}</Text>
-              {room.measurements.map(item => {
+              {room.measurements.map((item, itemIndex) => {
                 const computedTotal =
                   (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
                 const override = overrides[item.id]
@@ -239,7 +242,7 @@ const ViewInvoiceScreen = () => {
                   override !== undefined ? override : computedTotal
 
                 return (
-                  <View key={item.id} style={styles.lineItem}>
+                  <View key={`${item.id}-${itemIndex}`} style={styles.lineItem}>
                     <Text style={styles.label}>Item Description</Text>
                     <Text style={styles.textValue}>{item.name}</Text>
 

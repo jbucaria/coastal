@@ -76,7 +76,7 @@ const RemediationScreen = () => {
     }
     const newRoom = {
       id: uuidv4(),
-      name: roomName,
+      roomTitle: roomName,
       measurements: [],
       photos: [],
     }
@@ -241,10 +241,22 @@ const RemediationScreen = () => {
   // -------------------- Save Data to Firestore --------------------
   const handleSaveRemediationData = async () => {
     try {
+      // For each room, add a roomName field to each measurement (if not already present)
+      const updatedRooms = rooms.map(room => ({
+        ...room,
+        measurements: room.measurements.map(m => ({
+          // Preserve existing measurement properties, and add roomName
+          ...m,
+          // Only add roomName if it isn’t already set (to avoid overwriting)
+          roomName: m.roomName || room.roomTitle,
+        })),
+      }))
+
       const remediationData = {
-        rooms,
+        rooms: updatedRooms,
         updatedAt: new Date(),
       }
+
       await updateDoc(doc(firestore, 'tickets', projectId), {
         remediationData,
         remediationRequired: false,
@@ -275,7 +287,7 @@ const RemediationScreen = () => {
               <View key={room.id} style={styles.roomCard}>
                 {/* Room Header */}
                 <View style={styles.roomHeader}>
-                  <Text style={styles.roomName}>{room.name}</Text>
+                  <Text style={styles.roomName}>{room.roomTitle}</Text>
                   <TouchableOpacity onPress={() => handleDeleteRoom(room.id)}>
                     <Text style={styles.deleteRoomText}>Delete</Text>
                   </TouchableOpacity>

@@ -82,32 +82,28 @@ export default function ViewRemediationScreen() {
 
         {/* Map over rooms */}
         {remediationData.rooms.map((room, roomIndex) => {
-          if (!room) return null
-
-          // Provide a stable key using room.id if available, else fallback
-          const roomKey = room.id || `room-${roomIndex}`
+          // Use room.id if available; otherwise, combine the index and room name
+          const roomKey = room.id
+            ? room.id
+            : `room-${roomIndex}-${room.roomTitle || 'Room'}`
 
           return (
             <View key={roomKey} style={styles.roomContainer}>
               {/* Room Name */}
               <Text style={styles.roomTitle}>
-                {room.name || 'Unnamed Room'}
+                {room.roomTitle || 'Unnamed Room'}
               </Text>
 
-              {/* Map over measurements */}
+              {/* Measurements */}
               {room.measurements &&
                 room.measurements.map((measurement, measIndex) => {
-                  if (!measurement) return null
-
-                  // Unique key for measurement
-                  const measurementKey = measurement.id || `meas-${measIndex}`
-                  const desc = measurement.name || ''
-                  const qty = measurement.quantity || 0
-
+                  const measurementKey = measurement.id
+                    ? measurement.id
+                    : `meas-${roomKey}-${measIndex}`
                   return (
                     <View key={measurementKey} style={styles.measurementRow}>
                       <Text style={styles.measurementText}>
-                        {desc}: {qty}
+                        {measurement.name}: {measurement.quantity}
                       </Text>
                     </View>
                   )

@@ -2,6 +2,7 @@ import { Alert } from 'react-native'
 import useAuthStore from '@/store/useAuthStore'
 
 const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
+  console.log('invoiceData:', invoiceData)
   const { quickBooksCompanyId } = useAuthStore.getState() // Retrieve stored company ID
 
   if (!quickBooksCompanyId || !accessToken) {
@@ -18,40 +19,46 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
     'Content-Type': 'application/json',
   }
 
+  // Build a flattened array with a header line for each room.
+  const lines = []
+  invoiceData.rooms.forEach(room => {
+    // Add a header line for the room (Description Only)
+    lines.push({
+      DetailType: 'DescriptionOnlyLineDetail',
+      Amount: 0, // No charge for the header
+      Description: room.roomName, // Room name as header
+    })
+    // Then add each item for that room.
+    room.items.forEach(item => {
+      lines.push({
+        DetailType: 'SalesItemLineDetail',
+        Amount: item.amount,
+        Description: item.description,
+        SalesItemLineDetail: {
+          ItemRef: { value: item.itemId },
+          UnitPrice: item.unitPrice,
+          Qty: item.quantity,
+        },
+      })
+    })
+  })
+
   const requestBody = {
     AutoDocNumber: true,
-    CustomerRef: {
-      value: invoiceData.customerId, // QBO Customer ID from your screen data
-    },
-    BillEmail: {
-      Address: invoiceData.customerEmail, // Customer email from your screen
-    },
+    CustomerRef: { value: invoiceData.customerId },
+    BillEmail: { Address: invoiceData.customerEmail },
     EmailStatus: 'NeedToSend',
     AllowOnlinePayment: true,
     AllowOnlineCreditCardPayment: true,
     AllowOnlineACHPayment: true,
-
-    // Use the invoice date provided by your screen (ensure it's in "YYYY-MM-DD" format)
-    TxnDate: invoiceData.invoiceDate,
+    // Since you're using the customer's default billing address, you can omit BillAddr.
+    TxnDate: invoiceData.invoiceDate, // Should be in "YYYY-MM-DD" format
     CurrencyRef: { value: 'USD' },
-
-    // Build dynamic line items from your screen's data
-    Line: invoiceData.lineItems.map(item => ({
-      DetailType: 'SalesItemLineDetail',
-      Amount: item.amount, // Final computed line total
-      Description: item.description,
-      SalesItemLineDetail: {
-        ItemRef: { value: item.itemId }, // QBO Item/Service ID
-        UnitPrice: item.unitPrice,
-        Qty: item.quantity,
-      },
-    })),
-
-    // Optionally, you can also include the overall total
-    TotalAmt: invoiceData.lineItems.reduce(
-      (sum, item) => sum + (item.amount || 0),
-      0
-    ),
+    Line: lines,
+    // Compute the total only from the sales item lines
+    TotalAmt: lines
+      .filter(line => line.DetailType === 'SalesItemLineDetail')
+      .reduce((sum, line) => sum + (line.Amount || 0), 0),
   }
 
   try {
