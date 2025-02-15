@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useEffect } from 'react'
 import {
   SafeAreaView,
@@ -228,7 +230,7 @@ const ViewInvoiceScreen = () => {
         {/* Grouped Line Items by Room */}
         <Text style={styles.sectionTitle}>Services & Costs</Text>
         {groupedLineItems.length > 0 ? (
-          groupedLineItems.map(room => (
+          groupedLineItems.map((room, roomIndex) => (
             <View
               key={`${room.roomName}-${roomIndex}`}
               style={styles.roomGroup}

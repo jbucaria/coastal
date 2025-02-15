@@ -1,6 +1,19 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+
+// Dynamically require AsyncStorage only on the client.
+// On the server, we provide a stub that does nothing.
+let AsyncStorageForZustand
+if (typeof window !== 'undefined') {
+  AsyncStorageForZustand =
+    require('@react-native-async-storage/async-storage').default
+} else {
+  AsyncStorageForZustand = {
+    getItem: async () => null,
+    setItem: async () => {},
+    removeItem: async () => {},
+  }
+}
 
 const useAuthStore = create(
   persist(
@@ -42,7 +55,7 @@ const useAuthStore = create(
       storage: {
         getItem: async key => {
           try {
-            const value = await AsyncStorage.getItem(key)
+            const value = await AsyncStorageForZustand.getItem(key)
             return value ? JSON.parse(value) : null // ✅ Parse JSON before returning
           } catch (error) {
             console.error(`Error getting ${key} from storage:`, error)
@@ -51,14 +64,14 @@ const useAuthStore = create(
         },
         setItem: async (key, value) => {
           try {
-            await AsyncStorage.setItem(key, JSON.stringify(value)) // ✅ Stringify object before storing
+            await AsyncStorageForZustand.setItem(key, JSON.stringify(value)) // ✅ Stringify object before storing
           } catch (error) {
             console.error(`Error setting ${key} in storage:`, error)
           }
         },
         removeItem: async key => {
           try {
-            await AsyncStorage.removeItem(key)
+            await AsyncStorageForZustand.removeItem(key)
           } catch (error) {
             console.error(`Error removing ${key} from storage:`, error)
           }

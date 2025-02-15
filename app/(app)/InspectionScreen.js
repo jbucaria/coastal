@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useEffect } from 'react'
 import { Alert } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'

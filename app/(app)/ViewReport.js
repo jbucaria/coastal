@@ -1,4 +1,6 @@
 // ViewReport.js
+'use client'
+
 import React, { useState, useEffect } from 'react'
 import { useLocalSearchParams, router, Link } from 'expo-router'
 import {

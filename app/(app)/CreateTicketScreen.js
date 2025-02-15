@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'expo-router'
 import {

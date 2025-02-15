@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useEffect } from 'react'
 import { Button, View, Text } from 'react-native'
 import * as AuthSession from 'expo-auth-session'
