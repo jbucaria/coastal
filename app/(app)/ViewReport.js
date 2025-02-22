@@ -1,25 +1,29 @@
-// ViewReportScreen.js
 import React, { useState } from 'react'
 import {
+  SafeAreaView,
+  ScrollView,
   View,
   Text,
   TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
+  Image,
+  ActivityIndicator,
   Alert,
   Modal,
-  SafeAreaView,
-  Image,
-  ScrollView,
 } from 'react-native'
 import Pdf from 'react-native-pdf'
 import * as Sharing from 'expo-sharing'
 import useTicket from '@/hooks/useTicket'
 import useProjectStore from '@/store/useProjectStore'
 import { useRouter } from 'expo-router'
-import { generatePDF } from '@/utils/pdfGenerator' // Import the PDF logic
+import { generatePDF } from '@/utils/pdfGenerator'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
+import { FloatingButton } from '@/components/FloatingButton'
+import { uploadPDFToFirestore } from '@/utils/pdfUploader'
+import { updateTicketPdfUrl } from '@/utils/firestoreUtils'
+import { PhotoModal } from '@/components/PhotoModal'
 
-// Card displaying ticket details at the top
+// Ticket Details Card
 const TicketDetailsCard = ({ ticket }) => {
   let createdAtStr = ''
   if (ticket.createdAt && ticket.createdAt.seconds) {
@@ -28,21 +32,36 @@ const TicketDetailsCard = ({ ticket }) => {
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Ticket Details</Text>
-      <Text style={styles.cardText}>Ticket Number: {ticket.ticketNumber}</Text>
-      <Text style={styles.cardText}>Date: {createdAtStr}</Text>
-      <Text style={styles.cardText}>
-        Address: {ticket.street}
-        {ticket.apt ? `, Apt ${ticket.apt}` : ''}, {ticket.city}, {ticket.state}{' '}
-        {ticket.zip}
-      </Text>
-      <Text style={styles.cardText}>Inspector: {ticket.inspectorName}</Text>
-      <Text style={styles.cardText}>Reason for Visit: {ticket.reason}</Text>
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Ticket Number: </Text>
+        <Text style={styles.detailValue}>{ticket.ticketNumber}</Text>
+      </View>
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Date: </Text>
+        <Text style={styles.detailValue}>{createdAtStr}</Text>
+      </View>
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Address: </Text>
+        <Text style={styles.detailValue}>
+          {ticket.street}
+          {ticket.apt ? `, Apt ${ticket.apt}` : ''}, {ticket.city},{' '}
+          {ticket.state} {ticket.zip}
+        </Text>
+      </View>
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Inspector: </Text>
+        <Text style={styles.detailValue}>{ticket.inspectorName}</Text>
+      </View>
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Reason for Visit: </Text>
+        <Text style={styles.detailValue}>{ticket.reason}</Text>
+      </View>
     </View>
   )
 }
 
-// Card for each room in the inspection
-const RoomCard = ({ room }) => {
+// Room Card – displays room info and photos. onPhotoPress is passed as a prop.
+const RoomCard = ({ room, onPhotoPress = () => {} }) => {
   const { roomTitle, inspectionFindings, photos } = room
   return (
     <View style={styles.card}>
@@ -51,11 +70,12 @@ const RoomCard = ({ room }) => {
       <View style={styles.photosContainer}>
         {photos && photos.length > 0 ? (
           photos.map((photo, index) => (
-            <Image
+            <TouchableOpacity
               key={index}
-              source={{ uri: photo.downloadURL }}
-              style={styles.photo}
-            />
+              onPress={() => onPhotoPress(photo.downloadURL)}
+            >
+              <Image source={{ uri: photo.downloadURL }} style={styles.photo} />
+            </TouchableOpacity>
           ))
         ) : (
           <Text style={styles.cardText}>No photos available.</Text>
@@ -71,8 +91,10 @@ const ViewReportScreen = () => {
   const [pdfUri, setPdfUri] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isViewerVisible, setIsViewerVisible] = useState(false)
+  const [selectedPhoto, setSelectedPhoto] = useState(null)
   const router = useRouter()
 
+  // Handler to generate PDF, upload it, and update the ticket record
   const handleGenerateReport = async () => {
     if (!ticket) {
       Alert.alert('Error', 'Ticket data is not available.')
@@ -80,11 +102,23 @@ const ViewReportScreen = () => {
     }
     setIsGenerating(true)
     try {
-      const uri = await generatePDF(ticket)
-      setPdfUri(uri)
-      Alert.alert('Success', 'PDF report generated.')
+      // Generate the PDF locally
+      const localPdfUri = await generatePDF(ticket)
+      // Upload the PDF to Firebase Storage using the ticket address in the filename
+      const uploadedPdfUrl = await uploadPDFToFirestore(ticket, localPdfUri)
+      await updateTicketPdfUrl(ticket.id, uploadedPdfUrl)
+      setPdfUri(uploadedPdfUrl)
+      Alert.alert(
+        'Success',
+        'PDF report generated and uploaded. Would you like to view the report now?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'View Report', onPress: () => setIsViewerVisible(true) },
+        ]
+      )
     } catch (error) {
-      Alert.alert('Error', 'Failed to generate PDF report.')
+      console.error('Error generating and uploading PDF:', error)
+      Alert.alert('Error', 'Failed to generate and upload PDF report.')
     }
     setIsGenerating(false)
   }
@@ -110,24 +144,38 @@ const ViewReportScreen = () => {
     }
   }
 
-  const handleBack = () => {
-    router.back()
-  }
+  // Header options – display "Generate PDF" if no PDF exists,
+  // otherwise show options to view and share the PDF.
+  const headerOptions = [
+    {
+      label: 'Edit Report',
+      onPress: () =>
+        router.push({ pathname: '/EditReportScreen', params: { projectId } }),
+    },
+    ...(pdfUri
+      ? [
+          { label: 'View PDF', onPress: handleViewReport },
+          { label: 'Share PDF', onPress: handleShareReport },
+        ]
+      : [{ label: 'Generate PDF', onPress: handleGenerateReport }]),
+  ]
 
-  const handleEditReport = () => {
-    router.push({ pathname: '/EditReportScreen', params: { projectId } })
+  // Handler for when a photo is pressed. This sets the selected photo.
+  const handlePhotoPress = uri => {
+    console.log('Photo pressed:', uri)
+    setSelectedPhoto(uri)
   }
+  const closePhoto = () => setSelectedPhoto(null)
 
   if (error) {
     Alert.alert('Error', 'Failed to load ticket data.')
   }
-
   if (!ticket) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1DA1F2" />
         <Text style={styles.loadingText}>Loading ticket data...</Text>
-      </View>
+      </SafeAreaView>
     )
   }
 
@@ -135,60 +183,53 @@ const ViewReportScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView>
-        {/* Navigation Buttons */}
-        <View style={styles.navButtons}>
-          <TouchableOpacity onPress={handleBack} style={styles.navButton}>
-            <Text style={styles.navButtonText}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleEditReport} style={styles.navButton}>
-            <Text style={styles.navButtonText}>Edit Report</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.headerText}>View Report</Text>
-
-        {/* Ticket Details Card */}
-        <TicketDetailsCard ticket={ticket} />
-
-        {/* Render a Room Card for each room */}
+      <HeaderWithOptions
+        title="View Report"
+        onBack={() => router.back()}
+        options={headerOptions}
+      />
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        {isGenerating && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#1DA1F2" />
+          </View>
+        )}
+        {/* <TicketDetailsCard ticket={ticket} /> */}
         {inspectionRooms.map(room => (
-          <RoomCard key={room.id} room={room} />
+          <RoomCard key={room.id} room={room} onPhotoPress={handlePhotoPress} />
         ))}
-
-        {/* PDF Actions */}
-        <TouchableOpacity onPress={handleGenerateReport} style={styles.button}>
-          {isGenerating ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Generate PDF Report</Text>
-          )}
-        </TouchableOpacity>
-        {pdfUri && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              onPress={handleViewReport}
-              style={styles.buttonSecondary}
-            >
-              <Text style={styles.buttonText}>View Report</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleShareReport}
-              style={styles.buttonSecondary}
-            >
-              <Text style={styles.buttonText}>Share Report</Text>
-            </TouchableOpacity>
+        {/* Render ticket photos if available */}
+        {ticket.ticketPhotos && ticket.ticketPhotos.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Photos</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {ticket.ticketPhotos.map((photoUri, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => handlePhotoPress(photoUri)}
+                >
+                  <Image source={{ uri: photoUri }} style={styles.photo} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         )}
       </ScrollView>
-      <Modal visible={isViewerVisible} animationType="slide">
+      {/* PDF Modal */}
+      <Modal
+        visible={isViewerVisible}
+        animationType="slide"
+        onRequestClose={() => setIsViewerVisible(false)}
+      >
         <SafeAreaView style={styles.modalContainer}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setIsViewerVisible(false)}
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
-          {pdfUri ? (
+          <View style={styles.floatingCloseButtonContainer}>
+            <FloatingButton
+              onPress={() => setIsViewerVisible(false)}
+              title="Close"
+              iconName="x.circle"
+            />
+          </View>
+          {pdfUri && (
             <Pdf
               source={{ uri: pdfUri, cache: true }}
               style={styles.pdf}
@@ -197,9 +238,15 @@ const ViewReportScreen = () => {
                 Alert.alert('Error', 'Failed to display PDF.')
               }}
             />
-          ) : null}
+          )}
         </SafeAreaView>
       </Modal>
+      {/* Photo Modal */}
+      <PhotoModal
+        visible={selectedPhoto !== null}
+        photo={selectedPhoto}
+        onClose={closePhoto}
+      />
     </SafeAreaView>
   )
 }
@@ -209,42 +256,47 @@ export default ViewReportScreen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#fff',
   },
-  navButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  navButton: {
-    backgroundColor: '#0073BC',
-    padding: 10,
-    borderRadius: 5,
-  },
-  navButtonText: {
-    color: '#fff',
+  loadingText: {
+    marginTop: 10,
     fontSize: 16,
   },
-  headerText: {
-    fontSize: 24,
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#0073BC',
+  scrollContent: {
+    paddingBottom: 40,
   },
   card: {
     backgroundColor: '#F5F8FA',
     borderRadius: 8,
-    borderWidth: 1,
     borderColor: '#E1E8ED',
+    borderWidth: 1,
+    margin: 16,
     padding: 12,
-    marginBottom: 20,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 10,
     color: '#14171A',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
+  },
+  detailLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#14171A',
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#14171A',
+    marginLeft: 4,
   },
   cardText: {
     fontSize: 16,
@@ -259,64 +311,32 @@ const styles = StyleSheet.create({
   photo: {
     width: 100,
     height: 100,
-    marginRight: 10,
-    marginBottom: 10,
+    margin: 5,
     borderRadius: 5,
-  },
-  button: {
-    backgroundColor: '#0073BC',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  buttonSecondary: {
-    backgroundColor: '#F36C21',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginTop: 10,
-    width: '48%',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
   },
   modalContainer: {
     flex: 1,
     backgroundColor: '#fff',
   },
-  closeButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: '#0073BC',
-    padding: 10,
-    borderRadius: 5,
-    zIndex: 1,
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
   pdf: {
     flex: 1,
     width: '100%',
-    marginTop: 60,
+  },
+  floatingCloseButtonContainer: {
+    position: 'absolute',
+    bottom: 30,
+    right: 10,
+    zIndex: 2,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
   },
 })

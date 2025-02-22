@@ -3,7 +3,13 @@ import { TouchableOpacity, Text, StyleSheet, Animated } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import * as Haptics from 'expo-haptics'
 
-const FloatingButton = ({ onPress, title, animatedOpacity }) => {
+const FloatingButton = ({
+  onPress,
+  title,
+  animatedOpacity,
+  iconName,
+  size,
+}) => {
   const handlePressIn = event => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid)
   }
@@ -14,7 +20,7 @@ const FloatingButton = ({ onPress, title, animatedOpacity }) => {
         onPress={onPress}
         style={styles.button}
       >
-        <IconSymbol name="plus" size={24} color="#fff" />
+        <IconSymbol name={iconName} size={size || 24} color="#fff" />
         <Text style={styles.title}>{title}</Text>
       </TouchableOpacity>
     </Animated.View>

@@ -3,27 +3,25 @@ import {
   Modal,
   View,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   StyleSheet,
   Text,
+  Image,
 } from 'react-native'
+import PinchZoomImage from './PinchZoomImage' // adjust the path as needed
 
 const PhotoModal = ({ visible, photo, onClose }) => {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (visible) {
+    if (visible && photo) {
       setIsLoading(true)
-      console.log('Photo URI in modal:', photo) // Log the photo URI when modal opens
       Image.getSize(
         photo,
         (width, height) => {
-          console.log(`Image dimensions: ${width} x ${height}`)
           setIsLoading(false)
         },
         error => {
-          console.error('Error getting image size:', error)
           setIsLoading(false)
         }
       )
@@ -32,13 +30,6 @@ const PhotoModal = ({ visible, photo, onClose }) => {
 
   const onImageLoad = event => {
     console.log('Image loaded successfully', event.nativeEvent)
-    if (event.nativeEvent && event.nativeEvent.source) {
-      console.log(
-        'Image dimensions from nativeEvent:',
-        event.nativeEvent.source.width,
-        event.nativeEvent.source.height
-      )
-    }
   }
 
   const onImageLoadError = error => {
@@ -68,15 +59,11 @@ const PhotoModal = ({ visible, photo, onClose }) => {
               />
             )}
             {photo ? (
-              <>
-                <Image
-                  source={{ uri: photo }}
-                  style={[styles.fullPhoto, { width: 300, height: 400 }]}
-                  resizeMode="contain" // or 'cover' based on your preference
-                  onLoad={onImageLoad}
-                  onError={onImageLoadError}
-                />
-              </>
+              <PinchZoomImage
+                photo={photo}
+                onLoad={onImageLoad}
+                onError={onImageLoadError}
+              />
             ) : (
               <Text style={styles.photoLoadingText}>No Photo Available</Text>
             )}
@@ -105,14 +92,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   photoModalContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
     width: '90%',
     height: '90%',
-  },
-  fullPhoto: {
-    flex: 1, // This will make the image take up all available space within photoModalContent
-    resizeMode: 'contain', // Ensure the image fits within its container without distortion
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   photoLoadingText: {
     color: 'white',
@@ -133,13 +116,5 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: 'white',
     fontSize: 16,
-  },
-  imageSourceText: {
-    position: 'absolute',
-    bottom: 10,
-    color: 'white',
-    fontSize: 12,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 5,
   },
 })
