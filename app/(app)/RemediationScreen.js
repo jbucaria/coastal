@@ -275,7 +275,6 @@ const RemediationScreen = () => {
   // -------------------- Render --------------------
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top Bar (inspired by X/Twitter) */}
       <HeaderWithOptions title="Remediation" onBack={() => router.back()} />
 
       <KeyboardAvoidingView

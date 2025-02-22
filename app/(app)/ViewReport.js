@@ -1,507 +1,298 @@
-// ViewReport.js
-'use client'
-
-import React, { useState, useEffect } from 'react'
-import { useLocalSearchParams, router, Link } from 'expo-router'
+import React, { useState } from 'react'
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
-  StyleSheet,
-  Image,
-  SafeAreaView,
-  Alert,
-  Linking,
-  Platform,
   ActivityIndicator,
+  StyleSheet,
+  Alert,
+  Modal,
 } from 'react-native'
-import { doc, getDoc } from 'firebase/firestore'
-import { firestore } from '@/firebaseConfig'
-import { pdfGenerator } from '@/utils/pdfGenerator'
-import { IconSymbol } from '@/components/ui/IconSymbol'
-import useProjectStore from '@/store/useProjectStore'
+import * as Print from 'expo-print'
+import * as Sharing from 'expo-sharing'
+import * as FileSystem from 'expo-file-system'
+import { Asset } from 'expo-asset'
+import Pdf from 'react-native-pdf'
 
-const ViewReport = () => {
-  const { projectId } = useProjectStore()
-  const [project, setProject] = useState(null)
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [showFullImage, setShowFullImage] = useState(false)
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
-  const [pdfDownloadURL, setPdfDownloadURL] = useState(null)
+// Function to load and convert the logo to Base64 from assets/images/logo.png
+const getLogoBase64 = async () => {
+  const asset = Asset.fromModule(require('../../assets/images/logo.png'))
+  await asset.downloadAsync()
+  const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  })
+  return base64
+}
 
-  useEffect(() => {
-    const fetchProject = async () => {
-      try {
-        const projectRef = doc(firestore, 'tickets', projectId)
-        const projectSnap = await getDoc(projectRef)
-        if (projectSnap.exists()) {
-          setProject({ id: projectSnap.id, ...projectSnap.data() })
-        } else {
-          console.log('No such ticket!')
-          Alert.alert('Error', 'Ticket not found')
-        }
-      } catch (error) {
-        console.error('Error fetching ticket:', error)
-        Alert.alert('Error', 'Could not fetch Ticket. Please try again later.')
-      }
-    }
-    fetchProject()
-  }, [projectId])
+// Function to generate the HTML for the report
+const generateReportHTML = logoBase64 => {
+  const reportText = `Inspection Report
 
-  const handlePhotoPress = photo => {
-    // photo.uri expected to hold the image URL
-    setSelectedPhoto(photo.uri)
-    setShowFullImage(true)
-  }
+Project: Coastal Restoration Services
+Date: August 14, 2024
 
-  const generatePDF = async () => {
-    if (!project) {
-      Alert.alert('Error', 'Project data not loaded yet.')
-      return
-    }
-    setIsGeneratingPDF(true)
+Summary:
+• Technician assessed water intrusion in multiple areas.
+• Affected rooms: Living Room, Bedroom.
+• Moisture readings were taken and proper mitigation performed.
+• Affected areas were treated with an antimicrobial agent and monitored until dry.
 
-    try {
-      // Make sure pdfGenerator is imported from the correct file/path
-      const result = await pdfGenerator(project)
-      if (result && result.pdfFileName && result.pdfDownloadURL) {
-        setPdfDownloadURL(result.pdfDownloadURL)
-        Alert.alert('Success', `PDF Generated: ${result.pdfFileName}`, [
-          { text: 'OK', onPress: () => console.log('PDF generated') },
-        ])
-      } else {
-        console.error('PDF generation did not return expected result:', result)
-        throw new Error('PDF generation failed')
-      }
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-      Alert.alert('Error', 'Failed to generate PDF. Please try again.')
-    } finally {
-      setIsGeneratingPDF(false)
-    }
-  }
+Recommendations:
+• Continue monitoring moisture levels.
+• Schedule follow-up inspection if necessary.
 
-  const openGoogleMaps = address => {
-    const url = Platform.select({
-      ios: `comgooglemaps://?q=${encodeURIComponent(address)}`,
-      android: `geo:0,0?q=${encodeURIComponent(address)}`,
-    })
+Thank you for choosing Coastal Restoration Services.`
 
-    if (Platform.OS === 'ios') {
-      Linking.canOpenURL('comgooglemaps://')
-        .then(supported => {
-          if (supported) {
-            return Linking.openURL(url)
-          } else {
-            console.log('Google Maps not installed, opening in browser')
-            return Linking.openURL(
-              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                address
-              )}`
-            )
-          }
-        })
-        .catch(err => console.error('An error occurred', err))
-    } else {
-      Linking.openURL(url).catch(err => console.error('An error occurred', err))
-    }
-  }
-
-  const handleCall = phoneNumber => {
-    // Simple call or text logic
-    let phoneUrl =
-      Platform.OS === 'android'
-        ? `tel:${phoneNumber}`
-        : `telprompt:${phoneNumber}`
-    Linking.canOpenURL(phoneUrl)
-      .then(supported => {
-        if (!supported) {
-          Alert.alert('Phone number is not available')
-        } else {
-          return Linking.openURL(phoneUrl)
-        }
-      })
-      .catch(err => console.error('An error occurred', err))
-  }
-
-  if (!project) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </SafeAreaView>
+  const photoPlaceholderBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAAXNSR0IArs4c6QAAAlBJREFUWEft1j0xBEEUhK8nzIH4JSRgrLLCUCsgliJkAjtH/VyP2IVIpX8DY24PgCzIkGiIPoI3Qo9oAlmh1PhkIhy45/bt/vfbubO+d9Pme/zNm53sm0NQqy7R4/V8Dq4CdgD/gH+FQ4Af4fYIEBqVAdgejQzvdIAD8CngBvghAWrAT64FKAA/ZgCgBlMH1AqgXPpW58HSAJ1mvm9AIwEJYq1V2YIB+kmQCS6NhdwCbAF9k2RHGagCAc70OujS8QaZUhAGf5N5E9FeYFngMT4AR4irDVOoyACD4PrE+U0FqB5KC6b/06TClAk6ry4F2ISYhkOj/DVB47j/ed/+BRWEFTLTP9AYZ0gG+AF14lpx3t+3hwAAAAASUVORK5CYII='
+  const photos = [photoPlaceholderBase64, photoPlaceholderBase64]
+  const photosHTML = photos
+    .map(
+      photo =>
+        `<img src="data:image/png;base64,${photo}" style="width:200px; margin:10px;" />`
     )
+    .join('')
+
+  return `
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            margin: 40px;
+            color: #333;
+            line-height: 1.6;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #0073BC;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .header img {
+            max-width: 200px;
+            margin-bottom: 10px;
+          }
+          .business-info {
+            font-size: 14px;
+            margin-top: 10px;
+            color: #555;
+          }
+          h1 {
+            color: #0073BC;
+            margin-bottom: 10px;
+          }
+          .report-section {
+            margin-bottom: 30px;
+          }
+          .report-section h2 {
+            color: #0073BC;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #0073BC;
+            padding-bottom: 5px;
+          }
+          .report-section pre {
+            background-color: #f7f7f7;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+          }
+          .photos {
+            text-align: center;
+          }
+          .photos img {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 10px;
+          }
+          .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+            margin-top: 40px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <img src="data:image/png;base64,${logoBase64}" alt="Logo" />
+          <h1>Coastal Restoration Services</h1>
+          <div class="business-info">
+            904 CHESAPEAKE DR, ODESSA FL 33556<br/>
+            813-918-4210
+          </div>
+        </div>
+        <div class="report-section">
+          <h2>Inspection Report</h2>
+          <pre>${reportText}</pre>
+        </div>
+        <div class="report-section photos">
+          <h2>Photos</h2>
+          ${photosHTML}
+        </div>
+        <div class="footer">
+          Report generated by Coastal Restoration Services
+        </div>
+      </body>
+    </html>
+  `
+}
+
+const generatePDF = async () => {
+  try {
+    const logoBase64 = await getLogoBase64()
+    const html = generateReportHTML(logoBase64)
+    const { uri } = await Print.printToFileAsync({ html })
+    console.log('PDF generated at:', uri)
+    return uri
+  } catch (error) {
+    console.error('Error generating PDF:', error)
+    throw error
+  }
+}
+
+const ViewReportScreen = () => {
+  const [pdfUri, setPdfUri] = useState(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isViewerVisible, setIsViewerVisible] = useState(false)
+
+  const handleGenerateReport = async () => {
+    setIsGenerating(true)
+    try {
+      const uri = await generatePDF()
+      setPdfUri(uri)
+      Alert.alert('Success', 'PDF report generated.')
+    } catch (error) {
+      Alert.alert('Error', 'Failed to generate PDF report.')
+    }
+    setIsGenerating(false)
   }
 
-  const openChatRoom = () => {
-    router.push({
-      pathname: '/ProjectChatRoom',
-      params: { projectId: project.id },
-    })
+  const handleViewReport = () => {
+    if (pdfUri) {
+      setIsViewerVisible(true)
+    } else {
+      Alert.alert('No Report', 'Please generate a report first.')
+    }
+  }
+
+  const handleShareReport = async () => {
+    if (pdfUri) {
+      const available = await Sharing.isAvailableAsync()
+      if (available) {
+        await Sharing.shareAsync(pdfUri)
+      } else {
+        Alert.alert('Share Report', 'Sharing is not available on this device.')
+      }
+    } else {
+      Alert.alert('No Report', 'Please generate a report first.')
+    }
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TouchableOpacity
-        onPress={() => {
-          if (showFullImage) {
-            setShowFullImage(false)
-          } else {
-            router.back()
-          }
-        }}
-        style={styles.closeIconContainer}
-      >
-        <IconSymbol name="xmark" size={24} color="#fff" />
+    <View style={styles.container}>
+      <Text style={styles.headerText}>View Report</Text>
+      <TouchableOpacity onPress={handleGenerateReport} style={styles.button}>
+        {isGenerating ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Generate PDF Report</Text>
+        )}
       </TouchableOpacity>
-      <ScrollView style={styles.scrollView}>
-        {/* Title */}
-        <Text style={styles.reportTitle}>Inspection Report</Text>
-
-        {/* CARD: Address */}
-        <View style={styles.card}>
-          <Text style={styles.reportFieldLabel}>Address:</Text>
-          <View style={styles.addressContainer}>
-            <Text
-              style={[styles.reportFieldValue, styles.clickableText]}
-              onPress={() => openGoogleMaps(project.address)}
-            >
-              {project.address || 'N/A'}
-            </Text>
-            {project.messageCount > 0 && (
-              <TouchableOpacity
-                onPress={openChatRoom}
-                style={styles.messageIndicator}
-              >
-                <IconSymbol name="message" size={30} color="red" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* SECOND CARD - Contact Card */}
-        <View style={[styles.card, styles.contactCard]}>
-          <Text style={styles.cardTitle}>Contact Info</Text>
-
-          <View style={styles.contactRow}>
-            {/* LEFT COLUMN: Customer/Company Contact Info */}
-            <View style={styles.contactColumn}>
-              <Text style={styles.projectFieldLabel}>Customer:</Text>
-              <Text style={[styles.projectFieldValue, styles.lightText]}>
-                {project.customer || 'N/A'}
-              </Text>
-
-              <Text style={styles.projectFieldLabel}>Name:</Text>
-              <Text style={[styles.projectFieldValue, styles.lightText]}>
-                {project.customerName || 'N/A'}
-              </Text>
-
-              <Text style={styles.projectFieldLabel}>Number:</Text>
-              <TouchableOpacity
-                onPress={() => handleCall(project.contactNumber)}
-              >
-                <Text style={[styles.projectFieldValue, styles.clickableText]}>
-                  {project.customerNumber || 'N/A'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* RIGHT COLUMN: Homeowner Info (if available) */}
-            <View style={[styles.contactColumn, styles.rightColumn]}>
-              <Text style={styles.projectFieldLabel}>Homeowner:</Text>
-              <Text style={[styles.projectFieldValue, styles.lightText]}></Text>
-
-              <Text style={styles.projectFieldLabel}>Name:</Text>
-              <Text style={[styles.projectFieldValue, styles.lightText]}>
-                {project.homeOwnerName || 'N/A'}
-              </Text>
-
-              <Text style={styles.projectFieldLabel}>Number:</Text>
-              <TouchableOpacity
-                onPress={() => handleCall(project.homeOwnerNumber)}
-              >
-                <Text style={[styles.projectFieldValue, styles.clickableText]}>
-                  {project.homeOwnerNumber || 'N/A'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* CARD: Reason, Inspection Results, Recommended Actions */}
-        <View style={styles.card}>
-          <Text style={styles.reportFieldLabel}>Reason for Inspection:</Text>
-          <Text style={[styles.reportFieldValue, styles.multiLineText]}>
-            {project.reason || 'N/A'}
-          </Text>
-
-          <Text style={styles.reportFieldLabel}>Inspection Results:</Text>
-          <Text style={[styles.reportFieldValue, styles.multiLineText]}>
-            {project.inspectionResults || 'N/A'}
-          </Text>
-
-          <Text style={styles.reportFieldLabel}>Recommended Actions:</Text>
-          <Text style={[styles.reportFieldValue, styles.multiLineText]}>
-            {project.recommendedActions || 'N/A'}
-          </Text>
-        </View>
-
-        {/* CARD: Photos */}
-        <View style={styles.card}>
-          <Text style={styles.reportFieldLabel}>Photos:</Text>
-          {project.photos && project.reportPhotos.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.reportPhotos}
-            >
-              {project.reportPhotos.map((photo, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => handlePhotoPress(photo)}
-                >
-                  <Image
-                    source={{ uri: photo.uri }}
-                    style={styles.reportPhoto}
-                  />
-                  {photo.label && (
-                    <Text style={styles.photoLabel}>{photo.label}</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          ) : (
-            <Text style={styles.noPhotosText}>No photos available</Text>
-          )}
-        </View>
-
-        {/* Actions */}
-        <View style={styles.projectActionContainer}>
+      {pdfUri && (
+        <View style={styles.actionButtons}>
           <TouchableOpacity
-            onPress={generatePDF}
-            style={[styles.actionButton, { marginLeft: 8 }]} // Adjust styling if necessary
+            onPress={handleViewReport}
+            style={styles.buttonSecondary}
           >
-            {isGeneratingPDF ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text style={styles.actionButtonText}>Generate PDF</Text>
-            )}
+            <Text style={styles.buttonText}>View Report</Text>
           </TouchableOpacity>
-          {pdfDownloadURL && (
-            <TouchableOpacity
-              onPress={() => Linking.openURL(pdfDownloadURL)}
-              style={[styles.actionButton, { marginLeft: 8 }]} // Adjust styling if necessary
-            >
-              <Text style={styles.actionButtonText}>Open PDF</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Full Image Preview */}
-      {showFullImage && (
-        <View style={styles.fullImageContainer}>
-          <Image
-            source={{ uri: selectedPhoto }}
-            style={styles.fullImage}
-            resizeMode="contain"
-          />
+          <TouchableOpacity
+            onPress={handleShareReport}
+            style={styles.buttonSecondary}
+          >
+            <Text style={styles.buttonText}>Share Report</Text>
+          </TouchableOpacity>
         </View>
       )}
-    </SafeAreaView>
+      <Modal visible={isViewerVisible} animationType="slide">
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setIsViewerVisible(false)}
+          >
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+          {pdfUri ? (
+            <Pdf
+              source={{ uri: pdfUri, cache: true }}
+              style={styles.pdf}
+              onError={error => {
+                console.log('PDF rendering error:', error)
+                Alert.alert('Error', 'Failed to display PDF.')
+              }}
+            />
+          ) : null}
+        </View>
+      </Modal>
+    </View>
   )
 }
-export default ViewReport
 
-// -------------------
-//      STYLES
-// -------------------
+export default ViewReportScreen
+
 const styles = StyleSheet.create({
-  closeIconContainer: {
-    position: 'absolute',
-    top: 50,
-    right: 11,
-    zIndex: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    padding: 8,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#2C3E50',
-    textAlign: 'center',
-  },
-  contactRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  contactColumn: {
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  rightColumn: {
-    borderLeftWidth: 1,
-    borderLeftColor: '#d0e5f0',
-    paddingLeft: 12,
-  },
-
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    padding: 20,
+    justifyContent: 'center',
+    backgroundColor: '#fff',
   },
-  scrollView: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 20,
-  },
-
-  // Title
-  reportTitle: {
+  headerText: {
     fontSize: 24,
-    fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
-    color: '#2C3E50',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    color: '#0073BC',
   },
-
-  // Card Style
-  card: {
-    backgroundColor: '#f7f7f7',
-    marginBottom: 12,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  contactCard: {
-    backgroundColor: '#e8f4f8',
-    borderWidth: 1,
-    borderColor: '#d0e5f0',
-  },
-
-  // Labels and Values
-  reportFieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 12,
-  },
-  reportFieldValue: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    marginBottom: 12,
-  },
-  multiLineText: {
-    textAlignVertical: 'top',
-  },
-  clickableText: {
-    color: '#3498DB',
-    textDecorationLine: 'underline',
-  },
-
-  // Project Details
-  projectFieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  projectFieldValue: {
-    fontSize: 14,
-    color: '#4A4A4A',
-    marginBottom: 12,
-  },
-  lightText: {
-    color: '#555',
-  },
-
-  // Photos
-  reportPhotos: {
-    marginTop: 15,
-    marginBottom: 15,
-  },
-  reportPhoto: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
-  },
-  photoLabel: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
-    color: '#555',
-  },
-  noPhotosText: {
-    fontStyle: 'italic',
-    color: '#888',
-    marginTop: 8,
-  },
-  projectActionContainer: {
-    marginHorizontal: 16,
-    marginTop: 8,
-  },
-  // Bottom Button
-  actionButton: {
-    backgroundColor: '#2C3E50',
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 12,
+  button: {
+    backgroundColor: '#0073BC',
+    padding: 15,
+    borderRadius: 5,
     alignItems: 'center',
   },
-  actionButtonText: {
-    color: 'white',
+  buttonSecondary: {
+    backgroundColor: '#F36C21',
+    padding: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginTop: 10,
+    width: '48%',
+  },
+  buttonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // Loading
-  loadingText: {
-    textAlign: 'center',
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginTop: 20,
-    fontSize: 18,
-    color: '#2C3E50',
   },
-
-  // Full-screen image preview
-  fullImageContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.9)',
-    justifyContent: 'center',
+  closeButton: {
+    backgroundColor: '#0073BC',
+    padding: 10,
     alignItems: 'center',
   },
-  fullImage: {
-    width: '90%',
-    height: '90%',
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
   },
-  addressContainer: {
-    position: 'relative',
-  },
-  messageIndicator: {
-    position: 'absolute',
-    top: -10,
-    right: 0,
+  pdf: {
+    flex: 1,
+    width: '100%',
   },
 })

@@ -23,9 +23,9 @@ import { firestore } from '@/firebaseConfig'
 import { getTravelTime } from '@/utils/getTravelTime'
 import { EquipmentModal } from '@/components/EquipmentModal'
 import { PhotoModal } from '@/components/PhotoModal'
-import { IconSymbol } from '@/components/ui/IconSymbol'
 import { deleteTicket } from '@/utils/deleteTicket'
 import useProjectStore from '@/store/useProjectStore'
+import useTicket from '@/hooks/useTicket'
 import { ETAButton } from '@/components/EtaButton'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { formatPhoneNumber } from '@/utils/helpers'
@@ -214,7 +214,9 @@ const TicketDetailsScreen = () => {
       onPress: () => handleInspection(),
     },
     {
-      label: ticket.remediationComplete ? 'View Remediation' : 'Remediation',
+      label: ticket.remediationComplete
+        ? 'Cont Remediation'
+        : 'Start Remediation',
       onPress: () => handleRemediation(),
     },
     {
