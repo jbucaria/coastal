@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import {
   SafeAreaView,
   Animated,
@@ -17,20 +17,20 @@ import {
   Modal,
   TouchableWithoutFeedback,
 } from 'react-native'
-import { useRouter } from 'expo-router'
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { useRouter, useLocalSearchParams } from 'expo-router'
+import { updateDoc, doc } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { getTravelTime } from '@/utils/getTravelTime'
 import { EquipmentModal } from '@/components/EquipmentModal'
 import { PhotoModal } from '@/components/PhotoModal'
 import { deleteTicket } from '@/utils/deleteTicket'
 import useProjectStore from '@/store/useProjectStore'
-import useTicket from '@/hooks/useTicket'
 import { ETAButton } from '@/components/EtaButton'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { formatPhoneNumber } from '@/utils/helpers'
+import useTicket from '@/hooks/useTicket' // Import the custom hook
 
-// A helper to open Google Maps (if needed)
+// Helper to open Google Maps with ETA
 const openGoogleMapsWithETA = address => {
   const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
     address
@@ -41,33 +41,20 @@ const openGoogleMapsWithETA = address => {
 const TicketDetailsScreen = () => {
   const router = useRouter()
   const { projectId } = useProjectStore()
-  const [ticket, setTicket] = useState(null)
+  const { ticket, error } = useTicket(projectId) // Use the custom hook to subscribe to ticket data
   const [eta, setEta] = useState(null)
   const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const scrollY = useRef(new Animated.Value(0)).current
 
+  // If there's an error, alert the user
   useEffect(() => {
-    if (!projectId) return
+    if (error) {
+      Alert.alert('Error', 'Unable to fetch ticket data.')
+    }
+  }, [error])
 
-    const ticketRef = doc(firestore, 'tickets', projectId)
-    const unsubscribe = onSnapshot(
-      ticketRef,
-      docSnap => {
-        if (docSnap.exists()) {
-          setTicket({ id: docSnap.id, ...docSnap.data() })
-        } else {
-          router.back()
-        }
-      },
-      error => {
-        console.error('Error fetching ticket data:', error)
-        Alert.alert('Error', 'Unable to fetch ticket data.')
-      }
-    )
-    return () => unsubscribe()
-  }, [projectId])
-
+  // Get travel time based on ticket address
   useEffect(() => {
     if (ticket?.address) {
       getTravelTime(ticket.address)
@@ -90,14 +77,35 @@ const TicketDetailsScreen = () => {
     )
   }
 
+  // Deconstruct ticket properties for easier access
+  const {
+    street,
+    city,
+    state,
+    zip,
+    address,
+    customerName,
+    customerEmail,
+    customerNumber,
+    homeOwnerName,
+    homeOwnerNumber,
+    inspectorName,
+    reason,
+    ticketPhotos,
+    equipmentTotal,
+    remediationRequired,
+    remediationComplete,
+    inspectionComplete,
+    siteComplete,
+    messageCount,
+  } = ticket
+
   const handleInspection = () => {
     if (!ticket) {
       Alert.alert('Error', 'No ticket selected for inspection.')
       return
     }
-    const route = ticket.inspectionComplete
-      ? '/ViewReport'
-      : '/InspectionScreen'
+    const route = inspectionComplete ? '/ViewReport' : '/InspectionScreen'
     router.push({ pathname: route, params: { projectId: ticket.projectId } })
   }
 
@@ -106,7 +114,7 @@ const TicketDetailsScreen = () => {
       Alert.alert('Error', 'No ticket selected for remediation.')
       return
     }
-    const route = ticket.remediationComplete
+    const route = remediationComplete
       ? '/ViewRemediationScreen'
       : '/RemediationScreen'
     router.push({ pathname: route, params: { projectId: ticket.projectId } })
@@ -167,17 +175,16 @@ const TicketDetailsScreen = () => {
     })
   }
 
+  // Define header options
   const options = [
     {
       label: 'Delete Ticket',
-      onPress: () => {
-        handleDeleteTicket()
-      },
+      onPress: () => handleDeleteTicket(),
     },
     {
-      label: ticket.siteComplete ? 'Mark Incomplete' : 'Mark Complete',
+      label: siteComplete ? 'Mark Incomplete' : 'Mark Complete',
       onPress: async () => {
-        const newStatus = !ticket.siteComplete
+        const newStatus = !siteComplete
         const actionText = newStatus ? 'complete' : 'incomplete'
         Alert.alert(
           'Confirm',
@@ -210,17 +217,15 @@ const TicketDetailsScreen = () => {
       },
     },
     {
-      label: ticket.inspectionComplete ? 'View Inspection' : 'Inspection',
+      label: inspectionComplete ? 'View Inspection' : 'Start Inspection',
       onPress: () => handleInspection(),
     },
     {
-      label: ticket.remediationComplete
-        ? 'Cont Remediation'
-        : 'Start Remediation',
+      label: remediationComplete ? 'Cont Remediation' : 'Start Remediation',
       onPress: () => handleRemediation(),
     },
     {
-      label: ticket.messageCount ? 'View Notes' : 'Add Note',
+      label: messageCount ? 'View Notes' : 'Add Note',
       onPress: () => openNotes(),
     },
   ]
@@ -243,11 +248,11 @@ const TicketDetailsScreen = () => {
       >
         <View style={styles.card}>
           <Text style={styles.addressText}>
-            {ticket.street}, {ticket.city}, {ticket.state} {ticket.zip}
+            {street}, {city}, {state} {zip}
           </Text>
           <ETAButton
             eta={eta}
-            onPress={() => openGoogleMapsWithETA(ticket.address)}
+            onPress={() => openGoogleMapsWithETA(address)}
             status={eta === 'N/A' ? 'delayed' : 'normal'}
           />
         </View>
@@ -256,41 +261,35 @@ const TicketDetailsScreen = () => {
           <Text style={styles.cardTitle}>Contact Info</Text>
           <View style={styles.contactSection}>
             <Text style={styles.cardTitle}>Builder:</Text>
-
             <Text style={styles.contactValue}>
               <Text style={styles.contactLabel}>Name: </Text>
-              {ticket.customerName || 'N/A'}
+              {customerName || 'N/A'}
             </Text>
             <Text style={styles.contactValue}>
               <Text style={styles.contactLabel}>Email: </Text>
-              {ticket.customerEmail || 'N/A'}
+              {customerEmail || 'N/A'}
             </Text>
             <Text
               style={[styles.contactValue, styles.link]}
-              onPress={() => handleCall(ticket.customerNumber)}
+              onPress={() => handleCall(customerNumber)}
             >
               <Text style={styles.contactLabel}>Phone: </Text>
-              {ticket.customerNumber
-                ? formatPhoneNumber(ticket.customerNumber)
-                : 'N/A'}
+              {customerNumber ? formatPhoneNumber(customerNumber) : 'N/A'}
             </Text>
           </View>
-          {ticket.homeOwnerName && (
+          {homeOwnerName && (
             <View style={styles.contactSection}>
               <Text style={styles.cardTitle}>Homeowner</Text>
               <Text style={styles.contactValue}>
                 <Text style={styles.contactLabel}>Name: </Text>
-                {ticket.homeOwnerName || 'N/A'}
+                {homeOwnerName || 'N/A'}
               </Text>
               <Text
                 style={[styles.contactValue, styles.link]}
-                onPress={() => handleCall(ticket.homeOwnerNumber)}
+                onPress={() => handleCall(homeOwnerNumber)}
               >
                 <Text style={styles.contactLabel}>Phone: </Text>
-
-                {ticket.homeOwnerNumber
-                  ? formatPhoneNumber(ticket.homeOwnerNumber)
-                  : 'N/A'}
+                {homeOwnerNumber ? formatPhoneNumber(homeOwnerNumber) : 'N/A'}
               </Text>
             </View>
           )}
@@ -300,13 +299,11 @@ const TicketDetailsScreen = () => {
           <Text style={styles.cardTitle}>Inspector & Reason</Text>
           <View style={styles.inspectorSection}>
             <Text style={styles.inspectorLabel}>Inspector:</Text>
-            <Text style={styles.inspectorValue}>
-              {ticket.inspectorName || 'N/A'}
-            </Text>
+            <Text style={styles.inspectorValue}>{inspectorName || 'N/A'}</Text>
           </View>
           <View style={styles.inspectorSection}>
             <Text style={styles.inspectorLabel}>Reason for Visit:</Text>
-            <Text style={styles.inspectorValue}>{ticket.reason || 'N/A'}</Text>
+            <Text style={styles.inspectorValue}>{reason || 'N/A'}</Text>
           </View>
         </View>
         <EquipmentModal
@@ -314,11 +311,11 @@ const TicketDetailsScreen = () => {
           onClose={() => setIsEquipmentModalVisible(false)}
           projectId={ticket.id}
         />
-        {ticket.ticketPhotos && ticket.ticketPhotos.length > 0 && (
+        {ticketPhotos && ticketPhotos.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Photos</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {ticket.ticketPhotos.map((photoUri, index) => (
+              {ticketPhotos.map((photoUri, index) => (
                 <TouchableOpacity
                   key={index}
                   onPress={() => handlePhotoPress(photoUri)}
@@ -333,18 +330,18 @@ const TicketDetailsScreen = () => {
           <Text style={styles.cardTitle}>Status</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Equipment Total:</Text>
-            <Text style={styles.infoValue}>{ticket.equipmentTotal || 0}</Text>
+            <Text style={styles.infoValue}>{equipmentTotal || 0}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Measurements Required:</Text>
             <Text style={styles.infoValue}>
-              {ticket.remediationRequired ? 'True' : 'False'}
+              {remediationRequired ? 'True' : 'False'}
             </Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Inspection Needed:</Text>
             <Text style={styles.infoValue}>
-              {ticket.inspectionComplete ? 'Complete' : 'Required'}
+              {inspectionComplete ? 'Complete' : 'Required'}
             </Text>
           </View>
         </View>
@@ -408,8 +405,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   container: {
-    // flex: 1,
-    // padding: 5,
     backgroundColor: '#ffffff',
   },
   infoLabel: {
@@ -445,11 +440,6 @@ const styles = StyleSheet.create({
   },
   flex1: {
     flex: 1,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
   },
   loadingContainer: {
     alignItems: 'center',

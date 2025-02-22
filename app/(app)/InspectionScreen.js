@@ -209,21 +209,7 @@ const InspectionScreen = () => {
                   </TouchableOpacity>
                 </View>
                 {/* Inspection Input Fields */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Reason for Inspection</Text>
-                  <TextInput
-                    style={styles.inspectionInput}
-                    placeholder="Enter reason for inspection"
-                    value={room.reasonForInspection}
-                    onChangeText={text =>
-                      handleRoomFieldChange(
-                        room.id,
-                        'reasonForInspection',
-                        text
-                      )
-                    }
-                  />
-                </View>
+
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Inspection Findings</Text>
                   <TextInput
@@ -267,7 +253,7 @@ const InspectionScreen = () => {
                     onPress={() => handleAddPhoto(room.id, projectId)}
                     style={styles.addPhotoButton}
                   >
-                    <Text style={styles.addPhotoButtonText}>+ Add Photo</Text>
+                    <Text style={styles.addPhotoButtonText}>+ Photo</Text>
                   </TouchableOpacity>
                 </View>
               </View>

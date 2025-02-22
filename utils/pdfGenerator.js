@@ -1,30 +1,166 @@
-// In pdfGenerator.js
+// pdfGenerator.js
 import * as Print from 'expo-print'
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { generatePdf } from '@/utils/ReportTemplate'
+import * as FileSystem from 'expo-file-system'
+import { Asset } from 'expo-asset'
 
-const storage = getStorage()
+export const getLogoBase64 = async () => {
+  const asset = Asset.fromModule(require('@/assets/images/logo.png'))
+  await asset.downloadAsync()
+  const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  })
+  return base64
+}
 
-export const pdfGenerator = async formData => {
-  const html = await generatePdf(formData)
-  const sanitizedAddress = formData.address
-    .replace(/[^a-zA-Z0-9]/g, '_')
-    .replace(/_+/g, '_')
-    .substring(0, 50)
-  const fileName = sanitizedAddress
-    ? `${sanitizedAddress}_Inspection_Report.pdf`
-    : 'Inspection_Report.pdf'
-  const { uri: pdfLocalUri } = await Print.printToFileAsync({ html })
+export const generateReportHTML = (logoBase64, ticket) => {
+  const {
+    ticketNumber,
+    street,
+    apt,
+    city,
+    state,
+    zip,
+    createdAt,
+    inspectorName,
+    reason,
+    inspectionData,
+  } = ticket
 
-  // Upload the generated PDF to Firebase Storage
-  const pdfStorageRef = ref(
-    storage,
-    `projects/${formData.projectId}/pdfs/${fileName}`
-  )
-  const pdfResponse = await fetch(pdfLocalUri)
-  const pdfBlob = await pdfResponse.blob()
-  await uploadBytes(pdfStorageRef, pdfBlob)
-  const pdfDownloadURL = await getDownloadURL(pdfStorageRef)
+  let createdAtStr = ''
+  if (createdAt && createdAt.seconds) {
+    createdAtStr = new Date(createdAt.seconds * 1000).toLocaleString()
+  }
 
-  return { pdfFileName: fileName, pdfDownloadURL } // Ensure this is returned
+  const reportText = `Inspection Report
+
+Ticket Number: ${ticketNumber}
+Date: ${createdAtStr}
+Address: ${street}${apt ? `, Apt ${apt}` : ''}, ${city}, ${state} ${zip}
+Inspector: ${inspectorName}
+Reason for Visit:
+${reason}`
+
+  let roomsHTML = ''
+  if (
+    inspectionData &&
+    inspectionData.rooms &&
+    inspectionData.rooms.length > 0
+  ) {
+    roomsHTML = inspectionData.rooms
+      .map(room => {
+        const { roomTitle, inspectionFindings, photos } = room
+        const roomPhotosHTML =
+          photos && photos.length > 0
+            ? photos
+                .map(photo =>
+                  photo.downloadURL
+                    ? `<img src="${photo.downloadURL}" alt="${roomTitle} photo" />`
+                    : ''
+                )
+                .join('')
+            : `<p>No photos available for this room.</p>`
+        return `
+          <div class="room-section">
+            <h3>${roomTitle}</h3>
+            <p>Inspection Findings:</p>
+            <p>${inspectionFindings}</p>
+            <div class="room-photos">
+              ${roomPhotosHTML}
+            </div>
+          </div>
+        `
+      })
+      .join('')
+  } else {
+    roomsHTML = `<p>No inspection data available.</p>`
+  }
+
+  return `
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 16px;
+            margin: 40px;
+            color: #333;
+            line-height: 1.8;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .header img {
+            max-width: 300px; /* Increased logo size */
+            margin-bottom: 10px;
+          }
+          .report-section {
+            margin-bottom: 30px;
+          }
+          .report-section pre {
+            background-color: #f7f7f7;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+          }
+          .room-section {
+            margin-bottom: 20px;
+            page-break-inside: avoid; 
+            break-inside: avoid;
+          }
+          .room-section h3 {
+            color: #0073BC;
+            margin-bottom: 5px;
+          }
+          .room-photos {
+            text-align: center;
+          }
+          .room-photos img {
+            width: 200px;
+            height: 150px; /* Enforces consistent height */
+            object-fit: cover;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 10px;
+          }
+          .footer {
+            text-align: center;
+            font-size: 14px;
+            color: #777;
+            margin-top: 40px;
+            padding-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <img src="data:image/png;base64,${logoBase64}" alt="Logo" />
+        </div>
+        <div class="report-section">
+          <pre>${reportText}</pre>
+        </div>
+        <div class="report-section">
+          ${roomsHTML}
+        </div>
+        <div class="footer">
+          Report generated by Coastal Restoration Services
+        </div>
+      </body>
+    </html>
+  `
+}
+
+export const generatePDF = async ticket => {
+  try {
+    const logoBase64 = await getLogoBase64()
+    const html = generateReportHTML(logoBase64, ticket)
+    const { uri } = await Print.printToFileAsync({ html })
+    console.log('PDF generated at:', uri)
+    return uri
+  } catch (error) {
+    console.error('Error generating PDF:', error)
+    throw error
+  }
 }

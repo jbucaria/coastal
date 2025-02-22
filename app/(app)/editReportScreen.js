@@ -45,8 +45,9 @@ const EditReportPage = () => {
 
   useEffect(() => {
     const fetchProjectAndReport = async () => {
+      console.log('projectId:', projectId)
       try {
-        const projectRef = doc(firestore, 'projects', projectId)
+        const projectRef = doc(firestore, 'tickets', projectId)
         const projectSnap = await getDoc(projectRef)
         if (projectSnap.exists()) {
           setProject({ id: projectSnap.id, ...projectSnap.data() })

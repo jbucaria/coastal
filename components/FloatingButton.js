@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     // This container wraps the button and applies the animated opacity
   },
   button: {
-    backgroundColor: '#1DA1F2', // Change to your desired color
+    backgroundColor: '#0073BC', // Change to your desired color
     borderRadius: 30,
     paddingVertical: 16,
     paddingHorizontal: 20,
