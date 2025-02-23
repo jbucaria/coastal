@@ -64,7 +64,7 @@ const initialTicketStatus = {
   onSite: false,
   inspectionComplete: false,
   remediationRequired: false,
-  remediationComplete: false,
+  remediationStatus: 'notStarted',
   equipmentOnSite: false,
   siteComplete: false,
   measurementsRequired: false,

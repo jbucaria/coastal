@@ -176,6 +176,8 @@ const TicketDetailsScreen = () => {
   }
 
   // Define header options
+  const remediationStatus = ticket?.remediationStatus ?? 'notStarted'
+
   const options = [
     {
       label: 'Delete Ticket',
@@ -221,7 +223,12 @@ const TicketDetailsScreen = () => {
       onPress: () => handleInspection(),
     },
     {
-      label: remediationComplete ? 'Cont Remediation' : 'Start Remediation',
+      label:
+        remediationStatus === 'complete'
+          ? 'View Remediation'
+          : remediationStatus === 'inProgress'
+          ? 'Continue Remediation'
+          : 'Start Remediation',
       onPress: () => handleRemediation(),
     },
     {

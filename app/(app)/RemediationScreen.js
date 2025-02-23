@@ -19,22 +19,28 @@ import {
   Image,
   Animated,
 } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, router } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { Picker } from '@react-native-picker/picker'
 import { v4 as uuidv4 } from 'uuid'
-import { doc, updateDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, updateDoc, collection, getDocs, getDoc } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { firestore, storage } from '@/firebaseConfig'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { FloatingButton } from '@/components/FloatingButton'
+import { IconSymbol } from '@/components/ui/IconSymbol'
+import useProjectStore from '@/store/useProjectStore'
 
 /** Predefined room types */
 const ROOM_OPTIONS = ['Bedroom', 'Kitchen', 'Garage', 'Living Room', 'Bathroom']
 
 const RemediationScreen = () => {
-  const router = useRouter()
-  const { projectId } = useLocalSearchParams()
+  const params = useLocalSearchParams()
+  const projectIdFromParams = params.projectId
+  const { projectId: storeProjectId } = useProjectStore()
+
+  // Use the local param if available; otherwise, fall back to the global store.
+  const projectId = projectIdFromParams ?? storeProjectId
 
   // Rooms (each has measurements and photos)
   const [rooms, setRooms] = useState([])
@@ -59,6 +65,26 @@ const RemediationScreen = () => {
     outputRange: [1, 0],
     extrapolate: 'clamp',
   })
+
+  const [ticket, setTicket] = useState(null)
+
+  useEffect(() => {
+    const fetchTicket = async () => {
+      try {
+        const docRef = doc(firestore, 'tickets', projectId)
+        const docSnap = await getDoc(docRef)
+        if (docSnap.exists()) {
+          setTicket(docSnap.data())
+        } else {
+          Alert.alert('Error', 'Ticket not found.')
+        }
+      } catch (error) {
+        console.error('Error fetching ticket:', error)
+        Alert.alert('Error', 'Failed to load ticket data.')
+      }
+    }
+    fetchTicket()
+  }, [projectId])
 
   // -------------------- Add Room Logic --------------------
   const openAddRoomModal = () => {
@@ -112,6 +138,18 @@ const RemediationScreen = () => {
     setCurrentMeasurementId(newMeasurementId)
     openItemsModal()
   }
+  const currentStatus = ticket?.remediationStatus ?? 'notStarted'
+
+  const headerOptions = [
+    {
+      label: 'Save & Complete',
+      onPress: () => handleSaveRemediationData(true),
+    },
+    {
+      label: 'Save & Continue',
+      onPress: () => handleSaveRemediationData(false),
+    },
+  ]
 
   const handleDeleteMeasurement = (roomId, measurementId) => {
     setRooms(prev =>
@@ -241,31 +279,41 @@ const RemediationScreen = () => {
   }
 
   // -------------------- Save Data to Firestore --------------------
-  const handleSaveRemediationData = async () => {
+  const handleSaveRemediationData = async complete => {
     try {
-      // For each room, add a roomName field to each measurement (if not already present)
+      // Update each room to ensure each measurement has a roomName.
       const updatedRooms = rooms.map(room => ({
         ...room,
         measurements: room.measurements.map(m => ({
-          // Preserve existing measurement properties, and add roomName
           ...m,
-          // Only add roomName if it isn’t already set (to avoid overwriting)
           roomName: m.roomName || room.roomTitle,
         })),
       }))
 
+      // Create your remediationData object (without the status)
       const remediationData = {
         rooms: updatedRooms,
         updatedAt: new Date(),
       }
 
+      // Update the document with remediationData and the top-level remediationStatus.
       await updateDoc(doc(firestore, 'tickets', projectId), {
         remediationData,
         remediationRequired: false,
-        remediationComplete: true,
+        remediationStatus: complete ? 'complete' : 'inProgress',
       })
-      Alert.alert('Success', 'Remediation data saved successfully.')
-      router.back()
+
+      Alert.alert(
+        'Success',
+        complete
+          ? 'Remediation complete and saved successfully.'
+          : 'Remediation saved. You can continue later.'
+      )
+
+      // Navigate if complete
+      if (complete) {
+        router.push('TicketDetailsScreen', { projectId })
+      }
     } catch (error) {
       console.error('Error saving remediation data:', error)
       Alert.alert('Error', 'Failed to save data. Please try again.')
@@ -275,7 +323,11 @@ const RemediationScreen = () => {
   // -------------------- Render --------------------
   return (
     <SafeAreaView style={styles.container}>
-      <HeaderWithOptions title="Remediation" onBack={() => router.back()} />
+      <HeaderWithOptions
+        title="Remediation"
+        onBack={() => router.back()}
+        options={headerOptions}
+      />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -294,9 +346,20 @@ const RemediationScreen = () => {
                   </TouchableOpacity>
                 </View>
 
-                {/* Measurements */}
+                {/* Line Items Section */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Measurements</Text>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Line Items</Text>
+                    <TouchableOpacity
+                      onPress={() => handleCreateMeasurement(room.id)}
+                    >
+                      <IconSymbol
+                        name="plus.circle"
+                        size={26}
+                        color="#17BF63"
+                      />
+                    </TouchableOpacity>
+                  </View>
                   {room.measurements.map(measurement => (
                     <View key={measurement.id} style={styles.measurementRow}>
                       <TextInput
@@ -329,27 +392,28 @@ const RemediationScreen = () => {
                         onPress={() =>
                           handleDeleteMeasurement(room.id, measurement.id)
                         }
-                        style={styles.deleteMeasurementButton}
+                        // style={styles.deleteMeasurementButton}
                       >
-                        <Text style={styles.deleteMeasurementButtonText}>
-                          X
-                        </Text>
+                        <IconSymbol name="trash" size={26} color="red" />
                       </TouchableOpacity>
                     </View>
                   ))}
-                  <TouchableOpacity
-                    onPress={() => handleCreateMeasurement(room.id)}
-                    style={styles.addMeasurementButton}
-                  >
-                    <Text style={styles.addMeasurementButtonText}>
-                      + Measurement
-                    </Text>
-                  </TouchableOpacity>
                 </View>
 
-                {/* Photos */}
+                {/* Photos Section */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Photos</Text>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Photos</Text>
+                    <TouchableOpacity
+                      onPress={() => handleAddPhoto(room.id, projectId)}
+                    >
+                      <IconSymbol
+                        name="plus.circle"
+                        size={26}
+                        color="#17BF63"
+                      />
+                    </TouchableOpacity>
+                  </View>
                   {room.photos.length > 0 ? (
                     <ScrollView horizontal style={styles.photoRow}>
                       {room.photos.map(photo => (
@@ -374,25 +438,9 @@ const RemediationScreen = () => {
                   ) : (
                     <Text style={styles.noPhotoText}>No photos added.</Text>
                   )}
-                  <TouchableOpacity
-                    onPress={() => handleAddPhoto(room.id, projectId)}
-                    style={styles.addPhotoButton}
-                  >
-                    <Text style={styles.addPhotoButtonText}>+ Photo</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             ))}
-
-            {/* Save Button */}
-            {rooms.length > 0 && (
-              <TouchableOpacity
-                onPress={handleSaveRemediationData}
-                style={styles.saveButton}
-              >
-                <Text style={styles.saveButtonText}>Save Remediation</Text>
-              </TouchableOpacity>
-            )}
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
@@ -403,6 +451,8 @@ const RemediationScreen = () => {
           onPress={openAddRoomModal}
           title="Room"
           animatedOpacity={floatingOpacity}
+          iconName="plus.circle"
+          size={30}
         />
       </View>
 
@@ -564,6 +614,12 @@ const styles = StyleSheet.create({
   backButton: {
     marginRight: 12,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
   backButtonText: {
     color: '#FFF',
     fontSize: 16,
@@ -612,7 +668,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#14171A',
-    marginBottom: 8,
+    marginRight: 6,
   },
   // ---------- Measurements ----------
   measurementRow: {
@@ -632,7 +688,6 @@ const styles = StyleSheet.create({
     borderColor: '#E1E8ED',
   },
   deleteMeasurementButton: {
-    backgroundColor: '#E0245E',
     borderRadius: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,

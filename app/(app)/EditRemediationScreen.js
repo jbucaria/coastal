@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   SafeAreaView,
   ScrollView,
@@ -17,23 +17,27 @@ import {
   Keyboard,
   Platform,
   TextInput,
+  Animated,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { v4 as uuidv4 } from 'uuid'
-import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { firestore, storage } from '@/firebaseConfig'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
+import { FloatingButton } from '@/components/FloatingButton'
+import { IconSymbol } from '@/components/ui/IconSymbol'
 
 export default function EditRemediationScreen() {
   const router = useRouter()
   const { projectId } = useLocalSearchParams()
 
-  // Local state for remediation data (rooms, measurements, photos)
+  // Local state for remediation data
   const [rooms, setRooms] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Example room shortcuts.
+  // Quick room options
   const ROOM_OPTIONS = [
     'Bedroom',
     'Kitchen',
@@ -42,12 +46,35 @@ export default function EditRemediationScreen() {
     'Bathroom',
   ]
 
-  // -------------------- Photo Modal State --------------------
+  // -------------------- Additional States --------------------
+  // Photo modal state
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
+  // "Add Room" modal state
+  const [showAddRoomModal, setShowAddRoomModal] = useState(false)
+  const [selectedRoomType, setSelectedRoomType] = useState('')
+  const [customRoomName, setCustomRoomName] = useState('')
+  // Item picker modal state (if needed)
+  const [showItemsModal, setShowItemsModal] = useState(false)
+  const [itemSearchQuery, setItemSearchQuery] = useState('')
+  const [selectedItemId, setSelectedItemId] = useState(null)
+  const [loadingItemsModal, setLoadingItemsModal] = useState(false)
 
-  // -------------------- Room / Measurement Functions --------------------
-  // Add a new room.
+  // For FloatingButton animation
+  const scrollY = useRef(new Animated.Value(0)).current
+  const floatingOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
+
+  // -------------------- Modal & Room Functions --------------------
+  const openAddRoomModal = () => {
+    setSelectedRoomType('')
+    setCustomRoomName('')
+    setShowAddRoomModal(true)
+  }
+
   const handleAddRoom = (roomName = '') => {
     const newRoom = {
       id: uuidv4(),
@@ -58,12 +85,10 @@ export default function EditRemediationScreen() {
     setRooms([...rooms, newRoom])
   }
 
-  // Delete a room.
   const handleDeleteRoom = roomId => {
     setRooms(rooms.filter(room => room.id !== roomId))
   }
 
-  // Add a new measurement to a given room.
   const handleAddMeasurement = roomId => {
     const newMeasurement = { id: uuidv4(), description: '', quantity: '' }
     setRooms(prev =>
@@ -75,7 +100,6 @@ export default function EditRemediationScreen() {
     )
   }
 
-  // Update measurement values.
   const handleMeasurementChange = (roomId, measurementId, field, value) => {
     setRooms(prev =>
       prev.map(room => {
@@ -88,7 +112,6 @@ export default function EditRemediationScreen() {
     )
   }
 
-  // Delete a measurement.
   const handleDeleteMeasurement = (roomId, measurementId) => {
     setRooms(prev =>
       prev.map(room => {
@@ -101,7 +124,6 @@ export default function EditRemediationScreen() {
     )
   }
 
-  // -------------------- Photo Functions --------------------
   const handleAddPhoto = async roomId => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -156,7 +178,6 @@ export default function EditRemediationScreen() {
     }
   }
 
-  // Delete a photo from a room.
   const handleDeletePhoto = (roomId, photoUri) => {
     setRooms(prev =>
       prev.map(room => {
@@ -176,8 +197,6 @@ export default function EditRemediationScreen() {
       })
     )
   }
-
-  // -------------------- Items Search Modal Functions --------------------
 
   // -------------------- Fetch Remediation Data --------------------
   useEffect(() => {
@@ -205,20 +224,40 @@ export default function EditRemediationScreen() {
   }, [projectId])
 
   // -------------------- Save Remediation Data --------------------
-  const handleSaveRemediationData = async () => {
+  const handleSaveRemediationData = async complete => {
     try {
       const remediationData = { rooms, updatedAt: new Date() }
       await updateDoc(doc(firestore, 'tickets', projectId), {
         remediationData,
         remediationRequired: false,
+        remediationComplete: complete, // true for complete, false for continue later
       })
-      Alert.alert('Success', 'Remediation data updated successfully.')
-      router.push('/(tabs)')
+      Alert.alert(
+        'Success',
+        complete
+          ? 'Remediation complete and updated successfully.'
+          : 'Remediation updated. You can continue editing later.'
+      )
+      if (complete) {
+        router.push('/(tabs)')
+      }
     } catch (error) {
       console.error('Error saving remediation data:', error)
       Alert.alert('Error', 'Failed to update data. Please try again.')
     }
   }
+
+  // -------------------- Header Options --------------------
+  const headerOptions = [
+    {
+      label: 'Save & Complete',
+      onPress: () => handleSaveRemediationData(true),
+    },
+    {
+      label: 'Save & Continue',
+      onPress: () => handleSaveRemediationData(false),
+    },
+  ]
 
   if (loading) {
     return (
@@ -230,6 +269,11 @@ export default function EditRemediationScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <HeaderWithOptions
+        title="Edit Remediation"
+        onBack={() => router.back()}
+        options={headerOptions}
+      />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -240,31 +284,6 @@ export default function EditRemediationScreen() {
             contentContainerStyle={styles.scrollContainer}
             key={projectId}
           >
-            <Text style={styles.title}>Edit Remediation Measurements</Text>
-
-            {/* Quick Buttons for common room names */}
-            <View style={styles.quickRoomsRow}>
-              {ROOM_OPTIONS.map(option => (
-                <TouchableOpacity
-                  key={option}
-                  style={styles.quickRoomButton}
-                  onPress={() => handleAddRoom(option)}
-                >
-                  <Text style={styles.quickRoomButtonText}>{option}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Button to add a generic room */}
-            <TouchableOpacity
-              onPress={() => handleAddRoom()}
-              style={styles.addGenericRoomButton}
-            >
-              <Text style={styles.addGenericRoomButtonText}>
-                + Add Generic Room
-              </Text>
-            </TouchableOpacity>
-
             {/* List of Rooms */}
             {rooms.map(room => (
               <View key={room.id} style={styles.roomContainer}>
@@ -291,7 +310,7 @@ export default function EditRemediationScreen() {
                     <TextInput
                       style={[styles.measurementInput, { flex: 1 }]}
                       placeholder="Description (select item)"
-                      value={measurement.name || ''}
+                      value={measurement.description || ''}
                       onChangeText={val =>
                         handleMeasurementChange(
                           room.id,
@@ -388,29 +407,42 @@ export default function EditRemediationScreen() {
                 </TouchableOpacity>
               </View>
             ))}
-
-            {/* Save Button */}
-            {rooms.length > 0 && (
-              <TouchableOpacity
-                onPress={handleSaveRemediationData}
-                style={styles.saveButton}
-              >
-                <Text style={styles.saveButtonText}>
-                  Save Remediation Report
-                </Text>
-              </TouchableOpacity>
-            )}
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+      <View style={{ position: 'absolute', right: 25, bottom: 50 }}>
+        <FloatingButton
+          onPress={openAddRoomModal}
+          title="Room"
+          animatedOpacity={floatingOpacity}
+          iconName="plus.circle"
+          size={30}
+        />
+      </View>
 
       {/* Photo Modal */}
       {photoModalVisible && (
-        <PhotoModal
+        <Modal
           visible={photoModalVisible}
-          photo={selectedPhoto}
-          onClose={() => setPhotoModalVisible(false)}
-        />
+          transparent
+          animationType="slide"
+          onRequestClose={() => setPhotoModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Image
+                source={{ uri: selectedPhoto }}
+                style={styles.modalImage}
+              />
+              <TouchableOpacity
+                onPress={() => setPhotoModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       )}
     </SafeAreaView>
   )
@@ -569,29 +601,34 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '600',
   },
-  saveButton: {
-    marginTop: 20,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalImage: {
+    width: 300,
+    height: 300,
+    borderRadius: 8,
+  },
+  modalCloseButton: {
+    marginTop: 12,
     backgroundColor: '#2C3E50',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
-  saveButtonText: {
+  modalCloseButtonText: {
     color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  exportButton: {
-    marginTop: 20,
-    backgroundColor: '#2980B9',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  exportButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   errorText: {
     textAlign: 'center',

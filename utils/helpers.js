@@ -2,7 +2,6 @@
 
 // Formats a phone number as (xxx) xxx-xxxx
 export function formatPhoneNumber(number) {
-  console.log('formatPhoneNumber', number)
   if (!number) return ''
   const numStr = String(number)
   const cleaned = numStr.replace(/\D/g, '')

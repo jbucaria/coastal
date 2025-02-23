@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useLocalSearchParams } from 'expo-router'
 import {
   SafeAreaView,
   ScrollView,
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  TextInput,
 } from 'react-native'
 import Pdf from 'react-native-pdf'
 import * as Sharing from 'expo-sharing'
@@ -22,77 +24,45 @@ import { FloatingButton } from '@/components/FloatingButton'
 import { uploadPDFToFirestore } from '@/utils/pdfUploader'
 import { updateTicketPdfUrl } from '@/utils/firestoreUtils'
 import { PhotoModal } from '@/components/PhotoModal'
-
-// Ticket Details Card
-const TicketDetailsCard = ({ ticket }) => {
-  let createdAtStr = ''
-  if (ticket.createdAt && ticket.createdAt.seconds) {
-    createdAtStr = new Date(ticket.createdAt.seconds * 1000).toLocaleString()
-  }
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Ticket Details</Text>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Ticket Number: </Text>
-        <Text style={styles.detailValue}>{ticket.ticketNumber}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Date: </Text>
-        <Text style={styles.detailValue}>{createdAtStr}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Address: </Text>
-        <Text style={styles.detailValue}>
-          {ticket.street}
-          {ticket.apt ? `, Apt ${ticket.apt}` : ''}, {ticket.city},{' '}
-          {ticket.state} {ticket.zip}
-        </Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Inspector: </Text>
-        <Text style={styles.detailValue}>{ticket.inspectorName}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Reason for Visit: </Text>
-        <Text style={styles.detailValue}>{ticket.reason}</Text>
-      </View>
-    </View>
-  )
-}
-
-// Room Card – displays room info and photos. onPhotoPress is passed as a prop.
-const RoomCard = ({ room, onPhotoPress = () => {} }) => {
-  const { roomTitle, inspectionFindings, photos } = room
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{roomTitle}</Text>
-      <Text style={styles.cardText}>Findings: {inspectionFindings}</Text>
-      <View style={styles.photosContainer}>
-        {photos && photos.length > 0 ? (
-          photos.map((photo, index) => (
-            <TouchableOpacity
-              key={index}
-              onPress={() => onPhotoPress(photo.downloadURL)}
-            >
-              <Image source={{ uri: photo.downloadURL }} style={styles.photo} />
-            </TouchableOpacity>
-          ))
-        ) : (
-          <Text style={styles.cardText}>No photos available.</Text>
-        )}
-      </View>
-    </View>
-  )
-}
+import { TicketDetailsCard, RoomCard } from '@/components/Cards' // adjust the path as needed
 
 const ViewReportScreen = () => {
-  const { projectId } = useProjectStore()
+  const params = useLocalSearchParams()
+  const projectIdFromParams = params.projectId
+  const { projectId: storeProjectId } = useProjectStore()
+
   const { ticket, error } = useTicket(projectId)
   const [pdfUri, setPdfUri] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isViewerVisible, setIsViewerVisible] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editedTicket, setEditedTicket] = useState(null)
   const router = useRouter()
+
+  // When the ticket loads or changes, update the editedTicket state.
+  useEffect(() => {
+    if (ticket) {
+      setEditedTicket(ticket)
+    }
+  }, [ticket])
+
+  // Handler for field changes in TicketDetailsCard.
+  const handleTicketFieldChange = (field, value) => {
+    setEditedTicket({ ...editedTicket, [field]: value })
+  }
+
+  // For room changes, implement a similar handler if needed.
+  const handleRoomFieldChange = (roomId, newFindings) => {
+    // Update the findings for the room with the given id.
+    const updatedRooms = editedTicket.inspectionData.rooms.map(room =>
+      room.id === roomId ? { ...room, inspectionFindings: newFindings } : room
+    )
+    setEditedTicket({
+      ...editedTicket,
+      inspectionData: { ...editedTicket.inspectionData, rooms: updatedRooms },
+    })
+  }
 
   // Handler to generate PDF, upload it, and update the ticket record
   const handleGenerateReport = async () => {
@@ -102,9 +72,7 @@ const ViewReportScreen = () => {
     }
     setIsGenerating(true)
     try {
-      // Generate the PDF locally
       const localPdfUri = await generatePDF(ticket)
-      // Upload the PDF to Firebase Storage using the ticket address in the filename
       const uploadedPdfUrl = await uploadPDFToFirestore(ticket, localPdfUri)
       await updateTicketPdfUrl(ticket.id, uploadedPdfUrl)
       setPdfUri(uploadedPdfUrl)
@@ -144,25 +112,45 @@ const ViewReportScreen = () => {
     }
   }
 
-  // Header options – display "Generate PDF" if no PDF exists,
-  // otherwise show options to view and share the PDF.
-  const headerOptions = [
-    {
-      label: 'Edit Report',
-      onPress: () =>
-        router.push({ pathname: '/EditReportScreen', params: { projectId } }),
-    },
-    ...(pdfUri
-      ? [
-          { label: 'View PDF', onPress: handleViewReport },
-          { label: 'Share PDF', onPress: handleShareReport },
-        ]
-      : [{ label: 'Generate PDF', onPress: handleGenerateReport }]),
-  ]
+  // Save updated ticket data to the database.
+  const handleSaveChanges = async () => {
+    try {
+      // Assume updateTicketData is a function that updates ticket details in your database.
+      await updateTicketData(editedTicket.id, editedTicket)
+      Alert.alert('Success', 'Ticket updated successfully.')
+      setIsEditMode(false)
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update ticket.')
+    }
+  }
 
-  // Handler for when a photo is pressed. This sets the selected photo.
+  // Header options: if editing, show Cancel/Save; otherwise show Edit Report and PDF options.
+  const headerOptions = isEditMode
+    ? [
+        {
+          label: 'Cancel',
+          onPress: () => {
+            setIsEditMode(false)
+            setEditedTicket(ticket) // discard changes
+          },
+        },
+        { label: 'Save', onPress: handleSaveChanges },
+      ]
+    : [
+        {
+          label: 'Edit Report',
+          onPress: () => setIsEditMode(true),
+        },
+        ...(pdfUri
+          ? [
+              { label: 'View PDF', onPress: handleViewReport },
+              { label: 'Share PDF', onPress: handleShareReport },
+            ]
+          : [{ label: 'Generate PDF', onPress: handleGenerateReport }]),
+      ]
+
+  // Handler for when a photo is pressed.
   const handlePhotoPress = uri => {
-    console.log('Photo pressed:', uri)
     setSelectedPhoto(uri)
   }
   const closePhoto = () => setSelectedPhoto(null)
@@ -170,7 +158,7 @@ const ViewReportScreen = () => {
   if (error) {
     Alert.alert('Error', 'Failed to load ticket data.')
   }
-  if (!ticket) {
+  if (!ticket || !editedTicket) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1DA1F2" />
@@ -179,7 +167,7 @@ const ViewReportScreen = () => {
     )
   }
 
-  const inspectionRooms = ticket.inspectionData?.rooms || []
+  const inspectionRooms = editedTicket.inspectionData?.rooms || []
 
   return (
     <SafeAreaView style={styles.container}>
@@ -194,16 +182,26 @@ const ViewReportScreen = () => {
             <ActivityIndicator size="large" color="#1DA1F2" />
           </View>
         )}
-        {/* <TicketDetailsCard ticket={ticket} /> */}
+        {/* Render TicketDetailsCard in either view or edit mode */}
+        <TicketDetailsCard
+          ticket={editedTicket}
+          editable={isEditMode}
+          onChangeField={handleTicketFieldChange}
+        />
         {inspectionRooms.map(room => (
-          <RoomCard key={room.id} room={room} onPhotoPress={handlePhotoPress} />
+          <RoomCard
+            key={room.id}
+            room={room}
+            editable={isEditMode}
+            onChangeField={handleRoomFieldChange}
+            onPhotoPress={handlePhotoPress}
+          />
         ))}
-        {/* Render ticket photos if available */}
-        {ticket.ticketPhotos && ticket.ticketPhotos.length > 0 && (
+        {editedTicket.ticketPhotos && editedTicket.ticketPhotos.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Photos</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {ticket.ticketPhotos.map((photoUri, index) => (
+              {editedTicket.ticketPhotos.map((photoUri, index) => (
                 <TouchableOpacity
                   key={index}
                   onPress={() => handlePhotoPress(photoUri)}
@@ -215,6 +213,7 @@ const ViewReportScreen = () => {
           </View>
         )}
       </ScrollView>
+
       {/* PDF Modal */}
       <Modal
         visible={isViewerVisible}
@@ -241,6 +240,7 @@ const ViewReportScreen = () => {
           )}
         </SafeAreaView>
       </Modal>
+
       {/* Photo Modal */}
       <PhotoModal
         visible={selectedPhoto !== null}
@@ -267,9 +267,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
   },
-  scrollContent: {
-    paddingBottom: 40,
-  },
   card: {
     backgroundColor: '#F5F8FA',
     borderRadius: 8,
@@ -277,42 +274,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     margin: 16,
     padding: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 10,
-    color: '#14171A',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    marginBottom: 5,
-  },
-  detailLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#14171A',
-  },
-  detailValue: {
-    fontSize: 16,
-    color: '#14171A',
-    marginLeft: 4,
-  },
-  cardText: {
-    fontSize: 16,
-    marginBottom: 5,
-    color: '#14171A',
-  },
-  photosContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 10,
-  },
-  photo: {
-    width: 100,
-    height: 100,
-    margin: 5,
-    borderRadius: 5,
   },
   modalContainer: {
     flex: 1,
@@ -338,5 +299,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999,
+  },
+  photo: {
+    width: 100,
+    height: 100,
+    margin: 5,
+    borderRadius: 5,
   },
 })

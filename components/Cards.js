@@ -1,0 +1,217 @@
+import React from 'react'
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  TextInput,
+} from 'react-native'
+
+export const TicketDetailsCard = ({
+  ticket,
+  editable = false,
+  onChangeField,
+}) => {
+  let createdAtStr = ''
+  if (ticket.createdAt && ticket.createdAt.seconds) {
+    createdAtStr = new Date(ticket.createdAt.seconds * 1000).toLocaleString()
+  }
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Ticket Details</Text>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Ticket Number: </Text>
+        {editable ? (
+          <TextInput
+            style={[styles.detailValue, styles.input]}
+            value={ticket.ticketNumber}
+            onChangeText={text => onChangeField('ticketNumber', text)}
+          />
+        ) : (
+          <Text style={styles.detailValue}>{ticket.ticketNumber}</Text>
+        )}
+      </View>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Date: </Text>
+        <Text style={styles.detailValue}>{createdAtStr}</Text>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Address:</Text>
+      </View>
+      <View style={styles.addressContainer}>
+        {editable ? (
+          <>
+            <TextInput
+              style={[styles.detailValue, styles.input]}
+              value={ticket.street}
+              onChangeText={text => onChangeField('street', text)}
+              placeholder="Street"
+            />
+            <TextInput
+              style={[styles.detailValue, styles.input]}
+              value={ticket.apt}
+              placeholder="Apt (optional)"
+              onChangeText={text => onChangeField('apt', text)}
+            />
+            <TextInput
+              style={[styles.detailValue, styles.input]}
+              value={ticket.city}
+              onChangeText={text => onChangeField('city', text)}
+              placeholder="City"
+            />
+            <TextInput
+              style={[styles.detailValue, styles.input]}
+              value={ticket.state}
+              onChangeText={text => onChangeField('state', text)}
+              placeholder="State"
+            />
+            <TextInput
+              style={[styles.detailValue, styles.input]}
+              value={ticket.zip}
+              onChangeText={text => onChangeField('zip', text)}
+              placeholder="Zip"
+            />
+          </>
+        ) : (
+          <>
+            <Text style={styles.detailValue}>
+              {ticket.street}
+              {ticket.apt ? `, Apt ${ticket.apt}` : ''}
+            </Text>
+            <Text style={styles.detailValue}>
+              {ticket.city}, {ticket.state} {ticket.zip}
+            </Text>
+          </>
+        )}
+      </View>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Inspector: </Text>
+        {editable ? (
+          <TextInput
+            style={[styles.detailValue, styles.input]}
+            value={ticket.inspectorName}
+            onChangeText={text => onChangeField('inspectorName', text)}
+          />
+        ) : (
+          <Text style={styles.detailValue}>{ticket.inspectorName}</Text>
+        )}
+      </View>
+
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Reason for Visit: </Text>
+        {editable ? (
+          <TextInput
+            style={[styles.detailValue, styles.input]}
+            value={ticket.reason}
+            onChangeText={text => onChangeField('reason', text)}
+          />
+        ) : (
+          <Text style={styles.detailValue}>{ticket.reason}</Text>
+        )}
+      </View>
+    </View>
+  )
+}
+
+export const RoomCard = ({
+  room,
+  editable = false,
+  onChangeField,
+  onPhotoPress = () => {},
+}) => {
+  const { roomTitle, inspectionFindings, photos } = room
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{roomTitle}</Text>
+      <Text style={styles.cardText}>Findings:</Text>
+      {editable ? (
+        <TextInput
+          style={[styles.detailValue, styles.input]}
+          value={inspectionFindings}
+          onChangeText={text => onChangeField(room.id, text)}
+          placeholder="Enter findings..."
+        />
+      ) : (
+        <Text style={styles.cardText}>{inspectionFindings}</Text>
+      )}
+      <View style={styles.photosContainer}>
+        {photos && photos.length > 0 ? (
+          photos.map((photo, index) => (
+            <TouchableOpacity
+              key={index}
+              onPress={() => onPhotoPress(photo.downloadURL)}
+            >
+              <Image source={{ uri: photo.downloadURL }} style={styles.photo} />
+            </TouchableOpacity>
+          ))
+        ) : (
+          <Text style={styles.cardText}>No photos available.</Text>
+        )}
+      </View>
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: '#F5F8FA',
+    borderRadius: 8,
+    borderColor: '#E1E8ED',
+    borderWidth: 1,
+    margin: 16,
+    padding: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 10,
+    color: '#14171A',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
+    flexWrap: 'wrap',
+  },
+  detailLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#14171A',
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#14171A',
+    flexShrink: 1,
+  },
+  cardText: {
+    fontSize: 16,
+    marginBottom: 5,
+    color: '#14171A',
+  },
+  addressContainer: {
+    marginLeft: 16,
+    marginBottom: 10,
+  },
+  photosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 10,
+  },
+  photo: {
+    width: 100,
+    height: 100,
+    margin: 5,
+    borderRadius: 5,
+  },
+  input: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    minWidth: 80,
+  },
+})

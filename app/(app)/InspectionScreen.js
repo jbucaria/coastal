@@ -47,6 +47,7 @@ const InspectionScreen = () => {
   // State for report generation
   const [generatingReport, setGeneratingReport] = useState(false)
   const [report, setReport] = useState('')
+  const [showReportModal, setShowReportModal] = useState(false)
 
   const scrollY = useRef(new Animated.Value(0)).current
   const floatingOpacity = scrollY.interpolate({
@@ -167,31 +168,56 @@ const InspectionScreen = () => {
     }
   }
 
-  // -------------------- Generate Report Logic --------------------
+  // -------------------- Generate Report (Rephrase) Logic --------------------
   const handleGenerateReport = async () => {
     setGeneratingReport(true)
     try {
-      // Aggregate text from each room
+      // Aggregate text from each room including room name, reason, and findings
       const aggregatedText = rooms
         .map(
           room =>
             `Room: ${room.roomTitle}\nReason for Inspection: ${room.reasonForInspection}\nInspection Findings: ${room.inspectionFindings}`
         )
         .join('\n\n')
-      // Call OpenAI endpoint via rephraseText
-      const generatedReport = await rephraseText(aggregatedText)
+      // Construct a prompt that gives context to the rephraseText function
+      const prompt = `You are a professional mold remediation consultant. Please rephrase the following inspection findings into a clear, detailed, and organized report:\n\n${aggregatedText}\n\nRephrased Report:`
+      const generatedReport = await rephraseText(prompt)
       setReport(generatedReport)
-      Alert.alert('Generated Report', generatedReport)
+      setShowReportModal(true)
     } catch (error) {
+      console.error('Error generating report:', error)
       Alert.alert('Error', 'Failed to generate report. Please try again.')
     }
     setGeneratingReport(false)
   }
 
+  // Handler to approve and save the generated report to Firestore
+  const handleApproveReport = async () => {
+    try {
+      await updateDoc(doc(firestore, 'tickets', projectId), {
+        generatedReport: report,
+      })
+      Alert.alert('Success', 'Report saved successfully.')
+      setShowReportModal(false)
+    } catch (error) {
+      console.error('Error saving generated report:', error)
+      Alert.alert('Error', 'Failed to save the generated report.')
+    }
+  }
+
   // -------------------- Render --------------------
+  // Update header options to include "Generate Report"
+  const headerOptions = [
+    { label: 'Generate Report', onPress: handleGenerateReport },
+  ]
+
   return (
     <SafeAreaView style={styles.container}>
-      <HeaderWithOptions title="Inspection" onBack={() => router.back()} />
+      <HeaderWithOptions
+        title="Inspection"
+        onBack={() => router.back()}
+        options={headerOptions}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -209,7 +235,6 @@ const InspectionScreen = () => {
                   </TouchableOpacity>
                 </View>
                 {/* Inspection Input Fields */}
-
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Inspection Findings</Text>
                   <TextInput
@@ -266,21 +291,14 @@ const InspectionScreen = () => {
                 >
                   <Text style={styles.saveButtonText}>Save Inspection</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleGenerateReport}
-                  style={[
-                    styles.saveButton,
-                    { backgroundColor: '#F36C21', marginTop: 12 },
-                  ]}
-                  disabled={generatingReport}
-                >
-                  {generatingReport ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.saveButtonText}>Generate Report</Text>
-                  )}
-                </TouchableOpacity>
               </>
+            )}
+            {generatingReport && (
+              <ActivityIndicator
+                size="large"
+                color="#1DA1F2"
+                style={styles.loadingIndicator}
+              />
             )}
           </ScrollView>
         </TouchableWithoutFeedback>
@@ -355,6 +373,35 @@ const InspectionScreen = () => {
           </View>
         </Modal>
       )}
+      {/* Report Modal */}
+      <Modal
+        visible={showReportModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.reportModalContainer}>
+            <ScrollView contentContainerStyle={styles.modalScrollContent}>
+              <Text style={styles.generatedText}>{report}</Text>
+            </ScrollView>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={handleApproveReport}
+                style={styles.approveButton}
+              >
+                <Text style={styles.buttonText}>Approve</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowReportModal(false)}
+                style={styles.cancelButton}
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -552,5 +599,47 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     color: '#14171A',
     textAlign: 'center',
+  },
+  loadingIndicator: {
+    marginTop: 20,
+  },
+  reportModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    width: '90%',
+    maxHeight: '80%',
+    padding: 16,
+  },
+  modalScrollContent: {
+    paddingBottom: 16,
+  },
+  generatedText: {
+    fontSize: 16,
+    color: '#14171A',
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 20,
+  },
+  approveButton: {
+    backgroundColor: '#0073BC',
+    padding: 12,
+    borderRadius: 6,
+    width: '40%',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#E0245E',
+    padding: 12,
+    borderRadius: 6,
+    width: '40%',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
 })

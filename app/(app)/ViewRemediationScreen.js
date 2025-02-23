@@ -1,8 +1,7 @@
-// ViewRemediationScreen.js
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import {
   SafeAreaView,
   ScrollView,
@@ -19,9 +18,15 @@ import { firestore } from '@/firebaseConfig'
 import { exportCSVReport } from '@/utils/createCSVReport'
 import { PhotoModal } from '@/components/PhotoModal'
 import useProjectStore from '@/store/useProjectStore'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 
 export default function ViewRemediationScreen() {
-  const { projectId } = useProjectStore()
+  const params = useLocalSearchParams()
+  const projectIdFromParams = params.projectId
+  const { projectId: storeProjectId } = useProjectStore()
+
+  // Use the local param if available; otherwise, fall back to the global store.
+  const projectId = projectIdFromParams ?? storeProjectId
 
   const router = useRouter()
 
@@ -31,6 +36,26 @@ export default function ViewRemediationScreen() {
   // Photo Modal State
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
+
+  // Define header options: Edit, Export CSV, and Create Invoice.
+  const headerOptions = [
+    {
+      label: 'Edit',
+      onPress: () =>
+        router.push({
+          pathname: '/RemediationScreen',
+          params: { projectId: projectId },
+        }),
+    },
+    {
+      label: 'CSV',
+      onPress: () => exportCSVReport(remediationData, projectId),
+    },
+    {
+      label: 'Invoice',
+      onPress: () => router.push({ pathname: '/ViewInvoiceScreen' }),
+    },
+  ]
 
   // Fetch remediation data when component mounts
   useEffect(() => {
@@ -79,6 +104,11 @@ export default function ViewRemediationScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <HeaderWithOptions
+        title="Remediation Report"
+        onBack={() => router.back()}
+        options={headerOptions}
+      />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.title}>Remediation Report</Text>
 
@@ -144,37 +174,6 @@ export default function ViewRemediationScreen() {
             </View>
           )
         })}
-
-        {/* Create CSV Report Button */}
-        <TouchableOpacity
-          onPress={() => exportCSVReport(remediationData, projectId)}
-          style={styles.exportButton}
-        >
-          <Text style={styles.exportButtonText}>Create CSV Report</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => {
-            router.push({
-              pathname: '/EditRemediationScreen',
-              params: { projectId: projectId },
-            })
-          }}
-          style={styles.exportButton}
-        >
-          <Text style={styles.exportButtonText}>Edit</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => {
-            router.push({
-              pathname: '/ViewInvoiceScreen',
-            })
-          }}
-          style={styles.exportButton}
-        >
-          <Text style={styles.exportButtonText}>Create Invoice</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Photo Modal */}
@@ -244,18 +243,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 6,
-  },
-  exportButton: {
-    marginTop: 20,
-    backgroundColor: '#2980B9',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  exportButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
   errorText: {
     textAlign: 'center',

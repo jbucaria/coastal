@@ -300,6 +300,8 @@ const TicketsScreen = () => {
           onPress={() => router.push('/CreateTicketScreen')}
           title="Ticket"
           animatedOpacity={floatingOpacity}
+          iconName="plus.circle"
+          size={32}
         />
       </View>
 
