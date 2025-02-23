@@ -30,6 +30,7 @@ import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { FloatingButton } from '@/components/FloatingButton'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import useProjectStore from '@/store/useProjectStore'
+import { use } from 'react'
 
 /** Predefined room types */
 const ROOM_OPTIONS = ['Bedroom', 'Kitchen', 'Garage', 'Living Room', 'Bathroom']
@@ -67,6 +68,10 @@ const RemediationScreen = () => {
   })
 
   const [ticket, setTicket] = useState(null)
+  useEffect(() => {
+    console.log('Project ID in RemediationScreen:', projectId)
+    // ...rest of fetchTicket code
+  }, [projectId])
 
   useEffect(() => {
     const fetchTicket = async () => {
@@ -74,7 +79,11 @@ const RemediationScreen = () => {
         const docRef = doc(firestore, 'tickets', projectId)
         const docSnap = await getDoc(docRef)
         if (docSnap.exists()) {
-          setTicket(docSnap.data())
+          const data = docSnap.data()
+          const remediationData = data.remediationData || { rooms: [] }
+          const remediationStatus = data.remediationStatus || 'notStarted'
+          setTicket({ ...data, remediationData, remediationStatus })
+          setRooms(remediationData.rooms || []) // Update the rooms state here
         } else {
           Alert.alert('Error', 'Ticket not found.')
         }
@@ -290,13 +299,13 @@ const RemediationScreen = () => {
         })),
       }))
 
-      // Create your remediationData object (without the status)
+      // Create your remediationData object without including the status.
       const remediationData = {
         rooms: updatedRooms,
         updatedAt: new Date(),
       }
 
-      // Update the document with remediationData and the top-level remediationStatus.
+      // Update the document with remediationData, remediationRequired, and the top-level remediationStatus.
       await updateDoc(doc(firestore, 'tickets', projectId), {
         remediationData,
         remediationRequired: false,
@@ -310,7 +319,6 @@ const RemediationScreen = () => {
           : 'Remediation saved. You can continue later.'
       )
 
-      // Navigate if complete
       if (complete) {
         router.push('TicketDetailsScreen', { projectId })
       }

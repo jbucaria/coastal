@@ -229,7 +229,8 @@ const TicketDetailsScreen = () => {
           : remediationStatus === 'inProgress'
           ? 'Continue Remediation'
           : 'Start Remediation',
-      onPress: () => handleRemediation(),
+      onPress: () =>
+        router.push({ pathname: '/RemediationScreen', params: { projectId } }),
     },
     {
       label: messageCount ? 'View Notes' : 'Add Note',
