@@ -319,9 +319,7 @@ const RemediationScreen = () => {
           : 'Remediation saved. You can continue later.'
       )
 
-      if (complete) {
-        router.push('TicketDetailsScreen', { projectId })
-      }
+      router.push('TicketDetailsScreen', { projectId })
     } catch (error) {
       console.error('Error saving remediation data:', error)
       Alert.alert('Error', 'Failed to save data. Please try again.')

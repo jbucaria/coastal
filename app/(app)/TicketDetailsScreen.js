@@ -229,8 +229,20 @@ const TicketDetailsScreen = () => {
           : remediationStatus === 'inProgress'
           ? 'Continue Remediation'
           : 'Start Remediation',
-      onPress: () =>
-        router.push({ pathname: '/RemediationScreen', params: { projectId } }),
+      onPress: () => {
+        if (remediationStatus === 'complete') {
+          router.push({
+            pathname: '/ViewRemediationScreen',
+            params: { projectId },
+          })
+        } else {
+          // Navigate to the edit screen so the user can start/continue remediation
+          router.push({
+            pathname: '/RemediationScreen',
+            params: { projectId },
+          })
+        }
+      },
     },
     {
       label: messageCount ? 'View Notes' : 'Add Note',
@@ -337,10 +349,10 @@ const TicketDetailsScreen = () => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Status</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Equipment Total:</Text>
-            <Text style={styles.infoValue}>{equipmentTotal || 0}</Text>
+            <Text style={styles.infoLabel}>Under Construction</Text>
+            {/* <Text style={styles.infoValue}>{equipmentTotal || 0}</Text> */}
           </View>
-          <View style={styles.infoRow}>
+          {/* <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Measurements Required:</Text>
             <Text style={styles.infoValue}>
               {remediationRequired ? 'True' : 'False'}
@@ -351,7 +363,7 @@ const TicketDetailsScreen = () => {
             <Text style={styles.infoValue}>
               {inspectionComplete ? 'Complete' : 'Required'}
             </Text>
-          </View>
+          </View> */}
         </View>
       </Animated.ScrollView>
       <PhotoModal

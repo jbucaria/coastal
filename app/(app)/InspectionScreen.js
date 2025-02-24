@@ -308,6 +308,7 @@ const InspectionScreen = () => {
           onPress={openAddRoomModal}
           title="Add Room"
           animatedOpacity={floatingOpacity}
+          name="add"
         />
       </View>
       {showAddRoomModal && (
