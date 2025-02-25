@@ -174,6 +174,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: 'black',
+    flex: 1,
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native'
+import { BlurView } from 'expo-blur'
 
 const roomOptions = [
   'Bedroom',
@@ -35,56 +36,62 @@ const AddRoomModal = ({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.addRoomModalContainer}>
-          <Text style={styles.modalTitle}>Add Room</Text>
-          <ScrollView horizontal style={styles.roomOptionsRow}>
-            {roomOptions.map(option => (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.roomTypeOption,
-                  selectedRoomType === option && styles.roomTypeOptionSelected,
-                ]}
-                onPress={() => {
-                  setSelectedRoomType(option)
-                  setCustomRoomName('')
-                }}
-              >
-                <Text
+      <BlurView intensity={500} style={styles.absoulteFill}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.addRoomModalContainer}>
+            <Text style={styles.modalTitle}>Add Room</Text>
+            <ScrollView horizontal style={styles.roomOptionsRow}>
+              {roomOptions.map(option => (
+                <TouchableOpacity
+                  key={option}
                   style={[
-                    styles.roomTypeOptionText,
-                    selectedRoomType === option && { color: '#FFF' },
+                    styles.roomTypeOption,
+                    selectedRoomType === option &&
+                      styles.roomTypeOptionSelected,
                   ]}
+                  onPress={() => {
+                    setSelectedRoomType(option)
+                    setCustomRoomName('')
+                  }}
                 >
-                  {option}
-                </Text>
+                  <Text
+                    style={[
+                      styles.roomTypeOptionText,
+                      selectedRoomType === option && { color: '#FFF' },
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Text style={styles.modalSubtitle}>Or type custom name:</Text>
+            <TextInput
+              style={styles.itemSearchInput}
+              placeholder="e.g. Office, Studio"
+              value={customRoomName}
+              onChangeText={val => {
+                setCustomRoomName(val)
+                if (selectedRoomType) setSelectedRoomType('')
+              }}
+            />
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                onPress={onConfirm}
+                style={styles.modalConfirmButton}
+              >
+                <Text style={styles.modalConfirmButtonText}>Add</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <Text style={styles.modalSubtitle}>Or type custom name:</Text>
-          <TextInput
-            style={styles.itemSearchInput}
-            placeholder="e.g. Office, Studio"
-            value={customRoomName}
-            onChangeText={val => {
-              setCustomRoomName(val)
-              if (selectedRoomType) setSelectedRoomType('')
-            }}
-          />
-          <View style={styles.modalButtonsRow}>
-            <TouchableOpacity
-              onPress={onConfirm}
-              style={styles.modalConfirmButton}
-            >
-              <Text style={styles.modalConfirmButtonText}>Add</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
-              <Text style={styles.modalCloseButtonText}>Cancel</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
+      </BlurView>
     </Modal>
   )
 }
@@ -92,6 +99,13 @@ const AddRoomModal = ({
 export default AddRoomModal
 
 const styles = StyleSheet.create({
+  absoulteFill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
   addRoomModalContainer: {
     backgroundColor: '#fff',
     borderRadius: 6,
@@ -110,7 +124,7 @@ const styles = StyleSheet.create({
   },
   modalButtonsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     marginTop: 12,
   },
   modalCloseButton: {
@@ -121,7 +135,7 @@ const styles = StyleSheet.create({
   },
   modalCloseButtonText: { color: '#14171A', fontSize: 14, fontWeight: '600' },
   modalConfirmButton: {
-    backgroundColor: '#17BF63',
+    backgroundColor: '#0073BC',
     borderRadius: 4,
     paddingHorizontal: 16,
     paddingVertical: 8,

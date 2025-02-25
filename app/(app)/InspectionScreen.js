@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   SafeAreaView,
   ScrollView,
@@ -28,17 +28,22 @@ import { FloatingButton } from '@/components/FloatingButton'
 import { rephraseText } from '@/utils/rephraseText'
 import { pickAndUploadPhotos } from '@/utils/photoUpload'
 import AddRoomModal from '@/components/AddRoomModal'
-
-// Predefined room types
-const ROOM_OPTIONS = ['Bedroom', 'Kitchen', 'Garage', 'Living Room', 'Bathroom']
+import PhotoGallery from '@/components/PhotoGallery'
+import useProjectStore from '@/store/useProjectStore'
 
 const InspectionScreen = () => {
   const router = useRouter()
-  const { projectId } = useLocalSearchParams()
+  const params = useLocalSearchParams()
+  const projectIdFromParams = params.projectId
+  const { projectId: storeProjectId } = useProjectStore()
+  const ticketData = params.ticketData ? JSON.parse(params.ticketData) : null
+
+  // Use the local param if available; otherwise, fall back to the global store.
+  const projectId = projectIdFromParams ?? storeProjectId
 
   // Rooms state – each room now has inspection fields and photos
-  const [rooms, setRooms] = useState([])
-
+  const [rooms, setRooms] = useState(ticketData?.inspectionData?.rooms || [])
+  const HEADER_HEIGHT = 80
   // Modal state for adding a room
   const [showAddRoomModal, setShowAddRoomModal] = useState(false)
   const [selectedRoomType, setSelectedRoomType] = useState('')
@@ -55,6 +60,11 @@ const InspectionScreen = () => {
     outputRange: [1, 0],
     extrapolate: 'clamp',
   })
+
+  useEffect(() => {
+    console.log('Project ID in inspectionscreen:', projectId)
+    // ...rest of fetchTicket code
+  }, [projectId])
 
   // -------------------- Add Room Logic --------------------
   const openAddRoomModal = () => {
@@ -182,6 +192,7 @@ const InspectionScreen = () => {
   // Update header options to include "Generate Report"
   const headerOptions = [
     { label: 'Generate Report', onPress: handleGenerateReport },
+    { label: 'Save Inspection', onPress: handleSaveInspectionData },
   ]
 
   return (
@@ -197,7 +208,12 @@ const InspectionScreen = () => {
         keyboardVerticalOffset={40}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <ScrollView
+            contentContainerStyle={[
+              styles.scrollContainer,
+              { paddingTop: HEADER_HEIGHT },
+            ]}
+          >
             {rooms.map(room => (
               <View key={room.id} style={styles.roomCard}>
                 {/* Room Header */}
@@ -224,26 +240,13 @@ const InspectionScreen = () => {
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Photos</Text>
                   {room.photos && room.photos.length > 0 ? (
-                    <ScrollView horizontal style={styles.photoRow}>
-                      {room.photos.map(photo => (
-                        <View key={photo.storagePath} style={styles.photoItem}>
-                          <Image
-                            source={{ uri: photo.downloadURL }}
-                            style={styles.photoImage}
-                          />
-                          <TouchableOpacity
-                            onPress={() =>
-                              handleDeletePhoto(room.id, photo.storagePath)
-                            }
-                            style={styles.deletePhotoButton}
-                          >
-                            <Text style={styles.deletePhotoButtonText}>
-                              Remove
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </ScrollView>
+                    <PhotoGallery
+                      photos={room.photos.map(photo => photo.downloadURL)}
+                      onRemovePhoto={index => {
+                        const photoToRemove = room.photos[index]
+                        handleDeletePhoto(room.id, photoToRemove.storagePath)
+                      }}
+                    />
                   ) : (
                     <Text style={styles.noPhotoText}>No photos added.</Text>
                   )}
@@ -256,16 +259,7 @@ const InspectionScreen = () => {
                 </View>
               </View>
             ))}
-            {rooms.length > 0 && (
-              <>
-                <TouchableOpacity
-                  onPress={handleSaveInspectionData}
-                  style={styles.saveButton}
-                >
-                  <Text style={styles.saveButtonText}>Save Inspection</Text>
-                </TouchableOpacity>
-              </>
-            )}
+
             {generatingReport && (
               <ActivityIndicator
                 size="large"
@@ -289,7 +283,6 @@ const InspectionScreen = () => {
         <AddRoomModal
           visible={showAddRoomModal}
           onClose={() => setShowAddRoomModal(false)}
-          roomOptions={ROOM_OPTIONS}
           selectedRoomType={selectedRoomType}
           setSelectedRoomType={setSelectedRoomType}
           customRoomName={customRoomName}

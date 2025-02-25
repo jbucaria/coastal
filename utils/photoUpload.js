@@ -14,7 +14,7 @@ export async function pickAndUploadPhotos({ folder, quality = 0.5 }) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsMultipleSelection: true,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       quality,
     })
     if (result.canceled) return []

@@ -31,7 +31,7 @@ import useProjectStore from '@/store/useProjectStore'
 import { pickAndUploadPhotos } from '@/utils/photoUpload'
 import PhotoGallery from '@/components/PhotoGallery'
 import AddRoomModal from '@/components/AddRoomModal'
-
+import { BlurView } from 'expo-blur'
 
 const RemediationScreen = () => {
   const params = useLocalSearchParams()
@@ -67,10 +67,6 @@ const RemediationScreen = () => {
   })
 
   const [ticket, setTicket] = useState(null)
-  useEffect(() => {
-    console.log('Project ID in RemediationScreen:', projectId)
-    // ...rest of fetchTicket code
-  }, [projectId])
 
   useEffect(() => {
     const fetchTicket = async () => {
@@ -292,7 +288,10 @@ const RemediationScreen = () => {
           : 'Remediation saved. You can continue later.'
       )
 
-      router.push('TicketDetailsScreen', { projectId })
+      router.push({
+        pathname: '/TicketDetailsScreen',
+        params: { projectId: projectId },
+      })
     } catch (error) {
       console.error('Error saving remediation data:', error)
       Alert.alert('Error', 'Failed to save data. Please try again.')
@@ -399,20 +398,13 @@ const RemediationScreen = () => {
                     </TouchableOpacity>
                   </View>
                   {room.photos.length > 0 ? (
-                    <ScrollView horizontal style={styles.photoRow}>
-                      {room.photos.map(photo => (
-                        <PhotoGallery
-                          photos={room.photos.map(photo => photo.downloadURL)}
-                          onRemovePhoto={index => {
-                            const photoToRemove = room.photos[index]
-                            handleDeletePhoto(
-                              room.id,
-                              photoToRemove.storagePath
-                            )
-                          }}
-                        />
-                      ))}
-                    </ScrollView>
+                    <PhotoGallery
+                      photos={room.photos.map(photo => photo.downloadURL)}
+                      onRemovePhoto={index => {
+                        const photoToRemove = room.photos[index]
+                        handleDeletePhoto(room.id, photoToRemove.storagePath)
+                      }}
+                    />
                   ) : (
                     <Text style={styles.noPhotoText}>No photos added.</Text>
                   )}
@@ -442,65 +434,67 @@ const RemediationScreen = () => {
           animationType="slide"
           onRequestClose={() => setShowItemsModal(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.itemsModalContainer}>
-              <Text style={styles.modalTitle}>Select an Item</Text>
-              <TextInput
-                style={styles.itemSearchInput}
-                placeholder="Search items..."
-                value={itemSearchQuery}
-                onChangeText={setItemSearchQuery}
-              />
-              {loadingItemsModal ? (
-                <ActivityIndicator size="small" color="#1DA1F2" />
-              ) : (
-                <Picker
-                  selectedValue={selectedItemId}
-                  onValueChange={(itemId, itemIndex) =>
-                    setSelectedItemId(itemId)
-                  }
-                >
-                  {allItems
-                    .filter(item =>
-                      (item.name || '')
-                        .toLowerCase()
-                        .includes(itemSearchQuery.toLowerCase())
-                    )
-                    .map(item => (
-                      <Picker.Item
-                        key={item.id}
-                        label={`${item.name} - $${item.unitPrice}`}
-                        value={item.id}
-                      />
-                    ))}
-                </Picker>
-              )}
-              <View style={styles.modalButtonsRow}>
-                <TouchableOpacity
-                  onPress={() => {
-                    const item = allItems.find(i => i.id === selectedItemId)
-                    if (item) {
-                      handleSelectItem(item)
-                    } else {
-                      Alert.alert(
-                        'Select an item',
-                        'Please select an item from the list.'
-                      )
+          <BlurView intensity={100} style={styles.absoulteFill}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.itemsModalContainer}>
+                <Text style={styles.modalTitle}>Select an Item</Text>
+                <TextInput
+                  style={styles.itemSearchInput}
+                  placeholder="Search items..."
+                  value={itemSearchQuery}
+                  onChangeText={setItemSearchQuery}
+                />
+                {loadingItemsModal ? (
+                  <ActivityIndicator size="small" color="#1DA1F2" />
+                ) : (
+                  <Picker
+                    selectedValue={selectedItemId}
+                    onValueChange={(itemId, itemIndex) =>
+                      setSelectedItemId(itemId)
                     }
-                  }}
-                  style={styles.modalConfirmButton}
-                >
-                  <Text style={styles.modalConfirmButtonText}>Confirm</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowItemsModal(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <Text style={styles.modalCloseButtonText}>Cancel</Text>
-                </TouchableOpacity>
+                  >
+                    {allItems
+                      .filter(item =>
+                        (item.name || '')
+                          .toLowerCase()
+                          .includes(itemSearchQuery.toLowerCase())
+                      )
+                      .map(item => (
+                        <Picker.Item
+                          key={item.id}
+                          label={`${item.name} - $${item.unitPrice}`}
+                          value={item.id}
+                        />
+                      ))}
+                  </Picker>
+                )}
+                <View style={styles.modalButtonsRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const item = allItems.find(i => i.id === selectedItemId)
+                      if (item) {
+                        handleSelectItem(item)
+                      } else {
+                        Alert.alert(
+                          'Select an item',
+                          'Please select an item from the list.'
+                        )
+                      }
+                    }}
+                    style={styles.modalConfirmButton}
+                  >
+                    <Text style={styles.modalConfirmButtonText}>Confirm</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setShowItemsModal(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Text style={styles.modalCloseButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
+          </BlurView>
         </Modal>
       )}
 
@@ -523,7 +517,13 @@ const RemediationScreen = () => {
 export default RemediationScreen
 
 const styles = StyleSheet.create({
-  /** Base Container */
+  absoulteFill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF', // White background for a Twitter-like feel

@@ -27,9 +27,12 @@ import { PhotoModal } from '@/components/PhotoModal'
 import { TicketDetailsCard, RoomCard } from '@/components/Cards' // adjust the path as needed
 
 const ViewReportScreen = () => {
+  const router = useRouter()
   const params = useLocalSearchParams()
   const projectIdFromParams = params.projectId
   const { projectId: storeProjectId } = useProjectStore()
+
+  const projectId = projectIdFromParams ?? storeProjectId
 
   const { ticket, error } = useTicket(projectId)
   const [pdfUri, setPdfUri] = useState(null)
@@ -38,7 +41,8 @@ const ViewReportScreen = () => {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editedTicket, setEditedTicket] = useState(null)
-  const router = useRouter()
+
+  const HEADER_HEIGHT = 80
 
   // When the ticket loads or changes, update the editedTicket state.
   useEffect(() => {
@@ -139,7 +143,12 @@ const ViewReportScreen = () => {
     : [
         {
           label: 'Edit Report',
-          onPress: () => setIsEditMode(true),
+          onPress: () => {
+            router.push({
+              pathname: '/InspectionScreen',
+              params: { ticketData: JSON.stringify(editedTicket) },
+            })
+          },
         },
         ...(pdfUri
           ? [
@@ -176,7 +185,10 @@ const ViewReportScreen = () => {
         onBack={() => router.back()}
         options={headerOptions}
       />
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        style={{ paddingTop: HEADER_HEIGHT }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
         {isGenerating && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color="#1DA1F2" />

@@ -29,6 +29,7 @@ export default function ViewRemediationScreen() {
   const projectId = projectIdFromParams ?? storeProjectId
 
   const router = useRouter()
+  const HEADER_HEIGHT = 120
 
   const [remediationData, setRemediationData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -109,9 +110,12 @@ export default function ViewRemediationScreen() {
         onBack={() => router.back()}
         options={headerOptions}
       />
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>Remediation Report</Text>
-
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContainer,
+          { paddingTop: HEADER_HEIGHT },
+        ]}
+      >
         {/* Map over rooms */}
         {remediationData.rooms.map((room, roomIndex) => {
           // Use room.id if available; otherwise, combine the index and room name

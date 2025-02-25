@@ -10,7 +10,6 @@ import {
   Text,
   StyleSheet,
 } from 'react-native'
-import DateTimePicker from '@react-native-community/datetimepicker'
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { router } from 'expo-router'
