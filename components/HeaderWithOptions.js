@@ -19,7 +19,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol'
 
 const HEADER_HEIGHT = 120
 
-const HeaderWithOptions = ({ title, onBack, options }) => {
+const HeaderWithOptions = ({ title, onBack, options, showHome }) => {
   const [modalVisible, setModalVisible] = useState(false)
 
   // Optional scroll-based animation—remove if you want a static header.
@@ -59,16 +59,17 @@ const HeaderWithOptions = ({ title, onBack, options }) => {
                   size={28}
                 />
               </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-                  router.push('/(tabs)')
-                }}
-                style={styles.headerButton}
-              >
-                <IconSymbol name="house.circle" color="black" size={28} />
-              </TouchableOpacity>
+              {showHome && (
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+                    router.push('/(tabs)')
+                  }}
+                  style={styles.headerButton}
+                >
+                  <IconSymbol name="house.circle" color="black" size={28} />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Center container for title */}

@@ -24,7 +24,7 @@ import { FloatingButton } from '@/components/FloatingButton'
 import { uploadPDFToFirestore } from '@/utils/pdfUploader'
 import { updateTicketPdfUrl } from '@/utils/firestoreUtils'
 import { PhotoModal } from '@/components/PhotoModal'
-import { TicketDetailsCard, RoomCard } from '@/components/Cards' // adjust the path as needed
+import { TicketDetailsCard, RoomCard } from '@/components/Cards'
 
 const ViewReportScreen = () => {
   const router = useRouter()
@@ -69,6 +69,7 @@ const ViewReportScreen = () => {
   }
 
   // Handler to generate PDF, upload it, and update the ticket record
+  // 1. Update local state in handleGenerateReport
   const handleGenerateReport = async () => {
     if (!ticket) {
       Alert.alert('Error', 'Ticket data is not available.')
@@ -78,13 +79,15 @@ const ViewReportScreen = () => {
     try {
       const localPdfUri = await generatePDF(ticket)
       const uploadedPdfUrl = await uploadPDFToFirestore(ticket, localPdfUri)
+      // Update Firestore field
       await updateTicketPdfUrl(ticket.id, uploadedPdfUrl)
+      // Update local state immediately
       setPdfUri(uploadedPdfUrl)
       Alert.alert(
         'Success',
         'PDF report generated and uploaded. Would you like to view the report now?',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Home', onPress: () => router.push({ pathname: '/(tabs)' }) },
           { text: 'View Report', onPress: () => setIsViewerVisible(true) },
         ]
       )
@@ -94,6 +97,13 @@ const ViewReportScreen = () => {
     }
     setIsGenerating(false)
   }
+
+  // 2. Sync local state when ticket changes:
+  useEffect(() => {
+    if (ticket && ticket.pdfUrl) {
+      setPdfUri(ticket.pdfUrl)
+    }
+  }, [ticket])
 
   const handleViewReport = () => {
     if (pdfUri) {
@@ -184,6 +194,7 @@ const ViewReportScreen = () => {
         title="View Report"
         onBack={() => router.back()}
         options={headerOptions}
+        showHome={true}
       />
       <ScrollView
         style={{ paddingTop: HEADER_HEIGHT }}
@@ -195,11 +206,11 @@ const ViewReportScreen = () => {
           </View>
         )}
         {/* Render TicketDetailsCard in either view or edit mode */}
-        <TicketDetailsCard
+        {/* <TicketDetailsCard
           ticket={editedTicket}
           editable={isEditMode}
           onChangeField={handleTicketFieldChange}
-        />
+        /> */}
         {inspectionRooms.map(room => (
           <RoomCard
             key={room.id}
@@ -233,17 +244,19 @@ const ViewReportScreen = () => {
         onRequestClose={() => setIsViewerVisible(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.floatingCloseButtonContainer}>
-            <FloatingButton
-              onPress={() => setIsViewerVisible(false)}
-              title="Close"
-              iconName="x.circle"
-            />
-          </View>
+          <HeaderWithOptions
+            title="PDF Report"
+            onBack={() => setIsViewerVisible(false)}
+            options={[
+              { label: 'Share', onPress: handleShareReport },
+              // you can add other options if needed
+            ]}
+            showHome={false}
+          />
           {pdfUri && (
             <Pdf
               source={{ uri: pdfUri, cache: true }}
-              style={styles.pdf}
+              style={[styles.pdf, { paddingTop: HEADER_HEIGHT }]}
               onError={error => {
                 console.log('PDF rendering error:', error)
                 Alert.alert('Error', 'Failed to display PDF.')
@@ -266,26 +279,29 @@ const ViewReportScreen = () => {
 export default ViewReportScreen
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
+  combinedButtonContainer: {
+    borderRadius: 4,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  loadingContainer: {
-    flex: 1,
+  halfButton: {
     alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-  },
-  card: {
-    backgroundColor: '#F5F8FA',
-    borderRadius: 8,
-    borderColor: '#E1E8ED',
-    borderWidth: 1,
-    margin: 16,
     padding: 12,
+  },
+  halfButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  leftButton: {
+    backgroundColor: '#1DA1F2',
+    borderRightWidth: 1,
+    borderColor: '#fff',
   },
   modalContainer: {
     flex: 1,
@@ -295,27 +311,85 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
-  floatingCloseButtonContainer: {
-    position: 'absolute',
-    bottom: 30,
-    right: 10,
-    zIndex: 2,
+  rightButton: {
+    backgroundColor: '#1DA1F2',
+  },
+  addPhotoButton: {
+    backgroundColor: '#0073BC',
+    alignSelf: 'flex-start',
+    borderRadius: 4,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  addPhotoButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  card: {
+    backgroundColor: '#F5F8FA',
+    borderColor: '#E1E8ED',
+    borderRadius: 8,
+    borderWidth: 1,
+    margin: 16,
+    padding: 12,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  deleteRoomText: {
+    color: '#E0245E',
+    fontWeight: '600',
+  },
+
+  loadingContainer: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
   },
   loadingOverlay: {
-    position: 'absolute',
-    top: 0,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     bottom: 0,
     left: 0,
+    position: 'absolute',
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    alignItems: 'center',
+    top: 0,
     justifyContent: 'center',
     zIndex: 999,
   },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 10,
+  },
+
+  modalContainer: {
+    backgroundColor: '#fff',
+    flex: 1,
+  },
+  pdf: {
+    flex: 1,
+    width: '100%',
+  },
   photo: {
-    width: 100,
+    borderRadius: 5,
     height: 100,
     margin: 5,
-    borderRadius: 5,
+    width: 100,
+  },
+  scrollContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  shareButton: {
+    backgroundColor: '#1DA1F2',
+    borderRadius: 4,
+    padding: 8,
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 })

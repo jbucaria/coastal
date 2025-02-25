@@ -73,7 +73,7 @@ const initialTicketStatus = {
 }
 
 const CreateTicketScreen = () => {
-  const HEADER_HEIGHT = 0
+  const HEADER_HEIGHT = 80
   const router = useRouter()
   const { user } = useUserStore()
 

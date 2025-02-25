@@ -279,7 +279,7 @@ const QuickBooksManagementScreen = () => {
               activeTab === 'tokens' && styles.activeSegmentText,
             ]}
           >
-            Items
+            Tokens
           </Text>
         </TouchableOpacity>
       </View>
@@ -359,17 +359,10 @@ const QuickBooksManagementScreen = () => {
     )
   }
 
-  // --------------------------
-  // Render
-  // --------------------------
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>QuickBooks Management</Text>
-        {renderSegmentedControl()}
-        {activeTab === 'customers' ? renderCustomersUI() : renderItemsUI()}
-        {/* Token Management Section */}
-        <Text style={styles.title}>Token Management</Text>
+  const renderTokensUI = () => {
+    return (
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>Manage Tokens</Text>
         <View style={styles.oauthContainer}>
           <TouchableOpacity
             onPress={() => promptAsync()}
@@ -378,6 +371,23 @@ const QuickBooksManagementScreen = () => {
             <Text style={styles.buttonText}>Get Auth Token</Text>
           </TouchableOpacity>
         </View>
+      </View>
+    )
+  }
+
+  // --------------------------
+  // Render
+  // --------------------------
+  return (
+    <SafeAreaView style={[styles.container, { margin: 5 }]}>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <Text style={styles.title}>QuickBooks Management</Text>
+        {renderSegmentedControl()}
+        {activeTab === 'customers'
+          ? renderCustomersUI()
+          : activeTab === 'tokens'
+          ? renderTokensUI()
+          : renderItemsUI()}
       </ScrollView>
     </SafeAreaView>
   )

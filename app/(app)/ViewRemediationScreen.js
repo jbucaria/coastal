@@ -29,7 +29,7 @@ export default function ViewRemediationScreen() {
   const projectId = projectIdFromParams ?? storeProjectId
 
   const router = useRouter()
-  const HEADER_HEIGHT = 120
+  const HEADER_HEIGHT = 80
 
   const [remediationData, setRemediationData] = useState(null)
   const [loading, setLoading] = useState(true)

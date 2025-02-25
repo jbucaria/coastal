@@ -19,7 +19,7 @@ export const TicketDetailsCard = ({
   }
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Ticket Details</Text>
+      <Text style={styles.cardTitle}>Report Details</Text>
 
       <View style={styles.detailRow}>
         <Text style={styles.detailLabel}>Ticket Number: </Text>
@@ -43,50 +43,13 @@ export const TicketDetailsCard = ({
         <Text style={styles.detailLabel}>Address:</Text>
       </View>
       <View style={styles.addressContainer}>
-        {editable ? (
-          <>
-            <TextInput
-              style={[styles.detailValue, styles.input]}
-              value={ticket.street}
-              onChangeText={text => onChangeField('street', text)}
-              placeholder="Street"
-            />
-            <TextInput
-              style={[styles.detailValue, styles.input]}
-              value={ticket.apt}
-              placeholder="Apt (optional)"
-              onChangeText={text => onChangeField('apt', text)}
-            />
-            <TextInput
-              style={[styles.detailValue, styles.input]}
-              value={ticket.city}
-              onChangeText={text => onChangeField('city', text)}
-              placeholder="City"
-            />
-            <TextInput
-              style={[styles.detailValue, styles.input]}
-              value={ticket.state}
-              onChangeText={text => onChangeField('state', text)}
-              placeholder="State"
-            />
-            <TextInput
-              style={[styles.detailValue, styles.input]}
-              value={ticket.zip}
-              onChangeText={text => onChangeField('zip', text)}
-              placeholder="Zip"
-            />
-          </>
-        ) : (
-          <>
-            <Text style={styles.detailValue}>
-              {ticket.street}
-              {ticket.apt ? `, Apt ${ticket.apt}` : ''}
-            </Text>
-            <Text style={styles.detailValue}>
-              {ticket.city}, {ticket.state} {ticket.zip}
-            </Text>
-          </>
-        )}
+        <Text style={styles.detailValue}>
+          {ticket.street}
+          {ticket.apt ? `, Apt ${ticket.apt}` : ''}
+        </Text>
+        <Text style={styles.detailValue}>
+          {ticket.city}, {ticket.state} {ticket.zip}
+        </Text>
       </View>
 
       <View style={styles.detailRow}>
@@ -104,15 +67,8 @@ export const TicketDetailsCard = ({
 
       <View style={styles.detailRow}>
         <Text style={styles.detailLabel}>Reason for Visit: </Text>
-        {editable ? (
-          <TextInput
-            style={[styles.detailValue, styles.input]}
-            value={ticket.reason}
-            onChangeText={text => onChangeField('reason', text)}
-          />
-        ) : (
-          <Text style={styles.detailValue}>{ticket.reason}</Text>
-        )}
+
+        <Text style={styles.detailValue}>{ticket.reason}</Text>
       </View>
     </View>
   )
@@ -129,16 +85,9 @@ export const RoomCard = ({
     <View style={styles.card}>
       <Text style={styles.cardTitle}>{roomTitle}</Text>
       <Text style={styles.cardText}>Findings:</Text>
-      {editable ? (
-        <TextInput
-          style={[styles.detailValue, styles.input]}
-          value={inspectionFindings}
-          onChangeText={text => onChangeField(room.id, text)}
-          placeholder="Enter findings..."
-        />
-      ) : (
-        <Text style={styles.cardText}>{inspectionFindings}</Text>
-      )}
+
+      <Text style={styles.cardText}>{inspectionFindings}</Text>
+
       <View style={styles.photosContainer}>
         {photos && photos.length > 0 ? (
           photos.map((photo, index) => (

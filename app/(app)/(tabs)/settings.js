@@ -14,17 +14,24 @@ import {
   Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { signOut, updateEmail as authUpdateEmail } from 'firebase/auth'
+import {
+  signOut,
+  updateEmail,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+} from 'firebase/auth'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import { auth, firestore } from '@/firebaseConfig'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import { useUserStore } from '@/store/useUserStore'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 
 const Settings = () => {
   const router = useRouter()
   const { user, setUser } = useUserStore()
 
-  // Local state for editable fields:
+  // Profile fields
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -36,8 +43,12 @@ const Settings = () => {
     full: '',
   })
 
-  // Local flag to toggle edit mode
+  // Editing states
   const [editing, setEditing] = useState(false)
+  const [editingPassword, setEditingPassword] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -71,7 +82,7 @@ const Settings = () => {
       await signOut(auth)
       router.replace('/login')
     } catch (error) {
-      console.error('Error signing out: ', error)
+      console.error('Error signing out:', error)
     }
   }
 
@@ -80,7 +91,7 @@ const Settings = () => {
     if (currentUser) {
       try {
         if (email !== currentUser.email) {
-          await authUpdateEmail(currentUser, email)
+          await updateEmail(currentUser, email)
         }
         await updateDoc(doc(firestore, 'users', currentUser.uid), {
           name: name,
@@ -102,7 +113,6 @@ const Settings = () => {
   }
 
   const handleCancel = () => {
-    // Reset to previous values
     setEditing(false)
     setName(user.name || '')
     setEmail(user.email || '')
@@ -118,25 +128,94 @@ const Settings = () => {
     )
   }
 
+  const handleUpdatePassword = async () => {
+    if (!currentPassword) {
+      Alert.alert('Error', 'Please provide your current password.')
+      return
+    }
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert('Error', 'New passwords do not match.')
+      return
+    }
+    const currentUser = auth.currentUser
+    if (currentUser) {
+      try {
+        const credential = EmailAuthProvider.credential(
+          currentUser.email,
+          currentPassword
+        )
+        await reauthenticateWithCredential(currentUser, credential)
+        await updatePassword(currentUser, newPassword)
+        Alert.alert('Success', 'Password updated successfully.')
+        setEditingPassword(false)
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmNewPassword('')
+      } catch (error) {
+        console.error('Error updating password:', error)
+        Alert.alert(
+          'Error',
+          'Failed to update password. You may need to reauthenticate.'
+        )
+      }
+    }
+  }
+
+  const headerOptions = editing
+    ? [
+        {
+          label: 'Cancel',
+          onPress: () => {
+            setEditing(false)
+            setName(user.name || '')
+            setEmail(user.email || '')
+            setPhone(user.phone || '')
+            setAddress(
+              user.address || {
+                street: '',
+                city: '',
+                state: '',
+                zip: '',
+                full: '',
+              }
+            )
+          },
+        },
+        { label: 'Save', onPress: handleSaveInfo },
+      ]
+    : [
+        { label: 'Edit Profile', onPress: () => setEditing(true) },
+        { label: 'Change Password', onPress: () => setEditingPassword(true) },
+        { label: 'Logout', onPress: () => handleLogout() },
+      ]
+
+  const HEADER_HEIGHT = 60
+
   return (
-    <SafeAreaView>
+    <SafeAreaView style={styles.container}>
+      <HeaderWithOptions
+        title="Settings"
+        onBack={() => router.back()}
+        options={headerOptions}
+        showHome={false}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
         keyboardVerticalOffset={100}
       >
-        <ScrollView>
+        <ScrollView
+          contentContainerStyle={{
+            paddingBottom: 120,
+            paddingTop: HEADER_HEIGHT,
+          }}
+        >
           <View style={styles.container}>
-            <Text style={styles.title}>Settings</Text>
-
-            {user && (
-              <View style={styles.userInfoContainer}>
-                <Text style={styles.userInfoText}>
-                  Welcome, {user.displayName || user.email}!
-                </Text>
-              </View>
-            )}
-
+            <View style={styles.userInfoContainer}>
+              <Text style={styles.userInfoText}>
+                Welcome, {user.displayName || user.email}!
+              </Text>
+            </View>
             {editing ? (
               <>
                 <View style={styles.inputContainer}>
@@ -148,7 +227,6 @@ const Settings = () => {
                     placeholder="Enter your Name"
                   />
                 </View>
-
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Email</Text>
                   <TextInput
@@ -160,7 +238,6 @@ const Settings = () => {
                     placeholder="Enter your email"
                   />
                 </View>
-
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Phone</Text>
                   <TextInput
@@ -171,7 +248,6 @@ const Settings = () => {
                     placeholder="Enter your phone number"
                   />
                 </View>
-
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Street</Text>
                   <TextInput
@@ -227,7 +303,6 @@ const Settings = () => {
                     placeholder="Enter your full address"
                   />
                 </View>
-
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity
                     onPress={handleSaveInfo}
@@ -244,38 +319,65 @@ const Settings = () => {
                 </View>
               </>
             ) : (
-              <>
-                <View style={styles.infoDisplayContainer}>
-                  <Text style={styles.infoDisplayText}>Name: {name}</Text>
-                  <Text style={styles.infoDisplayText}>Email: {email}</Text>
-                  <Text style={styles.infoDisplayText}>Phone: {phone}</Text>
-                  {address.full ? (
-                    <Text style={styles.infoDisplayText}>
-                      Address: {address.full}
-                    </Text>
-                  ) : null}
-                </View>
-                <TouchableOpacity
-                  onPress={() => setEditing(true)}
-                  style={styles.editButton}
-                >
-                  <Text style={styles.editButtonText}>Update Profile</Text>
-                </TouchableOpacity>
-              </>
+              <View style={styles.infoDisplayContainer}>
+                <Text style={styles.infoDisplayText}>Name: {name}</Text>
+                <Text style={styles.infoDisplayText}>Email: {email}</Text>
+                <Text style={styles.infoDisplayText}>Phone: {phone}</Text>
+                {address.full ? (
+                  <Text style={styles.infoDisplayText}>
+                    Address: {address.full}
+                  </Text>
+                ) : null}
+              </View>
             )}
-
-            <TouchableOpacity
-              onPress={handleLogout}
-              style={styles.logoutButton}
-            >
-              <IconSymbol
-                name="arrow.left.square"
-                size={24}
-                color="white"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.logoutText}>Logout</Text>
-            </TouchableOpacity>
+            {editingPassword ? (
+              <>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Current Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    secureTextEntry
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    placeholder="Enter your current password"
+                  />
+                </View>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>New Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    secureTextEntry
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    placeholder="Enter new password"
+                  />
+                </View>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Confirm Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    secureTextEntry
+                    value={confirmNewPassword}
+                    onChangeText={setConfirmNewPassword}
+                    placeholder="Confirm new password"
+                  />
+                </View>
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    onPress={handleUpdatePassword}
+                    style={styles.button}
+                  >
+                    <Text style={styles.buttonText}>Update Password</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setEditingPassword(false)}
+                    style={[styles.button, styles.cancelButton]}
+                  >
+                    <Text style={styles.buttonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -286,10 +388,92 @@ const Settings = () => {
 export default Settings
 
 const styles = StyleSheet.create({
+  button: {
+    backgroundColor: '#2C3E50',
+    borderRadius: 25,
+    flex: 1,
+    marginHorizontal: 4,
+    marginBottom: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+  },
+  cancelButton: {
+    backgroundColor: '#e74c3c',
+  },
+  changePasswordButton: {
+    backgroundColor: '#8e44ad',
+    borderRadius: 25,
+    marginBottom: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  changePasswordButtonText: {
+    color: '#fff',
+    fontSize: 18,
+  },
   container: {
+    backgroundColor: '#f3f3f3',
     flex: 1,
     padding: 16,
-    backgroundColor: '#f3f3f3',
+  },
+  editButton: {
+    alignItems: 'center',
+    backgroundColor: '#2980B9',
+    borderRadius: 25,
+    marginBottom: 16,
+    paddingVertical: 12,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 18,
+  },
+  infoDisplayContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 16,
+    padding: 12,
+  },
+  infoDisplayText: {
+    color: '#333',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 12,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  label: {
+    color: '#555',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  logoutButton: {
+    alignItems: 'center',
+    backgroundColor: '#e74c3c',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 25,
+  },
+  logoutText: {
+    color: '#fff',
+    fontSize: 18,
   },
   title: {
     fontSize: 24,
@@ -297,82 +481,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   userInfoContainer: {
-    marginBottom: 16,
-    padding: 12,
     backgroundColor: '#e0e0e0',
     borderRadius: 8,
+    marginBottom: 16,
+    padding: 12,
   },
   userInfoText: {
-    fontSize: 18,
     color: '#333',
-  },
-  infoDisplayContainer: {
-    marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-  },
-  infoDisplayText: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 4,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  button: {
-    backgroundColor: '#2C3E50',
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginBottom: 16,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-  },
-  cancelButton: {
-    backgroundColor: '#e74c3c',
-  },
-  buttonText: {
-    color: '#fff',
     fontSize: 18,
-  },
-  editButton: {
-    backgroundColor: '#2980B9',
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  editButtonText: {
-    color: '#fff',
-    fontSize: 18,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e74c3c',
-    padding: 12,
-    borderRadius: 25,
-    justifyContent: 'center',
-  },
-  logoutText: {
-    fontSize: 18,
-    color: '#fff',
   },
 })
