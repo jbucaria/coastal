@@ -153,7 +153,10 @@ const TicketsScreen = () => {
           ) : displayedTickets.length > 0 ? (
             displayedTickets.map((ticket, index) => {
               const ticketKey = ticket.id || `ticket-${index}`
-              const containerStyle = index % 2 === 0 ? '#F5F8FA' : '#FFFFFF'
+              const containerStyle =
+                index % 2 === 0
+                  ? 'rgba(245,248,250,0.8)' // equivalent to #F5F8FA with 80% opacity
+                  : 'rgba(255,255,255,0.8)' // equivalent to #FFFFFF with 80% opacity
               const timeColor = index % 2 === 0 ? '#0D47A1' : '#1976D2'
               return (
                 <View key={ticketKey}>

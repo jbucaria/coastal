@@ -33,6 +33,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol'
 import AddressModal from '@/components/AddressModal'
 import BuilderModal from '@/components/BuilderModal'
 import { formatAddress } from '@/utils/helpers'
+import { pickAndUploadPhotos } from '@/utils/photoUpload'
 import useAuthStore from '@/store/useAuthStore'
 import { Header } from 'react-native/Libraries/NewAppScreen'
 
@@ -72,7 +73,7 @@ const initialTicketStatus = {
 }
 
 const CreateTicketScreen = () => {
-  const HEADER_HEIGHT = 80
+  const HEADER_HEIGHT = 0
   const router = useRouter()
   const { user } = useUserStore()
 
@@ -263,26 +264,15 @@ const CreateTicketScreen = () => {
     setNewTicket(prev => ({ ...prev, homeOwnerNumber: formatted }))
   }
 
-  // Add photo using the ImagePicker
   const handleAddPhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Camera roll permissions are needed to add photos.'
-      )
-      return
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      quality: 0.7,
-    })
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selectedPhotos = result.assets.map(asset => asset.uri)
+    const folder = 'ticketPhotos'
+    const photosArray = await pickAndUploadPhotos({ folder, quality: 0.7 })
+    if (photosArray.length > 0) {
+      // Extract downloadURL for PhotoGallery (which expects an array of strings)
+      const urls = photosArray.map(photo => photo.downloadURL)
       setNewTicket(prev => ({
         ...prev,
-        ticketPhotos: [...prev.ticketPhotos, ...selectedPhotos],
+        ticketPhotos: [...prev.ticketPhotos, ...urls],
       }))
       Alert.alert('Success', 'Photos added successfully.')
     } else {

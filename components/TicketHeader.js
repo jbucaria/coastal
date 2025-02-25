@@ -68,7 +68,7 @@ const TicketsHeader = ({
 
   return (
     <View style={styles.absoluteHeader}>
-      <BlurView intensity={90} tint="light" style={styles.headerBlur}>
+      <BlurView intensity={90} tint="regular" style={styles.headerBlur}>
         <View style={styles.headerContent}>
           {/* Search Bar */}
           <View style={styles.searchBarContainer}>
@@ -166,6 +166,8 @@ const styles = StyleSheet.create({
   headerBlur: {
     flex: 1,
     backgroundColor: 'transparent',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
   headerContent: {
     flex: 1,

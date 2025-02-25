@@ -20,20 +20,18 @@ import {
   Animated,
 } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
-import * as ImagePicker from 'expo-image-picker'
 import { Picker } from '@react-native-picker/picker'
 import { v4 as uuidv4 } from 'uuid'
 import { doc, updateDoc, collection, getDocs, getDoc } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { firestore, storage } from '@/firebaseConfig'
+import { firestore } from '@/firebaseConfig'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { FloatingButton } from '@/components/FloatingButton'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import useProjectStore from '@/store/useProjectStore'
-import { use } from 'react'
+import { pickAndUploadPhotos } from '@/utils/photoUpload'
+import PhotoGallery from '@/components/PhotoGallery'
+import AddRoomModal from '@/components/AddRoomModal'
 
-/** Predefined room types */
-const ROOM_OPTIONS = ['Bedroom', 'Kitchen', 'Garage', 'Living Room', 'Bathroom']
 
 const RemediationScreen = () => {
   const params = useLocalSearchParams()
@@ -45,6 +43,7 @@ const RemediationScreen = () => {
 
   // Rooms (each has measurements and photos)
   const [rooms, setRooms] = useState([])
+  const HEADER_HEIGHT = 80
 
   // For the Items picker modal
   const [showItemsModal, setShowItemsModal] = useState(false)
@@ -234,43 +233,17 @@ const RemediationScreen = () => {
     setCurrentMeasurementId(null)
   }
 
-  // -------------------- Photos Logic --------------------
   const handleAddPhoto = async (roomId, projectId) => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Need camera roll permission.')
-        return
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsMultipleSelection: true,
-        mediaTypes: ['images'],
-        quality: 0.5,
-      })
-      if (result.canceled) return
-      if (result.assets && result.assets.length > 0) {
-        const uploadPromises = result.assets.map(async asset => {
-          const response = await fetch(asset.uri)
-          const blob = await response.blob()
-          const fileName = asset.fileName || `${uuidv4()}.jpg`
-          const storagePath = `remediationPhotos/${projectId}/${fileName}`
-          const storageRef = ref(storage, storagePath)
-          await uploadBytes(storageRef, blob)
-          const downloadURL = await getDownloadURL(storageRef)
-          return { storagePath, downloadURL }
-        })
-        const photosArray = await Promise.all(uploadPromises)
-        setRooms(prev =>
-          prev.map(room =>
-            room.id === roomId
-              ? { ...room, photos: [...room.photos, ...photosArray] }
-              : room
-          )
+    const folder = `remediationPhotos/${projectId}`
+    const photosArray = await pickAndUploadPhotos({ folder, quality: 0.5 })
+    if (photosArray.length > 0) {
+      setRooms(prev =>
+        prev.map(room =>
+          room.id === roomId
+            ? { ...room, photos: [...room.photos, ...photosArray] }
+            : room
         )
-      }
-    } catch (error) {
-      console.error('Error uploading photos:', error)
-      Alert.alert('Error', 'Could not upload photos. Please try again.')
+      )
     }
   }
 
@@ -341,7 +314,12 @@ const RemediationScreen = () => {
         keyboardVerticalOffset={40}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <ScrollView
+            contentContainerStyle={[
+              styles.scrollContainer,
+              { paddingTop: HEADER_HEIGHT },
+            ]}
+          >
             {rooms.map(room => (
               <View key={room.id} style={styles.roomCard}>
                 {/* Room Header */}
@@ -423,22 +401,16 @@ const RemediationScreen = () => {
                   {room.photos.length > 0 ? (
                     <ScrollView horizontal style={styles.photoRow}>
                       {room.photos.map(photo => (
-                        <View key={photo.storagePath} style={styles.photoItem}>
-                          <Image
-                            source={{ uri: photo.downloadURL }}
-                            style={styles.photoImage}
-                          />
-                          <TouchableOpacity
-                            onPress={() =>
-                              handleDeletePhoto(room.id, photo.storagePath)
-                            }
-                            style={styles.deletePhotoButton}
-                          >
-                            <Text style={styles.deletePhotoButtonText}>
-                              Remove
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
+                        <PhotoGallery
+                          photos={room.photos.map(photo => photo.downloadURL)}
+                          onRemovePhoto={index => {
+                            const photoToRemove = room.photos[index]
+                            handleDeletePhoto(
+                              room.id,
+                              photoToRemove.storagePath
+                            )
+                          }}
+                        />
                       ))}
                     </ScrollView>
                   ) : (
@@ -534,68 +506,15 @@ const RemediationScreen = () => {
 
       {/* Add Room Modal */}
       {showAddRoomModal && (
-        <Modal
+        <AddRoomModal
           visible={showAddRoomModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowAddRoomModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.addRoomModalContainer}>
-              <Text style={styles.modalTitle}>Add Room</Text>
-              {/* Room Options Row */}
-              <ScrollView horizontal style={styles.roomOptionsRow}>
-                {ROOM_OPTIONS.map(option => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.roomTypeOption,
-                      selectedRoomType === option &&
-                        styles.roomTypeOptionSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedRoomType(option)
-                      setCustomRoomName('')
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.roomTypeOptionText,
-                        selectedRoomType === option && { color: '#FFF' },
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Text style={styles.modalSubtitle}>Or type custom name:</Text>
-              <TextInput
-                style={styles.itemSearchInput}
-                placeholder="e.g. Office, Studio"
-                value={customRoomName}
-                onChangeText={val => {
-                  setCustomRoomName(val)
-                  if (selectedRoomType) setSelectedRoomType('')
-                }}
-              />
-              <View style={styles.modalButtonsRow}>
-                <TouchableOpacity
-                  onPress={handleConfirmAddRoom}
-                  style={styles.modalConfirmButton}
-                >
-                  <Text style={styles.modalConfirmButtonText}>Add</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowAddRoomModal(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <Text style={styles.modalCloseButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setShowAddRoomModal(false)}
+          selectedRoomType={selectedRoomType}
+          setSelectedRoomType={setSelectedRoomType}
+          customRoomName={customRoomName}
+          setCustomRoomName={setCustomRoomName}
+          onConfirm={handleConfirmAddRoom}
+        />
       )}
     </SafeAreaView>
   )

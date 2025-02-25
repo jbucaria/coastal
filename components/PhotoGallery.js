@@ -16,7 +16,7 @@ const PhotoGallery = ({ photos, onRemovePhoto }) => (
     style={styles.photosContainer}
   >
     {photos.map((uri, index) => (
-      <View key={index} style={styles.photoWrapper}>
+      <View key={`${uri}-${index}`} style={styles.photoWrapper}>
         <Image source={{ uri }} style={styles.photo} />
         <TouchableOpacity
           style={styles.removePhotoButton}

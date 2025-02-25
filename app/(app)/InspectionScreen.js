@@ -20,14 +20,14 @@ import {
   Animated,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import * as ImagePicker from 'expo-image-picker'
 import { v4 as uuidv4 } from 'uuid'
 import { doc, updateDoc } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { firestore, storage } from '@/firebaseConfig'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { FloatingButton } from '@/components/FloatingButton'
 import { rephraseText } from '@/utils/rephraseText'
+import { pickAndUploadPhotos } from '@/utils/photoUpload'
+import AddRoomModal from '@/components/AddRoomModal'
 
 // Predefined room types
 const ROOM_OPTIONS = ['Bedroom', 'Kitchen', 'Garage', 'Living Room', 'Bathroom']
@@ -95,44 +95,17 @@ const InspectionScreen = () => {
     )
   }
 
-  // -------------------- Photo Upload Logic --------------------
   const handleAddPhoto = async (roomId, projectId) => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Need camera roll permission.')
-        return
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsMultipleSelection: true,
-        mediaTypes: ['images'],
-        quality: 0.5,
-      })
-      if (result.canceled) return
-      if (result.assets && result.assets.length > 0) {
-        const uploadPromises = result.assets.map(async asset => {
-          const response = await fetch(asset.uri)
-          const blob = await response.blob()
-          const fileName = asset.fileName || `${uuidv4()}.jpg`
-          // Save to "inspectionPhotos" folder
-          const storagePath = `inspectionPhotos/${projectId}/${fileName}`
-          const storageRef = ref(storage, storagePath)
-          await uploadBytes(storageRef, blob)
-          const downloadURL = await getDownloadURL(storageRef)
-          return { storagePath, downloadURL }
-        })
-        const photosArray = await Promise.all(uploadPromises)
-        setRooms(prev =>
-          prev.map(room =>
-            room.id === roomId
-              ? { ...room, photos: [...room.photos, ...photosArray] }
-              : room
-          )
+    const folder = `inspectionPhotos/${projectId}`
+    const photosArray = await pickAndUploadPhotos({ folder, quality: 0.5 })
+    if (photosArray.length > 0) {
+      setRooms(prev =>
+        prev.map(room =>
+          room.id === roomId
+            ? { ...room, photos: [...room.photos, ...photosArray] }
+            : room
         )
-      }
-    } catch (error) {
-      console.error('Error uploading photos:', error)
-      Alert.alert('Error', 'Could not upload photos. Please try again.')
+      )
     }
   }
 
@@ -308,71 +281,21 @@ const InspectionScreen = () => {
           onPress={openAddRoomModal}
           title="Add Room"
           animatedOpacity={floatingOpacity}
-          name="add"
+          iconName="plus.circle"
+          size={28}
         />
       </View>
       {showAddRoomModal && (
-        <Modal
+        <AddRoomModal
           visible={showAddRoomModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowAddRoomModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.addRoomModalContainer}>
-              <Text style={styles.modalTitle}>Add Room</Text>
-              <ScrollView horizontal style={styles.roomOptionsRow}>
-                {ROOM_OPTIONS.map(option => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.roomTypeOption,
-                      selectedRoomType === option &&
-                        styles.roomTypeOptionSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedRoomType(option)
-                      setCustomRoomName('')
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.roomTypeOptionText,
-                        selectedRoomType === option && { color: '#FFF' },
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <Text style={styles.modalSubtitle}>Or type custom name:</Text>
-              <TextInput
-                style={styles.itemSearchInput}
-                placeholder="e.g. Office, Studio"
-                value={customRoomName}
-                onChangeText={val => {
-                  setCustomRoomName(val)
-                  if (selectedRoomType) setSelectedRoomType('')
-                }}
-              />
-              <View style={styles.modalButtonsRow}>
-                <TouchableOpacity
-                  onPress={handleConfirmAddRoom}
-                  style={styles.modalConfirmButton}
-                >
-                  <Text style={styles.modalConfirmButtonText}>Add</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowAddRoomModal(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <Text style={styles.modalCloseButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setShowAddRoomModal(false)}
+          roomOptions={ROOM_OPTIONS}
+          selectedRoomType={selectedRoomType}
+          setSelectedRoomType={setSelectedRoomType}
+          customRoomName={customRoomName}
+          setCustomRoomName={setCustomRoomName}
+          onConfirm={handleConfirmAddRoom}
+        />
       )}
       {/* Report Modal */}
       <Modal

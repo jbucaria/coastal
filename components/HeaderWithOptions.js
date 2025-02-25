@@ -133,6 +133,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: HEADER_HEIGHT,
     zIndex: 1000,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
   blurBackground: {
     ...StyleSheet.absoluteFillObject,
