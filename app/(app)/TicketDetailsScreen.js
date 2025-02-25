@@ -250,6 +250,8 @@ const TicketDetailsScreen = () => {
     },
   ]
 
+  const HEADER_HEIGHT = 80
+
   return (
     <SafeAreaView style={styles.container}>
       <HeaderWithOptions
@@ -259,7 +261,11 @@ const TicketDetailsScreen = () => {
         options={options}
       />
       <Animated.ScrollView
-        contentContainerStyle={styles.scrollContent}
+        // style={{ marginTop: HEADER_HEIGHT }}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: HEADER_HEIGHT },
+        ]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }

@@ -34,6 +34,7 @@ import AddressModal from '@/components/AddressModal'
 import BuilderModal from '@/components/BuilderModal'
 import { formatAddress } from '@/utils/helpers'
 import useAuthStore from '@/store/useAuthStore'
+import { Header } from 'react-native/Libraries/NewAppScreen'
 
 // Initial ticket state object
 const initialTicketStatus = {
@@ -71,6 +72,7 @@ const initialTicketStatus = {
 }
 
 const CreateTicketScreen = () => {
+  const HEADER_HEIGHT = 80
   const router = useRouter()
   const { user } = useUserStore()
 
@@ -301,328 +303,326 @@ const CreateTicketScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.container}>
-        <HeaderWithOptions
-          title="Create Ticket"
-          onBack={handleBack}
-          onOptions={() => {}}
-        />
-        <KeyboardAvoidingView
-          style={styles.flex1}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={40}
-        >
-          <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.contentContainer}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Date & Time Section */}
-              <View style={styles.card}>
-                <View style={styles.dateTimeSection}>
-                  <View style={styles.datePickerContainer}>
-                    <Text style={styles.label}>Date:</Text>
-                    <DateTimePicker
-                      value={selectedDate}
-                      mode="date"
-                      display="default"
-                      onChange={handleDateChange}
-                      style={styles.datePicker}
-                    />
-                  </View>
-                  <View style={styles.timePickerContainer}>
-                    <Text style={styles.label}>Start Time:</Text>
-                    <DateTimePicker
-                      value={startTime}
-                      mode="time"
-                      is24Hour={false}
-                      display="default"
-                      onChange={handleStartTimeChange}
-                      minuteInterval={15}
-                      style={styles.timePicker}
-                    />
-                  </View>
-                  <View style={styles.timePickerContainer}>
-                    <Text style={styles.label}>End Time:</Text>
-                    <DateTimePicker
-                      value={endTime}
-                      mode="time"
-                      is24Hour={false}
-                      display="default"
-                      onChange={handleEndTimeChange}
-                      minuteInterval={15}
-                      style={styles.timePicker}
-                    />
-                  </View>
+      <HeaderWithOptions
+        title="Create Ticket"
+        onBack={handleBack}
+        options={[]} // pass additional options as needed
+      />
+      <KeyboardAvoidingView
+        style={styles.flex1}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={40}
+      >
+        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={[
+              styles.contentContainer,
+              { paddingTop: HEADER_HEIGHT },
+            ]}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Date & Time Section */}
+            <View style={styles.card}>
+              <View style={styles.dateTimeSection}>
+                <View style={styles.datePickerContainer}>
+                  <Text style={styles.label}>Date:</Text>
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display="default"
+                    onChange={handleDateChange}
+                    style={styles.datePicker}
+                  />
+                </View>
+                <View style={styles.timePickerContainer}>
+                  <Text style={styles.label}>Start Time:</Text>
+                  <DateTimePicker
+                    value={startTime}
+                    mode="time"
+                    is24Hour={false}
+                    display="default"
+                    onChange={handleStartTimeChange}
+                    minuteInterval={15}
+                    style={styles.timePicker}
+                  />
+                </View>
+                <View style={styles.timePickerContainer}>
+                  <Text style={styles.label}>End Time:</Text>
+                  <DateTimePicker
+                    value={endTime}
+                    mode="time"
+                    is24Hour={false}
+                    display="default"
+                    onChange={handleEndTimeChange}
+                    minuteInterval={15}
+                    style={styles.timePicker}
+                  />
                 </View>
               </View>
+            </View>
 
-              {/* Address Selection Section */}
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Address</Text>
-                <View style={styles.selectionContainer}>
-                  <Text style={[styles.selectionText, { flex: 1 }]}>
-                    {selectedAddress
-                      ? formatAddress(selectedAddress)
-                      : 'No address selected'}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setAddressModalVisible(true)}
-                    style={[
-                      styles.plusButton,
-                      {
-                        backgroundColor: addressModalVisible
-                          ? 'red'
-                          : '#2980b9',
-                      },
-                    ]}
-                  >
-                    <IconSymbol
-                      name={addressModalVisible ? 'minus' : 'plus'}
-                      color="white"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Address Modal */}
-              <AddressModal
-                visible={addressModalVisible}
-                onClose={() => setAddressModalVisible(false)}
-                onAddressSelected={handleAddressSelected}
-              />
-
-              {/* Builder Selection Section */}
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Builder</Text>
-                <View style={styles.selectionContainer}>
-                  <Text style={styles.selectionText}>
-                    {newTicket.customerName
-                      ? newTicket.customerName
-                      : 'No builder selected'}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setBuilderModalVisible(true)}
-                    style={[
-                      styles.plusButton,
-                      {
-                        backgroundColor: builderModalVisible
-                          ? 'red'
-                          : '#2980b9',
-                      },
-                    ]}
-                  >
-                    <IconSymbol
-                      name={builderModalVisible ? 'minus' : 'plus'}
-                      color="white"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Builder Modal */}
-              <BuilderModal
-                visible={builderModalVisible}
-                onClose={() => setBuilderModalVisible(false)}
-                onSelectCustomer={handleSelectCustomer}
-                allCustomers={allCustomers}
-              />
-              {/* Homeowner Section */}
-              <View style={styles.card}>
-                <View
+            {/* Address Selection Section */}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Address</Text>
+              <View style={styles.selectionContainer}>
+                <Text style={[styles.selectionText, { flex: 1 }]}>
+                  {selectedAddress
+                    ? formatAddress(selectedAddress)
+                    : 'No address selected'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setAddressModalVisible(true)}
                   style={[
-                    styles.selectionContainer,
+                    styles.plusButton,
                     {
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
+                      backgroundColor: addressModalVisible ? 'red' : '#2980b9',
                     },
                   ]}
                 >
-                  <Text style={styles.modalTitle}>Homeowner</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowHomeowner(prev => !prev)}
-                    style={[
-                      styles.plusButton,
-                      { backgroundColor: showHomeowner ? 'red' : '#2980b9' },
-                    ]}
-                  >
-                    <IconSymbol
-                      name={showHomeowner ? 'minus' : 'plus'}
-                      color="white"
-                    />
-                  </TouchableOpacity>
-                </View>
-                {showHomeowner && (
-                  <>
-                    <TextInput
-                      style={styles.inputField}
-                      placeholder="Homeowner Name"
-                      value={newTicket.homeOwnerName}
-                      onChangeText={text =>
-                        setNewTicket({ ...newTicket, homeOwnerName: text })
-                      }
-                    />
-                    <TextInput
-                      style={styles.inputField}
-                      placeholder="Homeowner Number"
-                      value={newTicket.homeOwnerNumber}
-                      onChangeText={handleHomeOwnerNumberChange}
-                      keyboardType="phone-pad"
-                    />
-                  </>
-                )}
-              </View>
-
-              {/* Ticket Details */}
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Ticket Details</Text>
-                <TextInput
-                  style={styles.inputField}
-                  placeholder="Inspector Name"
-                  value={newTicket.inspectorName}
-                  onChangeText={text =>
-                    setNewTicket({ ...newTicket, inspectorName: text })
-                  }
-                />
-                <TextInput
-                  style={[styles.inputField, { height: 100 }]}
-                  placeholder="Reason for visit"
-                  value={newTicket.reason}
-                  onChangeText={text =>
-                    setNewTicket({ ...newTicket, reason: text })
-                  }
-                  multiline
-                />
-                <TextInput
-                  style={[styles.inputField, { height: 80 }]}
-                  placeholder="Add a note for this ticket..."
-                  value={newNote}
-                  onChangeText={setNewNote}
-                  multiline
-                  numberOfLines={4}
-                />
-                <TouchableOpacity
-                  onPress={handleTogglePicker}
-                  style={styles.button}
-                >
-                  <Text style={styles.buttonText}>
-                    {jobType ? jobType : 'Select Job Type'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleToggleVacancyPicker}
-                  style={styles.button}
-                >
-                  <Text style={styles.buttonText}>
-                    {vacancy === 'occupied'
-                      ? 'Occupied'
-                      : vacancy === 'unoccupied'
-                      ? 'Unoccupied'
-                      : 'Select Occupancy'}
-                  </Text>
+                  <IconSymbol
+                    name={addressModalVisible ? 'minus' : 'plus'}
+                    color="white"
+                  />
                 </TouchableOpacity>
               </View>
+            </View>
 
-              {/* Job Type Modal */}
-              <Modal
-                visible={jobTypeModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={handleTogglePicker}
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={jobType}
-                      onValueChange={handleJobTypeChange}
-                      style={styles.picker}
-                    >
-                      <Picker.Item label="Select job type" value="" />
-                      <Picker.Item
-                        label="Leak Detection"
-                        value="leak detection"
-                      />
-                      <Picker.Item label="Inspection" value="inspection" />
-                      <Picker.Item label="Containment" value="containment" />
-                      <Picker.Item label="Flood" value="flood" />
-                      <Picker.Item label="Mold Job" value="mold job" />
-                      <Picker.Item label="Wipe Down" value="wipe down" />
-                    </Picker>
-                    <View style={styles.modalCloseContainer}>
-                      <TouchableOpacity onPress={handleTogglePicker}>
-                        <Text style={styles.modalCloseText}>Close</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              </Modal>
+            {/* Address Modal */}
+            <AddressModal
+              visible={addressModalVisible}
+              onClose={() => setAddressModalVisible(false)}
+              onAddressSelected={handleAddressSelected}
+            />
 
-              {/* Vacancy Modal */}
-              <Modal
-                visible={vacancyModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={handleToggleVacancyPicker}
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={vacancy}
-                      onValueChange={handleVacancyChange}
-                      style={styles.picker}
-                    >
-                      <Picker.Item label="Select occupancy" value="" />
-                      <Picker.Item label="Occupied" value="occupied" />
-                      <Picker.Item label="Unoccupied" value="unoccupied" />
-                    </Picker>
-                    <View style={styles.modalCloseContainer}>
-                      <TouchableOpacity onPress={handleToggleVacancyPicker}>
-                        <Text style={styles.modalCloseText}>Close</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              </Modal>
-
-              {newTicket.ticketPhotos.length > 0 && (
-                <PhotoGallery
-                  photos={newTicket.ticketPhotos}
-                  onRemovePhoto={handleRemovePhoto}
-                />
-              )}
-              <TouchableOpacity
-                onPress={handleAddPhoto}
-                style={styles.addPhotoButton}
-              >
-                <Text style={styles.addPhotoButtonText}>Add Photo</Text>
-              </TouchableOpacity>
-              <View style={styles.actionButtons}>
+            {/* Builder Selection Section */}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Builder</Text>
+              <View style={styles.selectionContainer}>
+                <Text style={styles.selectionText}>
+                  {newTicket.customerName
+                    ? newTicket.customerName
+                    : 'No builder selected'}
+                </Text>
                 <TouchableOpacity
-                  onPress={handleCreate}
+                  onPress={() => setBuilderModalVisible(true)}
                   style={[
-                    styles.actionButton,
-                    styles.createButton,
-                    isSubmitting && styles.disabledButton,
+                    styles.plusButton,
+                    {
+                      backgroundColor: builderModalVisible ? 'red' : '#2980b9',
+                    },
                   ]}
-                  disabled={isSubmitting}
                 >
-                  <Text style={styles.actionButtonText}>
-                    {isSubmitting ? 'Creating...' : 'Create'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleBack}
-                  style={[styles.actionButton, styles.cancelButton]}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.actionButtonText}>Cancel</Text>
+                  <IconSymbol
+                    name={builderModalVisible ? 'minus' : 'plus'}
+                    color="white"
+                  />
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </View>
+            </View>
+
+            {/* Builder Modal */}
+            <BuilderModal
+              visible={builderModalVisible}
+              onClose={() => setBuilderModalVisible(false)}
+              onSelectCustomer={handleSelectCustomer}
+              allCustomers={allCustomers}
+            />
+
+            {/* Homeowner Section */}
+            <View style={styles.card}>
+              <View
+                style={[
+                  styles.selectionContainer,
+                  {
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                  },
+                ]}
+              >
+                <Text style={styles.modalTitle}>Homeowner</Text>
+                <TouchableOpacity
+                  onPress={() => setShowHomeowner(prev => !prev)}
+                  style={[
+                    styles.plusButton,
+                    { backgroundColor: showHomeowner ? 'red' : '#2980b9' },
+                  ]}
+                >
+                  <IconSymbol
+                    name={showHomeowner ? 'minus' : 'plus'}
+                    color="white"
+                  />
+                </TouchableOpacity>
+              </View>
+              {showHomeowner && (
+                <>
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="Homeowner Name"
+                    value={newTicket.homeOwnerName}
+                    onChangeText={text =>
+                      setNewTicket({ ...newTicket, homeOwnerName: text })
+                    }
+                  />
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="Homeowner Number"
+                    value={newTicket.homeOwnerNumber}
+                    onChangeText={handleHomeOwnerNumberChange}
+                    keyboardType="phone-pad"
+                  />
+                </>
+              )}
+            </View>
+
+            {/* Ticket Details */}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Ticket Details</Text>
+              <TextInput
+                style={styles.inputField}
+                placeholder="Inspector Name"
+                value={newTicket.inspectorName}
+                onChangeText={text =>
+                  setNewTicket({ ...newTicket, inspectorName: text })
+                }
+              />
+              <TextInput
+                style={[styles.inputField, { height: 100 }]}
+                placeholder="Reason for visit"
+                value={newTicket.reason}
+                onChangeText={text =>
+                  setNewTicket({ ...newTicket, reason: text })
+                }
+                multiline
+              />
+              <TextInput
+                style={[styles.inputField, { height: 80 }]}
+                placeholder="Add a note for this ticket..."
+                value={newNote}
+                onChangeText={setNewNote}
+                multiline
+                numberOfLines={4}
+              />
+              <TouchableOpacity
+                onPress={handleTogglePicker}
+                style={styles.button}
+              >
+                <Text style={styles.buttonText}>
+                  {jobType ? jobType : 'Select Job Type'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleToggleVacancyPicker}
+                style={styles.button}
+              >
+                <Text style={styles.buttonText}>
+                  {vacancy === 'occupied'
+                    ? 'Occupied'
+                    : vacancy === 'unoccupied'
+                    ? 'Unoccupied'
+                    : 'Select Occupancy'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Job Type Modal */}
+            <Modal
+              visible={jobTypeModalVisible}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={handleTogglePicker}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={jobType}
+                    onValueChange={handleJobTypeChange}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Select job type" value="" />
+                    <Picker.Item
+                      label="Leak Detection"
+                      value="leak detection"
+                    />
+                    <Picker.Item label="Inspection" value="inspection" />
+                    <Picker.Item label="Containment" value="containment" />
+                    <Picker.Item label="Flood" value="flood" />
+                    <Picker.Item label="Mold Job" value="mold job" />
+                    <Picker.Item label="Wipe Down" value="wipe down" />
+                  </Picker>
+                  <View style={styles.modalCloseContainer}>
+                    <TouchableOpacity onPress={handleTogglePicker}>
+                      <Text style={styles.modalCloseText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+
+            {/* Vacancy Modal */}
+            <Modal
+              visible={vacancyModalVisible}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={handleToggleVacancyPicker}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={vacancy}
+                    onValueChange={handleVacancyChange}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Select occupancy" value="" />
+                    <Picker.Item label="Occupied" value="occupied" />
+                    <Picker.Item label="Unoccupied" value="unoccupied" />
+                  </Picker>
+                  <View style={styles.modalCloseContainer}>
+                    <TouchableOpacity onPress={handleToggleVacancyPicker}>
+                      <Text style={styles.modalCloseText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+
+            {newTicket.ticketPhotos.length > 0 && (
+              <PhotoGallery
+                photos={newTicket.ticketPhotos}
+                onRemovePhoto={handleRemovePhoto}
+              />
+            )}
+            <TouchableOpacity
+              onPress={handleAddPhoto}
+              style={styles.addPhotoButton}
+            >
+              <Text style={styles.addPhotoButtonText}>Add Photo</Text>
+            </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                onPress={handleCreate}
+                style={[
+                  styles.actionButton,
+                  styles.createButton,
+                  isSubmitting && styles.disabledButton,
+                ]}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.actionButtonText}>
+                  {isSubmitting ? 'Creating...' : 'Create'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleBack}
+                style={[styles.actionButton, styles.cancelButton]}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.actionButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
@@ -633,8 +633,23 @@ const styles = StyleSheet.create({
   // General container and typography
   container: {
     flex: 1,
-    padding: 5,
+  },
+  safeArea: {
+    flex: 1,
     backgroundColor: '#fff',
+  },
+  headerWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120, // must match HEADER_HEIGHT in your header component
+    zIndex: 1000,
+  },
+  contentWrapper: {
+    flex: 1,
+    marginTop: 120, // pushes content below the header
+    padding: 5, // your desired padding for the content
   },
   scrollView: {
     paddingHorizontal: 5,

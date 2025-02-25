@@ -29,7 +29,7 @@ const TicketsScreen = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [showDatePicker, setShowDatePicker] = useState(false)
 
-  const HEADER_HEIGHT = 180
+  const HEADER_HEIGHT = 140
 
   const scrollY = useRef(new Animated.Value(0)).current
   const floatingOpacity = scrollY.interpolate({
@@ -156,7 +156,7 @@ const TicketsScreen = () => {
               const containerStyle = index % 2 === 0 ? '#F5F8FA' : '#FFFFFF'
               const timeColor = index % 2 === 0 ? '#0D47A1' : '#1976D2'
               return (
-                <View key={ticketKey} style={{ marginBottom: 8 }}>
+                <View key={ticketKey}>
                   <TicketCard
                     ticket={ticket}
                     onPress={() => {
