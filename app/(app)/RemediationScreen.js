@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -43,7 +42,8 @@ const RemediationScreen = () => {
 
   // Rooms (each has measurements and photos)
   const [rooms, setRooms] = useState([])
-  const HEADER_HEIGHT = 80
+  const [headerHeight, setHeaderHeight] = useState(0) // Add state for dynamic header height
+  const marginBelowHeader = 8 // Define margin below header (adjust as needed)
 
   // For the Items picker modal
   const [showItemsModal, setShowItemsModal] = useState(false)
@@ -300,13 +300,13 @@ const RemediationScreen = () => {
 
   // -------------------- Render --------------------
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
         title="Remediation"
         onBack={() => router.back()}
         options={headerOptions}
+        onHeightChange={height => setHeaderHeight(height)}
       />
-
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -314,9 +314,10 @@ const RemediationScreen = () => {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
+            style={styles.scrollView}
             contentContainerStyle={[
               styles.scrollContainer,
-              { paddingTop: HEADER_HEIGHT },
+              { paddingTop: headerHeight + marginBelowHeader },
             ]}
           >
             {rooms.map(room => (
@@ -510,7 +511,7 @@ const RemediationScreen = () => {
           onConfirm={handleConfirmAddRoom}
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -524,15 +525,21 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
   },
-  container: {
+  fullScreenContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // White background for a Twitter-like feel
+    backgroundColor: '#FFFFFF',
   },
-  // ---------- Top Bar (similar to Twitter) ----------
+  scrollView: {
+    flex: 1,
+  },
+  scrollContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1DA1F2', // Twitter's brand color
+    backgroundColor: '#1DA1F2',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -544,7 +551,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-
   backButtonText: {
     color: '#FFF',
     fontSize: 16,
@@ -555,20 +561,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
   },
-  // ---------- Scroll Container ----------
-  scrollContainer: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-
-  // ---------- Room Card ----------
   roomCard: {
-    backgroundColor: '#F5F8FA', // Slightly off-white (similar to Twitter's timeline background)
+    backgroundColor: '#F5F8FA',
     borderRadius: 10,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E1E8ED', // Light Twittery border
+    borderColor: '#E1E8ED',
   },
   roomHeader: {
     flexDirection: 'row',
@@ -579,13 +578,12 @@ const styles = StyleSheet.create({
   roomName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#14171A', // Twitter uses near-black for text
+    color: '#14171A',
   },
   deleteRoomText: {
-    color: '#E0245E', // Twitter's “like” color: pinkish/red
+    color: '#E0245E',
     fontWeight: '600',
   },
-  // ---------- Sections (Measurements, Photos) ----------
   section: {
     marginTop: 12,
   },
@@ -595,7 +593,6 @@ const styles = StyleSheet.create({
     color: '#14171A',
     marginRight: 6,
   },
-  // ---------- Measurements ----------
   measurementRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -623,7 +620,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addMeasurementButton: {
-    backgroundColor: '#17BF63', // Twitter's "retweet" green
+    backgroundColor: '#17BF63',
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -645,12 +642,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  // ---------- Photos ----------
   photoRow: {
     flexDirection: 'row',
   },
   noPhotoText: {
-    color: '#657786', // A grey color from Twitter's palette
+    color: '#657786',
     fontSize: 14,
     marginBottom: 4,
   },
@@ -690,7 +686,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-  // ---------- Save Button ----------
   saveButton: {
     backgroundColor: '#1DA1F2',
     borderRadius: 4,
@@ -705,7 +700,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  // ---------- Floating "Add Room" Button ----------
   floatingAddRoomButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -718,7 +712,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  // ---------- Modal Styles ----------
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
@@ -781,7 +774,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  // ---------- Room Type Options (Add Room Modal) ----------
   roomOptionsRow: {
     flexDirection: 'row',
     marginVertical: 8,

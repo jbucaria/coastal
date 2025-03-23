@@ -1,7 +1,6 @@
-// HeaderWithOptions.jsx
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { router } from 'expo-router'
 import {
   TouchableOpacity,
@@ -11,24 +10,38 @@ import {
   Modal,
   TouchableWithoutFeedback,
   View,
+  Platform, // Added for platform-specific tweaks
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import Constants from 'expo-constants'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import Icon from 'react-native-vector-icons/Ionicons'
 import { BlurView } from 'expo-blur'
-import { IconSymbol } from '@/components/ui/IconSymbol'
 
-const HEADER_HEIGHT = 120
-
-const HeaderWithOptions = ({ title, onBack, options, showHome }) => {
+const HeaderWithOptions = ({
+  title,
+  onBack,
+  options,
+  showHome,
+  onHeightChange,
+}) => {
   const [modalVisible, setModalVisible] = useState(false)
+  const insets = useSafeAreaInsets()
+  const baseHeaderHeight = 60 // Base height for content
+  const headerHeight = insets.top + baseHeaderHeight + 8 // Dynamic height
 
-  // Optional scroll-based animation—remove if you want a static header.
   const scrollY = useRef(new Animated.Value(0)).current
   const translateY = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [0, -100],
     extrapolate: 'clamp',
   })
+
+  // Pass the calculated height to the parent
+  useEffect(() => {
+    if (onHeightChange) {
+      onHeightChange(headerHeight)
+    }
+  }, [headerHeight, onHeightChange])
 
   const handleOptionPress = option => {
     setModalVisible(false)
@@ -40,11 +53,20 @@ const HeaderWithOptions = ({ title, onBack, options, showHome }) => {
   return (
     <>
       <Animated.View
-        style={[styles.headerContainer, { transform: [{ translateY }] }]}
+        style={[
+          styles.headerContainer,
+          { height: headerHeight, transform: [{ translateY }] },
+        ]}
       >
-        <BlurView intensity={90} tint="default" style={styles.blurBackground}>
-          <View style={styles.topBar}>
-            {/* Left side container for back + home */}
+        <BlurView
+          intensity={90} // Blur intensity (0-100)
+          tint="default" // Consistent across platforms
+          style={styles.blurBackground}
+          experimentalBlurMethod={
+            Platform.OS === 'android' ? 'dither' : undefined
+          } // Optional: improve Android blur
+        >
+          <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
             <View style={styles.leftContainer}>
               <TouchableOpacity
                 onPress={() => {
@@ -53,11 +75,7 @@ const HeaderWithOptions = ({ title, onBack, options, showHome }) => {
                 }}
                 style={styles.headerButton}
               >
-                <IconSymbol
-                  name="arrow.backward.circle"
-                  color="black"
-                  size={28}
-                />
+                <Icon name="arrow-back-circle" size={28} color="black" />
               </TouchableOpacity>
               {showHome && (
                 <TouchableOpacity
@@ -67,30 +85,25 @@ const HeaderWithOptions = ({ title, onBack, options, showHome }) => {
                   }}
                   style={styles.headerButton}
                 >
-                  <IconSymbol name="house.circle" color="black" size={28} />
+                  <Icon name="home-circle" size={28} color="black" />
                 </TouchableOpacity>
               )}
             </View>
-
-            {/* Center container for title */}
             <View style={styles.centerContainer}>
               <Text style={styles.topBarTitle}>{title}</Text>
             </View>
-
-            {/* Right side container for ellipsis */}
             <View style={styles.rightContainer}>
               <TouchableOpacity
                 onPress={() => setModalVisible(true)}
                 style={styles.headerButton}
               >
-                <IconSymbol name="ellipsis" color="black" size={28} />
+                <Icon name="ellipsis-horizontal" size={28} color="black" />
               </TouchableOpacity>
             </View>
           </View>
         </BlurView>
       </Animated.View>
 
-      {/* Modal for Options */}
       <Modal
         visible={modalVisible}
         transparent
@@ -132,7 +145,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: HEADER_HEIGHT,
     zIndex: 1000,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
@@ -144,16 +156,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    // Extra top padding so content sits below the status bar
-    paddingTop: Constants.statusBarHeight + 8,
-    // Horizontal padding for the entire bar
     paddingHorizontal: 16,
-    // If you want the three containers to distribute horizontally:
     justifyContent: 'space-between',
   },
-  // We give leftContainer and rightContainer the same width so the title is truly centered
   leftContainer: {
-    width: 100, // Adjust as needed
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -163,7 +169,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightContainer: {
-    width: 100, // Must match leftContainer's width
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -175,7 +180,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: 'black',
-    flex: 1,
     textAlign: 'center',
   },
   modalOverlay: {

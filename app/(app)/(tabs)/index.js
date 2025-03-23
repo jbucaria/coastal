@@ -1,12 +1,10 @@
-// TicketsScreen.jsx
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
 import {
   Animated,
-  SafeAreaView,
+  View, // Changed from SafeAreaView
   ImageBackground,
-  View,
   Text,
   StyleSheet,
 } from 'react-native'
@@ -27,8 +25,7 @@ const TicketsScreen = () => {
   const [sortOption, setSortOption] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showDatePicker, setShowDatePicker] = useState(false)
-
-  const HEADER_HEIGHT = 140
+  const [headerHeight, setHeaderHeight] = useState(0) // Add state for dynamic header height
 
   const scrollY = useRef(new Animated.Value(0)).current
   const floatingOpacity = scrollY.interpolate({
@@ -122,8 +119,7 @@ const TicketsScreen = () => {
         transform: [{ scale: 1.8 }],
       }}
     >
-      <SafeAreaView style={styles.fullSafeArea}>
-        {/* Render the TicketsHeader with all functionality */}
+      <View style={styles.fullScreenContainer}>
         <TicketsHeader
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -135,11 +131,13 @@ const TicketsScreen = () => {
           setSortOption={setSortOption}
           clearFilter={clearFilter}
           isClearDisabled={isClearDisabled}
+          onHeightChange={height => setHeaderHeight(height)} // Pass callback for header height
         />
         <Animated.ScrollView
+          style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollViewContent,
-            { paddingTop: HEADER_HEIGHT },
+            { paddingTop: headerHeight }, // Use dynamic header height
           ]}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -154,8 +152,8 @@ const TicketsScreen = () => {
               const ticketKey = ticket.id || `ticket-${index}`
               const containerStyle =
                 index % 2 === 0
-                  ? 'rgba(245,248,250,0.8)' // equivalent to #F5F8FA with 80% opacity
-                  : 'rgba(255,255,255,0.8)' // equivalent to #FFFFFF with 80% opacity
+                  ? 'rgba(245,248,250,0.8)'
+                  : 'rgba(255,255,255,0.8)'
               const timeColor = index % 2 === 0 ? '#0D47A1' : '#1976D2'
               return (
                 <View key={ticketKey}>
@@ -177,6 +175,7 @@ const TicketsScreen = () => {
             </Text>
           )}
         </Animated.ScrollView>
+
         <View style={{ position: 'absolute', right: 24, bottom: 110 }}>
           <FloatingButton
             onPress={() => router.push('/CreateTicketScreen')}
@@ -186,7 +185,7 @@ const TicketsScreen = () => {
             size={32}
           />
         </View>
-      </SafeAreaView>
+      </View>
     </ImageBackground>
   )
 }
@@ -194,11 +193,14 @@ const TicketsScreen = () => {
 export default TicketsScreen
 
 const styles = StyleSheet.create({
-  fullSafeArea: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: 'transparent',
   },
   backgroundImage: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   scrollViewContent: {

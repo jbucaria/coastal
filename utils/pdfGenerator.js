@@ -1,17 +1,3 @@
-// pdfGenerator.js
-import * as Print from 'expo-print'
-import * as FileSystem from 'expo-file-system'
-import { Asset } from 'expo-asset'
-
-export const getLogoBase64 = async () => {
-  const asset = Asset.fromModule(require('@/assets/images/logo.png'))
-  await asset.downloadAsync()
-  const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  })
-  return base64
-}
-
 export const generateReportHTML = (logoBase64, ticket) => {
   const {
     ticketNumber,
@@ -58,13 +44,15 @@ ${reason}`
                     : ''
                 )
                 .join('')
-            : `<p>No photos available for this room.</p>`
+            : `<p class="no-photos">No photos available for this room.</p>`
         return `
-          <div class="room-section">
+          <div class="room-card">
             <h3>${roomTitle}</h3>
-            <p>Inspection Findings:</p>
-            <p>${inspectionFindings}</p>
-            <div class="room-photos">
+            <div class="findings">
+              <p><strong>Findings:</strong></p>
+              <p>${inspectionFindings}</p>
+            </div>
+            <div class="photo-gallery">
               ${roomPhotosHTML}
             </div>
           </div>
@@ -72,7 +60,7 @@ ${reason}`
       })
       .join('')
   } else {
-    roomsHTML = `<p>No inspection data available.</p>`
+    roomsHTML = `<p class="no-data">No inspection data available.</p>`
   }
 
   return `
@@ -81,86 +69,139 @@ ${reason}`
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            font-size: 16px;
-            margin: 40px;
-            color: #333;
-            line-height: 1.8;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #2d3748;
+            line-height: 1.6;
+          }
+          .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
           }
           .header {
+            background: #2b6cb0;
+            color: white;
+            padding: 20px;
             text-align: center;
-            margin-bottom: 30px;
+            border-bottom: 4px solid #2c5282;
           }
           .header img {
-            max-width: 300px; /* Increased logo size */
+            max-width: 250px;
             margin-bottom: 10px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
           }
           .report-section {
-            margin-bottom: 30px;
+            padding: 30px;
           }
           .report-section pre {
-            background-color: #f7f7f7;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2b6cb0;
+            font-size: 14px;
             white-space: pre-wrap;
+            color: #4a5568;
           }
-          .room-section {
+          .room-card {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px;
             margin-bottom: 20px;
-            page-break-inside: avoid; 
-            break-inside: avoid;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+            page-break-inside: avoid;
           }
-          .room-section h3 {
-            color: #0073BC;
-            margin-bottom: 5px;
+          .room-card:hover {
+            transform: translateY(-5px);
           }
-          .room-photos {
-            text-align: center;
+          .room-card h3 {
+            color: #2b6cb0;
+            font-size: 20px;
+            margin: 0 0 10px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 5px;
           }
-          .room-photos img {
-            width: 200px;
-            height: 150px; /* Enforces consistent height */
+          .findings p {
+            margin: 5px 0;
+          }
+          .findings strong {
+            color: #1a202c;
+          }
+          .photo-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+          }
+          .photo-gallery img {
+            width: 220px;
+            height: 165px;
             object-fit: cover;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            margin: 10px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+          }
+          .photo-gallery img:hover {
+            transform: scale(1.05);
+          }
+          .no-photos, .no-data {
+            color: #718096;
+            font-style: italic;
+            text-align: center;
           }
           .footer {
             text-align: center;
-            font-size: 14px;
-            color: #777;
-            margin-top: 40px;
-            padding-top: 10px;
+            padding: 20px;
+            font-size: 12px;
+            color: #a0aec0;
+            background: #edf2f7;
+            border-top: 1px solid #e2e8f0;
+          }
+          @media print {
+            .container {
+              box-shadow: none;
+              margin: 0;
+              width: 100%;
+            }
+            .room-card:hover {
+              transform: none;
+            }
+            .photo-gallery img:hover {
+              transform: none;
+            }
           }
         </style>
       </head>
       <body>
-        <div class="header">
-          <img src="data:image/png;base64,${logoBase64}" alt="Logo" />
-        </div>
-        <div class="report-section">
-          <pre>${reportText}</pre>
-        </div>
-        <div class="report-section">
-          ${roomsHTML}
-        </div>
-        <div class="footer">
-          Report generated by Coastal Restoration Services
+        <div class="container">
+          <div class="header">
+            <img src="data:image/png;base64,${logoBase64}" alt="Logo" />
+            <h1>Inspection Report</h1>
+          </div>
+          <div class="report-section">
+            <pre>${reportText}</pre>
+          </div>
+          <div class="report-section">
+            ${roomsHTML}
+          </div>
+          <div class="footer">
+            Report generated by Coastal Restoration Services
+          </div>
         </div>
       </body>
     </html>
   `
-}
-
-export const generatePDF = async ticket => {
-  try {
-    const logoBase64 = await getLogoBase64()
-    const html = generateReportHTML(logoBase64, ticket)
-    const { uri } = await Print.printToFileAsync({ html })
-    console.log('PDF generated at:', uri)
-    return uri
-  } catch (error) {
-    console.error('Error generating PDF:', error)
-    throw error
-  }
 }

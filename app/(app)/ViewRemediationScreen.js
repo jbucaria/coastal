@@ -3,9 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import {
-  SafeAreaView,
-  ScrollView,
   View,
+  ScrollView,
   Text,
   Image,
   StyleSheet,
@@ -29,10 +28,11 @@ export default function ViewRemediationScreen() {
   const projectId = projectIdFromParams ?? storeProjectId
 
   const router = useRouter()
-  const HEADER_HEIGHT = 80
 
   const [remediationData, setRemediationData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const marginBelowHeader = 8
 
   // Photo Modal State
   const [selectedPhoto, setSelectedPhoto] = useState(null)
@@ -67,7 +67,6 @@ export default function ViewRemediationScreen() {
 
         if (docSnap.exists()) {
           const data = docSnap.data()
-          // Ensure remediationData is not null and has a rooms array
           setRemediationData(data.remediationData || { rooms: [] })
         } else {
           Alert.alert('Error', 'No remediation data found.')
@@ -85,9 +84,9 @@ export default function ViewRemediationScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2C3E50" />
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -97,40 +96,37 @@ export default function ViewRemediationScreen() {
     remediationData.rooms.length === 0
   ) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.fullScreenContainer}>
         <Text style={styles.errorText}>No remediation data available.</Text>
-      </SafeAreaView>
+      </View>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
         title="Remediation Report"
         onBack={() => router.back()}
         options={headerOptions}
+        onHeightChange={height => setHeaderHeight(height)}
       />
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContainer,
-          { paddingTop: HEADER_HEIGHT },
+          { paddingTop: headerHeight + marginBelowHeader },
         ]}
       >
-        {/* Map over rooms */}
         {remediationData.rooms.map((room, roomIndex) => {
-          // Use room.id if available; otherwise, combine the index and room name
           const roomKey = room.id
             ? room.id
             : `room-${roomIndex}-${room.roomTitle || 'Room'}`
 
           return (
             <View key={roomKey} style={styles.roomContainer}>
-              {/* Room Name */}
               <Text style={styles.roomTitle}>
                 {room.roomTitle || 'Unnamed Room'}
               </Text>
-
-              {/* Measurements */}
               {room.measurements &&
                 room.measurements.map((measurement, measIndex) => {
                   const measurementKey = measurement.id
@@ -144,17 +140,12 @@ export default function ViewRemediationScreen() {
                     </View>
                   )
                 })}
-
-              {/* Photos */}
               {room.photos &&
                 Array.isArray(room.photos) &&
                 room.photos.length > 0 && (
                   <ScrollView horizontal style={styles.photoRow}>
                     {room.photos.map((photo, index) => {
-                      // Provide a fallback if photo is missing or invalid
                       if (!photo || !photo.downloadURL) return null
-
-                      // Unique key for photo (use storagePath if available)
                       const photoKey = photo.storagePath || `photo-${index}`
 
                       return (
@@ -179,8 +170,6 @@ export default function ViewRemediationScreen() {
           )
         })}
       </ScrollView>
-
-      {/* Photo Modal */}
       {photoModalVisible && (
         <PhotoModal
           visible={photoModalVisible}
@@ -188,12 +177,12 @@ export default function ViewRemediationScreen() {
           onClose={() => setPhotoModalVisible(false)}
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: '#F3F5F7',
   },
@@ -201,6 +190,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContainer: {
     padding: 16,

@@ -1,7 +1,6 @@
-// TicketsHeader.jsx
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   TextInput,
@@ -9,13 +8,13 @@ import {
   Text,
   StyleSheet,
   Modal,
+  Platform, // Added for platform-specific adjustments
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { BlurView } from 'expo-blur'
 import Constants from 'expo-constants'
 import { IconSymbol } from '@/components/ui/IconSymbol'
-
-const HEADER_HEIGHT = 180
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 const TicketsHeader = ({
   searchQuery,
@@ -28,9 +27,18 @@ const TicketsHeader = ({
   setSortOption,
   clearFilter,
   isClearDisabled,
+  onHeightChange,
 }) => {
-  // Local state for controlling the sort modal
   const [isSortModalVisible, setSortModalVisible] = useState(false)
+  const insets = useSafeAreaInsets()
+  const baseHeaderHeight = 120 // Base height for content
+  const headerHeight = insets.top + baseHeaderHeight + 8 // Dynamic height
+
+  useEffect(() => {
+    if (onHeightChange) {
+      onHeightChange(headerHeight)
+    }
+  }, [headerHeight, onHeightChange])
 
   const openSortModal = () => {
     setSortModalVisible(true)
@@ -67,9 +75,16 @@ const TicketsHeader = ({
   }
 
   return (
-    <View style={styles.absoluteHeader}>
-      <BlurView intensity={90} tint="regular" style={styles.headerBlur}>
-        <View style={styles.headerContent}>
+    <View style={[styles.absoluteHeader, { height: headerHeight }]}>
+      <BlurView
+        intensity={80} // Blur intensity (0-100)
+        tint="default" // Changed to "default" for consistency across platforms
+        style={styles.headerBlur}
+        experimentalBlurMethod={
+          Platform.OS === 'android' ? 'dither' : undefined
+        } // Optional: improve Android blur
+      >
+        <View style={[styles.headerContent, { paddingTop: insets.top + 8 }]}>
           {/* Search Bar */}
           <View style={styles.searchBarContainer}>
             <View style={styles.searchBar}>
@@ -160,19 +175,16 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: HEADER_HEIGHT,
     zIndex: 1000,
   },
   headerBlur: {
     flex: 1,
-    backgroundColor: 'transparent',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
   headerContent: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: Constants.statusBarHeight + 8, // push content below status bar
     paddingBottom: 8,
   },
   searchBarContainer: {

@@ -8,11 +8,9 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   TextInput,
   StyleSheet,
 } from 'react-native'
-import { Picker } from '@react-native-picker/picker'
 import { firestore } from '@/firebaseConfig'
 import { collection, setDoc, doc, getDocs } from 'firebase/firestore'
 import * as AuthSession from 'expo-auth-session'

@@ -1,13 +1,19 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, View } from 'react-native'
+import {
+  ActivityIndicator,
+  View,
+  Platform,
+  StatusBar,
+  StyleSheet,
+} from 'react-native'
 import { useRouter, useSegments, Slot } from 'expo-router'
 import { ThemeProvider, DefaultTheme } from '@react-navigation/native'
-
 import { auth, firestore } from '@/firebaseConfig'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { useUserStore } from '@/store/useUserStore'
-import useAuthStore from '@/store/useAuthStore' // Import Zustand store
+import useAuthStore from '@/store/useAuthStore'
 
 export default function RootLayout() {
   const [initializing, setInitializing] = useState(true)
@@ -16,6 +22,17 @@ export default function RootLayout() {
   const segments = useSegments()
   const { setUser, user } = useUserStore()
   const { setCredentials } = useAuthStore()
+
+  // Set status bar style and translucent behavior
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      StatusBar.setTranslucent(true)
+      StatusBar.setBackgroundColor('transparent')
+      StatusBar.setBarStyle('dark-content') // Change to dark content on Android
+    } else if (Platform.OS === 'ios') {
+      StatusBar.setBarStyle('dark-content') // Keep dark content on iOS
+    }
+  }, [])
 
   useEffect(() => {
     if (auth.currentUser) {
@@ -35,14 +52,12 @@ export default function RootLayout() {
     const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
       if (firebaseUser) {
         try {
-          // Fetch user profile
           const userDocRef = doc(firestore, 'users', firebaseUser.uid)
           const userDocSnap = await getDoc(userDocRef)
           const profileData = userDocSnap.exists() ? userDocSnap.data() : {}
           const userData = { ...firebaseUser, ...profileData }
           setUser(userData)
 
-          // 🔥 Fetch QuickBooks credentials from Firestore
           const companyRef = doc(
             firestore,
             'companyInfo',
@@ -52,8 +67,6 @@ export default function RootLayout() {
 
           if (companySnap.exists()) {
             const companyData = companySnap.data()
-
-            // ✅ Store QuickBooks credentials in Zustand
             setCredentials({
               quickBooksCompanyId: companyData.quickBooksCompanyId,
               clientId: companyData.clientId,
@@ -108,8 +121,19 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={DefaultTheme}>
-      <Slot />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={DefaultTheme}>
+        <View style={styles.fullScreenContainer}>
+          <Slot />
+        </View>
+      </ThemeProvider>
+    </SafeAreaProvider>
   )
 }
+
+const styles = StyleSheet.create({
+  fullScreenContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+})

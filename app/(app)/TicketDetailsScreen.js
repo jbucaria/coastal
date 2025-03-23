@@ -2,7 +2,6 @@
 
 import React, { useRef, useEffect, useState } from 'react'
 import {
-  SafeAreaView,
   Animated,
   ScrollView,
   View,
@@ -14,10 +13,8 @@ import {
   Alert,
   Platform,
   Linking,
-  Modal,
-  TouchableWithoutFeedback,
 } from 'react-native'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { updateDoc, doc } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { getTravelTime } from '@/utils/getTravelTime'
@@ -28,9 +25,8 @@ import useProjectStore from '@/store/useProjectStore'
 import { ETAButton } from '@/components/EtaButton'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { formatPhoneNumber } from '@/utils/helpers'
-import useTicket from '@/hooks/useTicket' // Import the custom hook
+import useTicket from '@/hooks/useTicket'
 
-// Helper to open Google Maps with ETA
 const openGoogleMapsWithETA = address => {
   const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
     address
@@ -41,20 +37,21 @@ const openGoogleMapsWithETA = address => {
 const TicketDetailsScreen = () => {
   const router = useRouter()
   const { projectId } = useProjectStore()
-  const { ticket, error } = useTicket(projectId) // Use the custom hook to subscribe to ticket data
+  const { ticket, error } = useTicket(projectId)
   const [eta, setEta] = useState(null)
   const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [headerHeight, setHeaderHeight] = useState(0) // State for dynamic header height
   const scrollY = useRef(new Animated.Value(0)).current
 
-  // If there's an error, alert the user
+  const marginBelowHeader = 8 // Define the margin below the header (adjust as needed)
+
   useEffect(() => {
     if (error) {
       Alert.alert('Error', 'Unable to fetch ticket data.')
     }
   }, [error])
 
-  // Get travel time based on ticket address
   useEffect(() => {
     if (ticket?.address) {
       getTravelTime(ticket.address)
@@ -70,14 +67,13 @@ const TicketDetailsScreen = () => {
 
   if (!ticket) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1DA1F2" />
         <Text style={styles.loadingText}>Loading ticket details...</Text>
-      </SafeAreaView>
+      </View>
     )
   }
 
-  // Deconstruct ticket properties for easier access
   const {
     street,
     city,
@@ -175,14 +171,10 @@ const TicketDetailsScreen = () => {
     })
   }
 
-  // Define header options
   const remediationStatus = ticket?.remediationStatus ?? 'notStarted'
 
   const options = [
-    {
-      label: 'Delete Ticket',
-      onPress: () => handleDeleteTicket(),
-    },
+    { label: 'Delete Ticket', onPress: () => handleDeleteTicket() },
     {
       label: siteComplete ? 'Mark Incomplete' : 'Mark Complete',
       onPress: async () => {
@@ -236,7 +228,6 @@ const TicketDetailsScreen = () => {
             params: { projectId },
           })
         } else {
-          // Navigate to the edit screen so the user can start/continue remediation
           router.push({
             pathname: '/RemediationScreen',
             params: { projectId },
@@ -250,21 +241,20 @@ const TicketDetailsScreen = () => {
     },
   ]
 
-  const HEADER_HEIGHT = 80
-
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
         title="Ticket Details"
         onBack={() => router.back()}
         onOptions={() => {}}
         options={options}
+        onHeightChange={height => setHeaderHeight(height)}
       />
       <Animated.ScrollView
-        // style={{ marginTop: HEADER_HEIGHT }}
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: HEADER_HEIGHT },
+          { paddingTop: headerHeight + marginBelowHeader }, // Add margin below header
         ]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -282,7 +272,6 @@ const TicketDetailsScreen = () => {
             status={eta === 'N/A' ? 'delayed' : 'normal'}
           />
         </View>
-        {/* Contact Info Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Contact Info</Text>
           <View style={styles.contactSection}>
@@ -320,7 +309,6 @@ const TicketDetailsScreen = () => {
             </View>
           )}
         </View>
-        {/* Inspector & Reason Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Inspector & Reason</Text>
           <View style={styles.inspectorSection}>
@@ -356,20 +344,7 @@ const TicketDetailsScreen = () => {
           <Text style={styles.cardTitle}>Status</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Under Construction</Text>
-            {/* <Text style={styles.infoValue}>{equipmentTotal || 0}</Text> */}
           </View>
-          {/* <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Measurements Required:</Text>
-            <Text style={styles.infoValue}>
-              {remediationRequired ? 'True' : 'False'}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Inspection Needed:</Text>
-            <Text style={styles.infoValue}>
-              {inspectionComplete ? 'Complete' : 'Required'}
-            </Text>
-          </View> */}
         </View>
       </Animated.ScrollView>
       <PhotoModal
@@ -377,13 +352,24 @@ const TicketDetailsScreen = () => {
         photo={selectedPhoto}
         onClose={closePhoto}
       />
-    </SafeAreaView>
+    </View>
   )
 }
 
 export default TicketDetailsScreen
 
 const styles = StyleSheet.create({
+  fullScreenContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
   addressText: {
     color: '#14171A',
     fontSize: 16,
@@ -429,9 +415,6 @@ const styles = StyleSheet.create({
     color: '#555555',
     fontSize: 16,
     marginBottom: 4,
-  },
-  container: {
-    backgroundColor: '#ffffff',
   },
   infoLabel: {
     color: '#14171A',
@@ -538,13 +521,6 @@ const styles = StyleSheet.create({
     color: 'red',
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  scrollView: {
-    paddingHorizontal: 5,
   },
   searchSection: {
     marginBottom: 5,

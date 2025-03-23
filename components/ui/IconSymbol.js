@@ -3,7 +3,7 @@ import { Platform } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { SymbolView } from 'expo-symbols'
 
-// Mapping from SF Symbol names to MaterialIcons names for non‑iOS platforms
+// Mapping from SF Symbol names to MaterialIcons names for non-iOS platforms
 const MAPPING = {
   plus: 'add',
   home: 'home',
@@ -12,9 +12,25 @@ const MAPPING = {
   gear: 'settings',
   checkmark: 'check',
   magnifyingglass: 'search',
-  calander: 'calendar-today', // Adjust spelling if needed
+  calendar: 'calendar-today',
   'xmark.circle': 'cancel',
   'arrow.left.square': 'arrow-back',
+  'arrow.backward.circle': 'arrow-back',
+  'house.circle': 'home',
+  ellipsis: 'more-vert',
+  'slider.horizontal.3': 'sort',
+  'plus.circle': 'add-circle',
+  'house.fill': 'home',
+  'map.circle': 'map',
+  trash: 'delete', // Added previously
+  clock: 'schedule', // Added previously
+  'text.document': 'description', // For inspection complete
+  'hammer.circle.fill': 'build', // For remediation required (no exact circle fill match)
+  'pencil.and.ruler.fill': 'edit', // For remediation data (approximation)
+  'fan.fill': 'toys', // For equipment total (fan approximation)
+  'bubble.left.and.text.bubble.right.fill': 'chat', // For message count
+  'person.crop.square': 'person', // For on-site status (approximation)
+  // Add other mappings as needed
 }
 
 export function IconSymbol({
