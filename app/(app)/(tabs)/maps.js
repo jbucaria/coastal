@@ -1,6 +1,7 @@
+'use client'
+
 import React, { useState, useEffect, useRef } from 'react'
 import {
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   StyleSheet,
@@ -22,7 +23,9 @@ import {
 import { firestore } from '@/firebaseConfig'
 import { useSelectedDate } from '@/store/useSelectedDate'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 
+// Note: This key is still used for HTTP requests; MapView uses the manifest key
 const GOOGLE_MAPS_API_KEY = 'AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs'
 
 const TicketsMapScreen = ({ route }) => {
@@ -33,14 +36,14 @@ const TicketsMapScreen = ({ route }) => {
   const [routeCoords, setRouteCoords] = useState([])
   const [orderedTickets, setOrderedTickets] = useState([])
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [headerHeight, setHeaderHeight] = useState(0) // Added for dynamic header
+  const marginBelowHeader = 8 // Added for spacing
   const mapRef = useRef(null)
   const insets = useSafeAreaInsets()
 
-  // Toggle: if true, use optimized (via Directions API), else sort by scheduled time.
   const [optimizeRoute, setOptimizeRoute] = useState(true)
 
   useEffect(() => {
-    // Ensure selectedDate is a Date object
     getUserLocation()
     fetchTicketsForDate(new Date(selectedDate))
   }, [selectedDate])
@@ -229,7 +232,6 @@ const TicketsMapScreen = ({ route }) => {
     }
   }, [tickets])
 
-  // Compute a mapping from ticket ID to order index (if available)
   const orderMap = {}
   if (orderedTickets.length > 0) {
     orderedTickets.forEach((ticket, index) => {
@@ -239,6 +241,12 @@ const TicketsMapScreen = ({ route }) => {
 
   return (
     <View style={styles.container}>
+      <HeaderWithOptions
+        title="Tickets Map"
+        onBack={() => router.back()}
+        options={[]}
+        onHeightChange={height => setHeaderHeight(height)}
+      />
       {loading ? (
         <ActivityIndicator size="large" color="#007BFF" style={styles.loader} />
       ) : (
@@ -320,7 +328,7 @@ const TicketsMapScreen = ({ route }) => {
         transparent
         onRequestClose={() => setShowDetailsModal(false)}
       >
-        <SafeAreaView style={styles.detailsModalContainer}>
+        <View style={styles.detailsModalContainer}>
           <View style={styles.detailsModalHeader}>
             <Text style={styles.detailsModalTitle}>Route Details</Text>
             <TouchableOpacity
@@ -345,7 +353,7 @@ const TicketsMapScreen = ({ route }) => {
               )
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
     </View>
   )
@@ -424,13 +432,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  detailsContainer: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    bottom: 0,
-    paddingVertical: 8,
-    position: 'absolute',
-    width: '100%',
-  },
   switchButton: {
     backgroundColor: '#007BFF',
     borderRadius: 4,
@@ -465,6 +466,5 @@ const styles = StyleSheet.create({
   ticketIndex: { fontSize: 16, fontWeight: 'bold', marginRight: 4 },
   ticketInfo: { flex: 1 },
   ticketName: { fontSize: 16, fontWeight: 'bold' },
-  ticketTitle: { fontSize: 16, fontWeight: 'bold' },
   markerNumber: { color: '#fff', fontWeight: '700', fontSize: 12 },
 })

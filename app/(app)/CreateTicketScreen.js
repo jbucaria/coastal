@@ -9,14 +9,13 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  SafeAreaView,
+  View,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
 } from 'react-native'
 import { Picker } from '@react-native-picker/picker'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -35,7 +34,6 @@ import BuilderModal from '@/components/BuilderModal'
 import { formatAddress } from '@/utils/helpers'
 import { pickAndUploadPhotos } from '@/utils/photoUpload'
 import useAuthStore from '@/store/useAuthStore'
-import { Header } from 'react-native/Libraries/NewAppScreen'
 
 // Initial ticket state object
 const initialTicketStatus = {
@@ -45,7 +43,6 @@ const initialTicketStatus = {
   state: '',
   zip: '',
   date: '',
-  // Builder fields
   customer: '',
   customerName: '',
   customerNumber: '',
@@ -73,7 +70,6 @@ const initialTicketStatus = {
 }
 
 const CreateTicketScreen = () => {
-  const HEADER_HEIGHT = 80
   const router = useRouter()
   const { user } = useUserStore()
 
@@ -87,12 +83,17 @@ const CreateTicketScreen = () => {
   const [vacancy, setVacancy] = useState('')
   const [newNote, setNewNote] = useState('')
   const [selectedAddress, setSelectedAddress] = useState('')
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const marginBelowHeader = 8
 
   // Modal visibility state
   const [addressModalVisible, setAddressModalVisible] = useState(false)
   const [builderModalVisible, setBuilderModalVisible] = useState(false)
   const [jobTypeModalVisible, setJobTypeModalVisible] = useState(false)
   const [vacancyModalVisible, setVacancyModalVisible] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false)
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false)
 
   // Builder (customer) selection state
   const [customerSearchQuery, setCustomerSearchQuery] = useState('')
@@ -187,18 +188,23 @@ const CreateTicketScreen = () => {
 
   // Date and time picker change handlers
   const handleDateChange = (event, date) => {
+    setShowDatePicker(Platform.OS === 'ios') // Hide picker on Android after selection
     if (date) {
       setSelectedDate(date)
       setStartTime(setTimeToDate(date, startTime))
       setEndTime(setTimeToDate(date, endTime))
     }
   }
+
   const handleStartTimeChange = (event, time) => {
+    setShowStartTimePicker(Platform.OS === 'ios') // Hide picker on Android after selection
     if (time) {
       setStartTime(setTimeToDate(selectedDate, time))
     }
   }
+
   const handleEndTimeChange = (event, time) => {
+    setShowEndTimePicker(Platform.OS === 'ios') // Hide picker on Android after selection
     if (time) {
       setEndTime(setTimeToDate(selectedDate, time))
     }
@@ -251,14 +257,12 @@ const CreateTicketScreen = () => {
     )
   }
 
-  // Sets the time portion of a date to match another Date object
   const setTimeToDate = (baseDate, timeDate) => {
     const newDate = new Date(baseDate)
     newDate.setHours(timeDate.getHours(), timeDate.getMinutes(), 0, 0)
     return newDate
   }
 
-  // Format homeowner phone number as user types
   const handleHomeOwnerNumberChange = text => {
     const formatted = formatPhoneNumber(text)
     setNewTicket(prev => ({ ...prev, homeOwnerNumber: formatted }))
@@ -268,7 +272,6 @@ const CreateTicketScreen = () => {
     const folder = 'ticketPhotos'
     const photosArray = await pickAndUploadPhotos({ folder, quality: 0.7 })
     if (photosArray.length > 0) {
-      // Extract downloadURL for PhotoGallery (which expects an array of strings)
       const urls = photosArray.map(photo => photo.downloadURL)
       setNewTicket(prev => ({
         ...prev,
@@ -292,11 +295,12 @@ const CreateTicketScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
         title="Create Ticket"
         onBack={handleBack}
-        options={[]} // pass additional options as needed
+        options={[]}
+        onHeightChange={height => setHeaderHeight(height)}
       />
       <KeyboardAvoidingView
         style={styles.flex1}
@@ -308,7 +312,7 @@ const CreateTicketScreen = () => {
             style={styles.scrollView}
             contentContainerStyle={[
               styles.contentContainer,
-              { paddingTop: HEADER_HEIGHT },
+              { paddingTop: headerHeight + marginBelowHeader },
             ]}
             keyboardShouldPersistTaps="handled"
           >
@@ -317,37 +321,108 @@ const CreateTicketScreen = () => {
               <View style={styles.dateTimeSection}>
                 <View style={styles.datePickerContainer}>
                   <Text style={styles.label}>Date:</Text>
-                  <DateTimePicker
-                    value={selectedDate}
-                    mode="date"
-                    display="default"
-                    onChange={handleDateChange}
-                    style={styles.datePicker}
-                  />
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={selectedDate}
+                      mode="date"
+                      display="default"
+                      onChange={handleDateChange}
+                      style={styles.datePicker}
+                    />
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        onPress={() => setShowDatePicker(true)}
+                        style={styles.dateButton}
+                      >
+                        <Text>{selectedDate.toDateString()}</Text>
+                      </TouchableOpacity>
+                      {showDatePicker && (
+                        <DateTimePicker
+                          value={selectedDate}
+                          mode="date"
+                          display="default"
+                          onChange={handleDateChange}
+                        />
+                      )}
+                    </>
+                  )}
                 </View>
                 <View style={styles.timePickerContainer}>
                   <Text style={styles.label}>Start Time:</Text>
-                  <DateTimePicker
-                    value={startTime}
-                    mode="time"
-                    is24Hour={false}
-                    display="default"
-                    onChange={handleStartTimeChange}
-                    minuteInterval={15}
-                    style={styles.timePicker}
-                  />
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={startTime}
+                      mode="time"
+                      is24Hour={false}
+                      display="default"
+                      onChange={handleStartTimeChange}
+                      minuteInterval={15}
+                      style={styles.timePicker}
+                    />
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        onPress={() => setShowStartTimePicker(true)}
+                        style={styles.dateButton}
+                      >
+                        <Text>
+                          {startTime.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      </TouchableOpacity>
+                      {showStartTimePicker && (
+                        <DateTimePicker
+                          value={startTime}
+                          mode="time"
+                          is24Hour={false}
+                          display="default"
+                          onChange={handleStartTimeChange}
+                          minuteInterval={15}
+                        />
+                      )}
+                    </>
+                  )}
                 </View>
                 <View style={styles.timePickerContainer}>
                   <Text style={styles.label}>End Time:</Text>
-                  <DateTimePicker
-                    value={endTime}
-                    mode="time"
-                    is24Hour={false}
-                    display="default"
-                    onChange={handleEndTimeChange}
-                    minuteInterval={15}
-                    style={styles.timePicker}
-                  />
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={endTime}
+                      mode="time"
+                      is24Hour={false}
+                      display="default"
+                      onChange={handleEndTimeChange}
+                      minuteInterval={15}
+                      style={styles.timePicker}
+                    />
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        onPress={() => setShowEndTimePicker(true)}
+                        style={styles.dateButton}
+                      >
+                        <Text>
+                          {endTime.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                      </TouchableOpacity>
+                      {showEndTimePicker && (
+                        <DateTimePicker
+                          value={endTime}
+                          mode="time"
+                          is24Hour={false}
+                          display="default"
+                          onChange={handleEndTimeChange}
+                          minuteInterval={15}
+                        />
+                      )}
+                    </>
+                  )}
                 </View>
               </View>
             </View>
@@ -613,33 +688,18 @@ const CreateTicketScreen = () => {
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   )
 }
 
 export default CreateTicketScreen
 
 const styles = StyleSheet.create({
-  // General container and typography
-  container: {
+  fullScreenContainer: {
     flex: 1,
   },
-  safeArea: {
+  flex1: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  headerWrapper: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120, // must match HEADER_HEIGHT in your header component
-    zIndex: 1000,
-  },
-  contentWrapper: {
-    flex: 1,
-    marginTop: 120, // pushes content below the header
-    padding: 5, // your desired padding for the content
   },
   scrollView: {
     paddingHorizontal: 5,
@@ -655,25 +715,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     padding: 12,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginVertical: 10,
-    textAlign: 'center',
-    color: '#333',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginVertical: 8,
-    color: '#2c3e50',
-  },
-  label: {
-    fontSize: 16,
-    color: '#555',
-    marginRight: 8,
-  },
-  // Date & Time Section
   dateTimeSection: {
     marginBottom: 10,
   },
@@ -693,7 +734,24 @@ const styles = StyleSheet.create({
   timePicker: {
     flex: 1,
   },
-  // Input fields
+  dateButton: {
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 4,
+    backgroundColor: '#f9f9f9',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginVertical: 8,
+    color: '#2c3e50',
+  },
+  label: {
+    fontSize: 16,
+    color: '#555',
+    marginRight: 8,
+  },
   inputField: {
     backgroundColor: '#f9f9f9',
     borderColor: '#ddd',
@@ -704,7 +762,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: '#333',
   },
-  // Selection container for Address and Builder
   selectionContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -726,12 +783,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  plusButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    lineHeight: 20,
-  },
-  // Buttons for actions
   button: {
     backgroundColor: '#2980b9',
     borderRadius: 5,
@@ -780,7 +831,6 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.6,
   },
-  // Modal styling
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -788,48 +838,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  modalContent: {
-    width: '100%',
-    height: '60%',
+  pickerContainer: {
     backgroundColor: '#fff',
     borderRadius: 8,
-    padding: 20,
+    padding: 10,
+    width: '90%',
     elevation: 5,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
-    textAlign: 'center',
-  },
-  modalInput: {
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 4,
-    padding: 10,
-    fontSize: 16,
-    marginBottom: 12,
-    color: '#333',
-  },
-  modalList: {
-    maxHeight: 200,
-    marginBottom: 12,
-  },
-  modalItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderColor: '#eee',
-  },
-  modalItemText: {
-    fontSize: 16,
-    color: '#555',
-  },
-  modalClose: {
-    color: '#2980b9',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 10,
+  picker: {
+    width: '100%',
   },
   modalCloseContainer: {
     flexDirection: 'row',
@@ -840,21 +857,11 @@ const styles = StyleSheet.create({
     color: '#2980b9',
     fontSize: 16,
   },
-  // Autocomplete container override (if needed)
-  autocompleteContainer: {
-    backgroundColor: 'transparent',
-    padding: 0,
-    margin: 0,
-  },
-  // Picker container (for Job Type and Vacancy modals)
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 10,
-    width: '90%',
-    elevation: 5,
-  },
-  picker: {
-    width: '100%',
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 12,
+    color: '#333',
+    textAlign: 'center',
   },
 })

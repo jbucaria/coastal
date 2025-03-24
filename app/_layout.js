@@ -1,4 +1,5 @@
-import { SafeAreaProvider } from 'react-native-safe-area-context'
+'use client'
+
 import React, { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
@@ -9,6 +10,7 @@ import {
 } from 'react-native'
 import { useRouter, useSegments, Slot } from 'expo-router'
 import { ThemeProvider, DefaultTheme } from '@react-navigation/native'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { auth, firestore } from '@/firebaseConfig'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'
@@ -28,9 +30,9 @@ export default function RootLayout() {
     if (Platform.OS === 'android') {
       StatusBar.setTranslucent(true)
       StatusBar.setBackgroundColor('transparent')
-      StatusBar.setBarStyle('dark-content') // Change to dark content on Android
+      StatusBar.setBarStyle('dark-content')
     } else if (Platform.OS === 'ios') {
-      StatusBar.setBarStyle('dark-content') // Keep dark content on iOS
+      StatusBar.setBarStyle('dark-content')
     }
   }, [])
 
@@ -114,7 +116,7 @@ export default function RootLayout() {
 
   if (initializing || !profileLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
       </View>
     )
@@ -135,5 +137,11 @@ const styles = StyleSheet.create({
   fullScreenContainer: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff', // Match the fullScreenContainer background
   },
 })

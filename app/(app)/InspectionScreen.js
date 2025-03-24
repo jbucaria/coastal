@@ -2,9 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import {
-  SafeAreaView,
-  ScrollView,
   View,
+  ScrollView,
   Text,
   TextInput,
   StyleSheet,
@@ -43,7 +42,9 @@ const InspectionScreen = () => {
 
   // Rooms state – each room now has inspection fields and photos
   const [rooms, setRooms] = useState(ticketData?.inspectionData?.rooms || [])
-  const HEADER_HEIGHT = 80
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const marginBelowHeader = 20 // Margin for spacing below the header
+
   // Modal state for adding a room
   const [showAddRoomModal, setShowAddRoomModal] = useState(false)
   const [selectedRoomType, setSelectedRoomType] = useState('')
@@ -196,11 +197,12 @@ const InspectionScreen = () => {
   ]
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
         title="Inspection"
         onBack={() => router.back()}
         options={headerOptions}
+        onHeightChange={height => setHeaderHeight(height)}
       />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -209,9 +211,10 @@ const InspectionScreen = () => {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
+            style={styles.scrollView}
             contentContainerStyle={[
               styles.scrollContainer,
-              { paddingTop: HEADER_HEIGHT },
+              { paddingTop: headerHeight + marginBelowHeader },
             ]}
           >
             {rooms.map(room => (
@@ -319,16 +322,19 @@ const InspectionScreen = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   )
 }
 
 export default InspectionScreen
 
 const styles = StyleSheet.create({
-  container: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContainer: {
     padding: 16,

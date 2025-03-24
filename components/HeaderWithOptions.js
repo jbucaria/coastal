@@ -10,11 +10,11 @@ import {
   Modal,
   TouchableWithoutFeedback,
   View,
-  Platform, // Added for platform-specific tweaks
+  Platform,
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import Icon from 'react-native-vector-icons/Ionicons'
+import { IconSymbol } from '@/components/ui/IconSymbol' // Replace Ionicons with IconSymbol
 import { BlurView } from 'expo-blur'
 
 const HeaderWithOptions = ({
@@ -59,12 +59,12 @@ const HeaderWithOptions = ({
         ]}
       >
         <BlurView
-          intensity={90} // Blur intensity (0-100)
-          tint="default" // Consistent across platforms
+          intensity={90}
+          tint="default"
           style={styles.blurBackground}
           experimentalBlurMethod={
             Platform.OS === 'android' ? 'dither' : undefined
-          } // Optional: improve Android blur
+          }
         >
           <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
             <View style={styles.leftContainer}>
@@ -75,7 +75,7 @@ const HeaderWithOptions = ({
                 }}
                 style={styles.headerButton}
               >
-                <Icon name="arrow-back-circle" size={28} color="black" />
+                <IconSymbol name="arrow-back-circle" size={28} color="black" />
               </TouchableOpacity>
               {showHome && (
                 <TouchableOpacity
@@ -85,7 +85,7 @@ const HeaderWithOptions = ({
                   }}
                   style={styles.headerButton}
                 >
-                  <Icon name="home-circle" size={28} color="black" />
+                  <IconSymbol name="home-circle" size={28} color="black" />
                 </TouchableOpacity>
               )}
             </View>
@@ -97,7 +97,11 @@ const HeaderWithOptions = ({
                 onPress={() => setModalVisible(true)}
                 style={styles.headerButton}
               >
-                <Icon name="ellipsis-horizontal" size={28} color="black" />
+                <IconSymbol
+                  name="ellipsis-horizontal"
+                  size={28}
+                  color="black"
+                />
               </TouchableOpacity>
             </View>
           </View>

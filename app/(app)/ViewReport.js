@@ -1,9 +1,10 @@
+'use client'
+
 import React, { useState, useEffect } from 'react'
 import { useLocalSearchParams } from 'expo-router'
 import {
-  SafeAreaView,
-  ScrollView,
   View,
+  ScrollView,
   Text,
   TouchableOpacity,
   StyleSheet,
@@ -41,24 +42,20 @@ const ViewReportScreen = () => {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editedTicket, setEditedTicket] = useState(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const marginBelowHeader = 8
 
-  const HEADER_HEIGHT = 80
-
-  // When the ticket loads or changes, update the editedTicket state.
   useEffect(() => {
     if (ticket) {
       setEditedTicket(ticket)
     }
   }, [ticket])
 
-  // Handler for field changes in TicketDetailsCard.
   const handleTicketFieldChange = (field, value) => {
     setEditedTicket({ ...editedTicket, [field]: value })
   }
 
-  // For room changes, implement a similar handler if needed.
   const handleRoomFieldChange = (roomId, newFindings) => {
-    // Update the findings for the room with the given id.
     const updatedRooms = editedTicket.inspectionData.rooms.map(room =>
       room.id === roomId ? { ...room, inspectionFindings: newFindings } : room
     )
@@ -68,8 +65,6 @@ const ViewReportScreen = () => {
     })
   }
 
-  // Handler to generate PDF, upload it, and update the ticket record
-  // 1. Update local state in handleGenerateReport
   const handleGenerateReport = async () => {
     if (!ticket) {
       Alert.alert('Error', 'Ticket data is not available.')
@@ -79,9 +74,7 @@ const ViewReportScreen = () => {
     try {
       const localPdfUri = await generatePDF(ticket)
       const uploadedPdfUrl = await uploadPDFToFirestore(ticket, localPdfUri)
-      // Update Firestore field
       await updateTicketPdfUrl(ticket.id, uploadedPdfUrl)
-      // Update local state immediately
       setPdfUri(uploadedPdfUrl)
       Alert.alert(
         'Success',
@@ -98,7 +91,6 @@ const ViewReportScreen = () => {
     setIsGenerating(false)
   }
 
-  // 2. Sync local state when ticket changes:
   useEffect(() => {
     if (ticket && ticket.pdfUrl) {
       setPdfUri(ticket.pdfUrl)
@@ -126,10 +118,8 @@ const ViewReportScreen = () => {
     }
   }
 
-  // Save updated ticket data to the database.
   const handleSaveChanges = async () => {
     try {
-      // Assume updateTicketData is a function that updates ticket details in your database.
       await updateTicketData(editedTicket.id, editedTicket)
       Alert.alert('Success', 'Ticket updated successfully.')
       setIsEditMode(false)
@@ -138,14 +128,13 @@ const ViewReportScreen = () => {
     }
   }
 
-  // Header options: if editing, show Cancel/Save; otherwise show Edit Report and PDF options.
   const headerOptions = isEditMode
     ? [
         {
           label: 'Cancel',
           onPress: () => {
             setIsEditMode(false)
-            setEditedTicket(ticket) // discard changes
+            setEditedTicket(ticket)
           },
         },
         { label: 'Save', onPress: handleSaveChanges },
@@ -168,7 +157,6 @@ const ViewReportScreen = () => {
           : [{ label: 'Generate PDF', onPress: handleGenerateReport }]),
       ]
 
-  // Handler for when a photo is pressed.
   const handlePhotoPress = uri => {
     setSelectedPhoto(uri)
   }
@@ -179,38 +167,36 @@ const ViewReportScreen = () => {
   }
   if (!ticket || !editedTicket) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1DA1F2" />
         <Text style={styles.loadingText}>Loading ticket data...</Text>
-      </SafeAreaView>
+      </View>
     )
   }
 
   const inspectionRooms = editedTicket.inspectionData?.rooms || []
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
         title="View Report"
         onBack={() => router.back()}
         options={headerOptions}
         showHome={true}
+        onHeightChange={height => setHeaderHeight(height)}
       />
       <ScrollView
-        style={{ paddingTop: HEADER_HEIGHT }}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContainer,
+          { paddingTop: headerHeight + marginBelowHeader },
+        ]}
       >
         {isGenerating && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color="#1DA1F2" />
           </View>
         )}
-        {/* Render TicketDetailsCard in either view or edit mode */}
-        {/* <TicketDetailsCard
-          ticket={editedTicket}
-          editable={isEditMode}
-          onChangeField={handleTicketFieldChange}
-        /> */}
         {inspectionRooms.map(room => (
           <RoomCard
             key={room.id}
@@ -237,42 +223,41 @@ const ViewReportScreen = () => {
         )}
       </ScrollView>
 
-      {/* PDF Modal */}
       <Modal
         visible={isViewerVisible}
         animationType="slide"
         onRequestClose={() => setIsViewerVisible(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <HeaderWithOptions
             title="PDF Report"
             onBack={() => setIsViewerVisible(false)}
-            options={[
-              { label: 'Share', onPress: handleShareReport },
-              // you can add other options if needed
-            ]}
+            options={[{ label: 'Share', onPress: handleShareReport }]}
             showHome={false}
+            onHeightChange={height => setHeaderHeight(height)}
           />
           {pdfUri && (
             <Pdf
               source={{ uri: pdfUri, cache: true }}
-              style={[styles.pdf, { paddingTop: HEADER_HEIGHT }]}
+              style={[
+                styles.pdf,
+                { paddingTop: headerHeight + marginBelowHeader },
+              ]}
               onError={error => {
                 console.log('PDF rendering error:', error)
                 Alert.alert('Error', 'Failed to display PDF.')
               }}
             />
           )}
-        </SafeAreaView>
+        </View>
       </Modal>
 
-      {/* Photo Modal */}
       <PhotoModal
         visible={selectedPhoto !== null}
         photo={selectedPhoto}
         onClose={closePhoto}
       />
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -334,15 +319,17 @@ const styles = StyleSheet.create({
     margin: 16,
     padding: 12,
   },
-  container: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: '#fff',
   },
-  deleteRoomText: {
-    color: '#E0245E',
-    fontWeight: '600',
+  scrollView: {
+    flex: 1,
   },
-
+  scrollContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
   loadingContainer: {
     alignItems: 'center',
     flex: 1,
@@ -363,24 +350,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 10,
   },
-
-  modalContainer: {
-    backgroundColor: '#fff',
-    flex: 1,
-  },
-  pdf: {
-    flex: 1,
-    width: '100%',
-  },
   photo: {
     borderRadius: 5,
     height: 100,
     margin: 5,
     width: 100,
-  },
-  scrollContainer: {
-    padding: 16,
-    paddingBottom: 100,
   },
   shareButton: {
     backgroundColor: '#1DA1F2',

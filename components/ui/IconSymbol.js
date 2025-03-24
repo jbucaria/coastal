@@ -29,8 +29,10 @@ const MAPPING = {
   'pencil.and.ruler.fill': 'edit', // For remediation data (approximation)
   'fan.fill': 'toys', // For equipment total (fan approximation)
   'bubble.left.and.text.bubble.right.fill': 'chat', // For message count
-  'person.crop.square': 'person', // For on-site status (approximation)
-  // Add other mappings as needed
+  'person.crop.square': 'person',
+  'arrow-back-circle': 'arrow-back',
+  'home-circle': 'home',
+  'ellipsis-horizontal': 'more-vert', // For on-site status (approximation)
 }
 
 export function IconSymbol({

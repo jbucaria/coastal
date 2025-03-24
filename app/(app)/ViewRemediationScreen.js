@@ -18,6 +18,8 @@ import { exportCSVReport } from '@/utils/createCSVReport'
 import { PhotoModal } from '@/components/PhotoModal'
 import useProjectStore from '@/store/useProjectStore'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
+import * as Print from 'expo-print'
+import * as Sharing from 'expo-sharing'
 
 export default function ViewRemediationScreen() {
   const params = useLocalSearchParams()
@@ -29,6 +31,7 @@ export default function ViewRemediationScreen() {
 
   const router = useRouter()
 
+  const [ticket, setTicket] = useState(null)
   const [remediationData, setRemediationData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [headerHeight, setHeaderHeight] = useState(0)
@@ -38,7 +41,7 @@ export default function ViewRemediationScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
 
-  // Define header options: Edit, Export CSV, and Create Invoice.
+  // Define header options: Edit, Export CSV, Create Invoice, and Share PDF
   const headerOptions = [
     {
       label: 'Edit',
@@ -56,6 +59,10 @@ export default function ViewRemediationScreen() {
       label: 'Invoice',
       onPress: () => router.push({ pathname: '/ViewInvoiceScreen' }),
     },
+    {
+      label: 'Share PDF',
+      onPress: () => generatePDFReport(ticket, remediationData),
+    },
   ]
 
   // Fetch remediation data when component mounts
@@ -67,6 +74,7 @@ export default function ViewRemediationScreen() {
 
         if (docSnap.exists()) {
           const data = docSnap.data()
+          setTicket(data) // Store full ticket data
           setRemediationData(data.remediationData || { rooms: [] })
         } else {
           Alert.alert('Error', 'No remediation data found.')
@@ -81,6 +89,87 @@ export default function ViewRemediationScreen() {
 
     fetchData()
   }, [projectId])
+
+  // Function to generate HTML for the PDF report
+  const generateHTML = (ticket, remediationData) => {
+    let html = `
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { text-align: center; }
+            h2 { color: #333; }
+            .room { margin-bottom: 20px; }
+            .photo { width: 200px; height: 200px; margin-right: 10px; }
+            ul { list-style-type: none; padding-left: 0; }
+          </style>
+        </head>
+        <body>
+          <h1>Remediation Report</h1>
+          <h2>Ticket Details</h2>
+          <p><strong>Ticket Number:</strong> ${ticket.ticketNumber || 'N/A'}</p>
+          <p><strong>Address:</strong> ${ticket.address || 'N/A'}</p>
+          <p><strong>Inspector:</strong> ${ticket.inspectorName || 'N/A'}</p>
+          <p><strong>Start Time:</strong> ${
+            ticket.startTime?.toDate?.().toString() || 'N/A'
+          }</p>
+          <p><strong>End Time:</strong> ${
+            ticket.endTime?.toDate?.().toString() || 'N/A'
+          }</p>
+          <p><strong>Job Type:</strong> ${ticket.typeOfJob || 'N/A'}</p>
+          <p><strong>Occupancy:</strong> ${
+            ticket.occupied ? 'Occupied' : 'Unoccupied'
+          }</p>
+          <h2>Remediation Data</h2>
+    `
+
+    if (!remediationData.rooms || remediationData.rooms.length === 0) {
+      html += `<p>No remediation data available.</p>`
+    } else {
+      remediationData.rooms.forEach(room => {
+        html += `
+          <div class="room">
+            <h3>${room.roomTitle || 'Unnamed Room'}</h3>
+            <ul>
+        `
+        ;(room.measurements || []).forEach(measurement => {
+          html += `<li>${measurement.name}: ${measurement.quantity}</li>`
+        })
+        html += `</ul>`
+        if (room.photos && room.photos.length > 0) {
+          html += `<div>`
+          room.photos.forEach(photo => {
+            html += `<img src="${photo.downloadURL}" class="photo" />`
+          })
+          html += `</div>`
+        }
+        html += `</div>`
+      })
+    }
+
+    html += `
+        </body>
+      </html>
+    `
+    return html
+  }
+
+  // Function to generate and share the PDF report
+  const generatePDFReport = async (ticket, remediationData) => {
+    if (!ticket || !remediationData) {
+      Alert.alert('Error', 'Data not loaded yet.')
+      return
+    }
+
+    try {
+      const html = generateHTML(ticket, remediationData)
+      const { uri } = await Print.printToFileAsync({ html })
+      await Sharing.shareAsync(uri)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      Alert.alert('Error', 'Failed to generate PDF. Please try again.')
+    }
+  }
 
   if (loading) {
     return (
@@ -197,13 +286,6 @@ const styles = StyleSheet.create({
   scrollContainer: {
     padding: 16,
     paddingBottom: 100,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 16,
-    color: '#2C3E50',
   },
   roomContainer: {
     backgroundColor: '#FFF',
