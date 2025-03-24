@@ -8,13 +8,13 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jbucaria.Coastal",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["comgooglemaps"]
+        "LSApplicationQueriesSchemes": ["comgooglemaps"],
+        "GMSApiKey": "AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs" // Add the API key here for iOS
       }
     },
     "android": {
@@ -59,7 +59,6 @@
     "experiments": {
       "typedRoutes": true
     },
-
     "owner": "jbucaria"
   }
 }
