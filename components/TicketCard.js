@@ -4,7 +4,7 @@ import { router } from 'expo-router'
 import { format } from 'date-fns'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import { MessageIndicator } from '@/components/MessageIndicator'
-import { updateDoc, doc } from 'firebase/firestore'
+import { updateDoc, doc, arrayUnion } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import useProjectStore from '@/store/useProjectStore'
 
@@ -15,17 +15,21 @@ const TicketCard = ({
   backgroundColor,
   timeColor,
 }) => {
-  // Convert Firestore Timestamps to JS Dates
-  const startAt = ticket.startTime?.toDate?.()
-  const endAt = ticket.endTime?.toDate?.()
+  // Convert Firestore Timestamps or ISO strings to JS Dates
+  const startAt = ticket.startTime?.toDate
+    ? ticket.startTime.toDate()
+    : new Date(ticket.startTime)
+  const endAt = ticket.endTime?.toDate
+    ? ticket.endTime.toDate()
+    : new Date(ticket.endTime)
 
   let startTime = 'N/A'
   let endTime = 'N/A'
 
-  if (startAt) {
+  if (startAt && !isNaN(startAt)) {
     startTime = format(startAt, 'h:mm a')
   }
-  if (endAt) {
+  if (endAt && !isNaN(endAt)) {
     endTime = format(endAt, 'h:mm a')
   }
 
@@ -55,10 +59,7 @@ const TicketCard = ({
         key="remediationRequired"
         onPress={() => {
           useProjectStore.getState().setProjectId(ticket.id)
-
-          router.push({
-            pathname: '/RemediationScreen',
-          })
+          router.push({ pathname: '/RemediationScreen' })
         }}
       >
         <IconSymbol name="hammer.circle.fill" size={40} color="green" />
@@ -117,12 +118,13 @@ const TicketCard = ({
 
   const hasIcons = icons.length > 0
 
-  // Navigation handlers
+  // Navigation handlers with history update
   const handleArrivingOnSite = (projectId, currentOnSiteStatus) => {
     let alertMessage = currentOnSiteStatus
       ? 'Do you want to mark the site complete?'
       : 'Do you want to start the clock?'
     let alertAction = currentOnSiteStatus ? 'Stop' : 'Start'
+    let newStatus = currentOnSiteStatus ? 'Off Site' : 'On Site'
 
     Alert.alert(`${alertAction} Work`, alertMessage, [
       {
@@ -135,16 +137,37 @@ const TicketCard = ({
         onPress: async () => {
           try {
             const projectRef = doc(firestore, 'tickets', projectId)
-            await updateDoc(projectRef, { onSite: !currentOnSiteStatus })
+            await updateDoc(projectRef, {
+              onSite: !currentOnSiteStatus,
+              history: arrayUnion({
+                status: newStatus,
+                timestamp: new Date().toISOString(),
+              }),
+            })
             if (currentOnSiteStatus) {
               router.push('/(tabs)')
             }
           } catch (error) {
             console.error('Error updating the ticket in the database:', error)
+            Alert.alert('Error', 'Failed to update ticket status.')
           }
         },
       },
     ])
+  }
+
+  // Status badge color logic
+  const getStatusStyle = status => {
+    switch (status) {
+      case 'Open':
+        return styles.openBadge
+      case 'Completed':
+        return styles.completedBadge
+      case 'Return Needed':
+        return styles.returnBadge
+      default:
+        return styles.defaultBadge
+    }
   }
 
   return (
@@ -152,7 +175,7 @@ const TicketCard = ({
       onPress={onPress}
       style={[
         styles.cardContainer,
-        { backgroundColor: backgroundColor || '#FFFFFF' }, // Default to white if no background color is provided
+        { backgroundColor: backgroundColor || '#FFFFFF' },
       ]}
     >
       {/* Header Row: Inspector + Time + Job Type */}
@@ -171,6 +194,9 @@ const TicketCard = ({
                   color="green"
                 />
               )}
+            </Text>
+            <Text style={getStatusStyle(ticket.status)}>
+              {ticket.status || 'Open'}
             </Text>
           </TouchableOpacity>
           <Text style={styles.ticketNumber}>{ticket.ticketNumber}</Text>
@@ -218,7 +244,6 @@ const styles = StyleSheet.create({
   cardContainer: {
     height: 200,
     marginHorizontal: 0,
-    // marginBottom: 10,
     padding: 5,
     borderBottomColor: '#eaeaea',
     borderBottomWidth: 1,
@@ -240,7 +265,7 @@ const styles = StyleSheet.create({
   onSiteIcon: {
     marginLeft: 5,
     position: 'relative',
-    top: -2, // Fine-tune icon positioning
+    top: -2,
   },
   ticketNumber: {
     fontSize: 14,
@@ -263,17 +288,51 @@ const styles = StyleSheet.create({
   jobTypeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-
     alignContent: 'space-between',
     marginTop: 4,
   },
+  openBadge: {
+    backgroundColor: '#2196F3', // Blue for Open
+    color: 'white',
+    padding: 5,
+    borderRadius: 4,
+    fontSize: 12,
+    alignSelf: 'flex-start',
+    marginTop: 5,
+  },
+  completedBadge: {
+    backgroundColor: '#4CAF50', // Green for Completed
+    color: 'white',
+    padding: 5,
+    borderRadius: 4,
+    fontSize: 12,
+    alignSelf: 'flex-start',
+    marginTop: 5,
+  },
+  returnBadge: {
+    backgroundColor: '#FF9800', // Orange for Return Needed
+    color: 'white',
+    padding: 5,
+    borderRadius: 4,
+    fontSize: 12,
+    alignSelf: 'flex-start',
+    marginTop: 5,
+  },
+  defaultBadge: {
+    backgroundColor: '#757575', // Grey for unknown status
+    color: 'white',
+    padding: 5,
+    borderRadius: 4,
+    fontSize: 12,
+    alignSelf: 'flex-start',
+    marginTop: 5,
+  },
   occupancyContainer: {
-    elevation: 3, // For Android shadow/elevation
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 1, height: 1 },
     shadowOpacity: 0.25,
     shadowRadius: 2,
-
     paddingHorizontal: 2,
     paddingVertical: 1,
     justifyContent: 'center',

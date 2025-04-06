@@ -8,7 +8,7 @@ import {
   Text,
   StyleSheet,
   Modal,
-  Platform, // Added for platform-specific adjustments
+  Platform,
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { BlurView } from 'expo-blur'
@@ -31,8 +31,8 @@ const TicketsHeader = ({
 }) => {
   const [isSortModalVisible, setSortModalVisible] = useState(false)
   const insets = useSafeAreaInsets()
-  const baseHeaderHeight = 120 // Base height for content
-  const headerHeight = insets.top + baseHeaderHeight + 8 // Dynamic height
+  const baseHeaderHeight = 120
+  const headerHeight = insets.top + baseHeaderHeight + 8
 
   useEffect(() => {
     if (onHeightChange) {
@@ -77,8 +77,8 @@ const TicketsHeader = ({
   return (
     <View style={[styles.absoluteHeader, { height: headerHeight }]}>
       <BlurView
-        intensity={0} // Blur intensity (0-100)
-        tint="default" // Changed to "default" for consistency across platforms
+        intensity={20} // Subtle blur (optional change)
+        tint="default"
         style={styles.headerBlur}
       >
         <View style={[styles.headerContent, { paddingTop: insets.top + 8 }]}>
@@ -108,6 +108,7 @@ const TicketsHeader = ({
                   : selectedDate.toDateString()}
               </Text>
             </TouchableOpacity>
+            {/* Note: On iOS, picker remains until manually dismissed; Android dismisses on selection */}
             {showDatePicker && (
               <DateTimePicker
                 value={selectedDate}
@@ -122,6 +123,17 @@ const TicketsHeader = ({
                 onPress={openSortModal}
               >
                 <IconSymbol name="slider.horizontal.3" size={24} color="#333" />
+                {sortOption && (
+                  <Text style={styles.sortIndicator}>
+                    {sortOption === 'remediationRequired'
+                      ? 'Remediation'
+                      : sortOption === 'equipmentOnSite'
+                      ? 'Equipment'
+                      : sortOption === 'returnNeeded'
+                      ? 'Return'
+                      : ''}
+                  </Text>
+                )}
               </TouchableOpacity>
               {!isClearDisabled && (
                 <TouchableOpacity
@@ -152,6 +164,8 @@ const TicketsHeader = ({
               'Show Only Remediation Required'
             )}
             {renderSortOption('equipmentOnSite', 'Show Only Equipment On Site')}
+            {renderSortOption('returnNeeded', 'Show Only Return Needed')}{' '}
+            {/* Added */}
             {renderSortOption(null, 'Show All (No Filter)')}
             <TouchableOpacity
               style={styles.closeButton}
@@ -165,10 +179,12 @@ const TicketsHeader = ({
     </View>
   )
 }
+
 BlurView.defaultProps = {
   tint: 'dark',
   intensity: 100,
 }
+
 const styles = StyleSheet.create({
   absoluteHeader: {
     position: 'absolute',
@@ -184,7 +200,6 @@ const styles = StyleSheet.create({
   },
   headerBlur: {
     flex: 1,
-    // Changed background color here
     backgroundColor: '#0073BC',
     borderBottomWidth: 0.5,
     borderBottomColor: '#ccc',
@@ -253,11 +268,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 25,
     padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  sortIndicator: {
+    fontSize: 12,
+    color: '#333',
+    marginLeft: 4,
+    fontWeight: '600',
   },
   clearSortButton: {
     marginLeft: 6,

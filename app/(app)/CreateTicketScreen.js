@@ -37,33 +37,34 @@ import useAuthStore from '@/store/useAuthStore'
 
 // Initial ticket state object
 const initialTicketStatus = {
-  street: '',
+  street: '1111',
   apt: '',
-  city: '',
-  state: '',
-  zip: '',
+  city: 'Trinity',
+  state: 'Fl',
+  zip: '34655',
   date: '',
-  customer: '',
-  customerName: '',
-  customerNumber: '',
-  customerEmail: '',
-  customerId: '',
-  homeOwnerName: '',
-  homeOwnerNumber: '',
-  inspectorName: 'John Bucaria',
-  reason:
-    'Homeowner found wet carpet in the living room. Need to inspect for leaks and water damage.',
-  jobType: 'inspection',
-  hours: '2',
-  typeOfJob: 'inspection',
+  customer: 'DR Horton',
+  customerName: 'Jakie Waller',
+  customerNumber: '(727) 555-1234',
+  customerEmail: 'jwaller@gmail.com',
+  customerId: '191',
+  homeOwnerName: 'John Smith',
+  homeOwnerNumber: '(727) 555-5678',
+  inspectorName: 'Dave Smith',
+  reason: 'Leak in the bathroom',
+  hours: '3',
+  typeOfJob: 'Leak Detection',
   recommendedActions: '',
+  startTime: new Date(),
   messageCount: 0,
   reportPhotos: [],
   ticketPhotos: [],
+  status: 'Open',
+
   onSite: false,
   inspectionComplete: false,
   remediationRequired: false,
-  remediationStatus: 'notStarted',
+  remediationStatus: '',
   equipmentOnSite: false,
   siteComplete: false,
   measurementsRequired: false,
@@ -156,24 +157,6 @@ const CreateTicketScreen = () => {
     return components
   }
 
-  // Address selection handler from Google Places
-  const handleAutocompletePress = (data, details = null) => {
-    if (details && details.address_components) {
-      const parsed = parseAddressComponents(details.address_components)
-      setNewTicket(prev => ({
-        ...prev,
-        street: parsed.street,
-        city: parsed.city,
-        state: parsed.state,
-        zip: parsed.zip,
-      }))
-      setSelectedAddress(data.description)
-    } else {
-      console.log('No details returned:', data)
-      setNewTicket(prev => ({ ...prev, street: data.description }))
-    }
-  }
-
   // Builder selection handler
   const handleSelectCustomer = selectedCustomer => {
     setNewTicket(prev => ({
@@ -197,12 +180,13 @@ const CreateTicketScreen = () => {
   }
 
   const handleStartTimeChange = (event, time) => {
-    setShowStartTimePicker(Platform.OS === 'ios') // Hide picker on Android after selection
+    setShowStartTimePicker(Platform.OS === 'ios')
     if (time) {
-      setStartTime(setTimeToDate(selectedDate, time))
+      const updatedTime = setTimeToDate(selectedDate, time)
+      setStartTime(updatedTime)
+      setNewTicket(prev => ({ ...prev, startTime: updatedTime }))
     }
   }
-
   const handleEndTimeChange = (event, time) => {
     setShowEndTimePicker(Platform.OS === 'ios') // Hide picker on Android after selection
     if (time) {

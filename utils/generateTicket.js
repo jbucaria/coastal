@@ -10,7 +10,6 @@ import {
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, firestore } from '@/firebaseConfig'
 
-// Create Ticket Function
 export const createTicket = async (
   ticketData,
   resetForm,
@@ -19,11 +18,35 @@ export const createTicket = async (
   newNote
 ) => {
   try {
-    const docRef = await addDoc(collection(firestore, 'tickets'), {
-      createdAt: new Date(),
-      ...ticketData,
-    })
+    // Prepare the initial history entry
+    const initialHistory = [
+      {
+        status: 'Open',
+        timestamp: new Date().toISOString(),
+      },
+    ]
 
+    // Explicitly remove history from ticketData if it exists
+    const { history, ...cleanedTicketData } = ticketData
+
+    // Construct the ticket payload
+    const ticketPayload = {
+      ...cleanedTicketData, // Use cleaned data without history
+      createdAt: serverTimestamp(),
+      status: 'Open',
+      history: initialHistory, // Set history explicitly
+    }
+
+    // Log the payload before saving
+
+    // Save to Firestore
+    const docRef = await addDoc(collection(firestore, 'tickets'), ticketPayload)
+
+    // Log the document ID and payload after creation
+    console.log('Ticket created with ID:', docRef.id)
+    console.log('Payload sent to Firestore:', ticketPayload)
+
+    // Update with projectId and ticketNumber
     const docId = docRef.id
     const lastSix = docId.slice(-6)
     const ticketNumber = `CR-${lastSix}`
@@ -32,6 +55,7 @@ export const createTicket = async (
       ticketNumber,
     })
 
+    // Handle notes if provided
     if (newNote.trim()) {
       await addDoc(collection(firestore, 'ticketNotes'), {
         projectId: docRef.id,
@@ -69,14 +93,21 @@ export const handleCreateTicket = async (
   setIsSubmitting(true)
 
   try {
-    if (
-      !newTicket.street ||
-      !newTicket.city ||
-      !newTicket.state ||
-      !newTicket.zip ||
-      !newTicket.customerId
-    ) {
-      Alert.alert('Validation Error', 'Please fill out all required fields.')
+    // Enhanced validation
+    const missingFields = []
+    if (!newTicket.street) missingFields.push('Street')
+    if (!newTicket.city) missingFields.push('City')
+    if (!newTicket.state) missingFields.push('State')
+    if (!newTicket.zip) missingFields.push('ZIP')
+    if (!newTicket.customerId) missingFields.push('Builder')
+
+    if (missingFields.length > 0) {
+      Alert.alert(
+        'Validation Error',
+        `Please fill out the following required fields: ${missingFields.join(
+          ', '
+        )}.`
+      )
       setIsSubmitting(false)
       return
     }
@@ -85,34 +116,40 @@ export const handleCreateTicket = async (
       newTicket.apt ? ' Apt ' + newTicket.apt : ''
     }, ${newTicket.city}, ${newTicket.state} ${newTicket.zip}`
 
-    console.log('newTicket', newTicket)
-
     const ticketData = {
       ...newTicket,
-
       address: composedAddress,
-      startDate: selectedDate,
-      startTime: startTime,
-      endTime: endTime,
-      createdAt: new Date(),
+      startDate: selectedDate.toISOString(),
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
     }
 
-    console.log('ticketData', ticketData)
-    // Upload photos to Firebase before creating the ticket
+    // Upload photos with error handling
     const storage = getStorage()
     const uploadPromises = newTicket.ticketPhotos.map(async uri => {
-      const response = await fetch(uri)
-      const blob = await response.blob()
-      const fileRef = ref(
-        storage,
-        `ticketPhotos/${Date.now()}_${uri.split('/').pop()}`
-      )
-      await uploadBytes(fileRef, blob)
-      return getDownloadURL(fileRef)
+      try {
+        const response = await fetch(uri)
+        const blob = await response.blob()
+        const fileRef = ref(
+          storage,
+          `ticketPhotos/${Date.now()}_${uri.split('/').pop()}`
+        )
+        await uploadBytes(fileRef, blob)
+        return getDownloadURL(fileRef)
+      } catch (error) {
+        console.error('Error uploading photo:', error)
+        throw error
+      }
     })
 
-    const photoURLs = await Promise.all(uploadPromises)
-    ticketData.ticketPhotos = photoURLs // Attach the URLs of the uploaded photos
+    try {
+      const photoURLs = await Promise.all(uploadPromises)
+      ticketData.ticketPhotos = photoURLs
+    } catch (error) {
+      Alert.alert('Error', 'Failed to upload one or more photos.')
+      setIsSubmitting(false)
+      return
+    }
 
     // Call the createTicket function
     await createTicket(ticketData, resetForm, setIsSubmitting, user, newNote)

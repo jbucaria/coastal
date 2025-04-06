@@ -1,13 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import {
-  Animated,
-  View, // Changed from SafeAreaView
-  ImageBackground,
-  Text,
-  StyleSheet,
-} from 'react-native'
+import { Animated, View, ImageBackground, Text, StyleSheet } from 'react-native'
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { router } from 'expo-router'
@@ -90,11 +84,16 @@ const TicketsScreen = () => {
         return t >= startOfDay && t <= endOfDay
       })
     }
+
+    // Updated sort logic with 'returnNeeded'
     if (sortOption === 'remediationRequired') {
       filtered = filtered.filter(t => t.remediationRequired === true)
     } else if (sortOption === 'equipmentOnSite') {
       filtered = filtered.filter(t => t.equipmentOnSite === true)
+    } else if (sortOption === 'returnNeeded') {
+      filtered = filtered.filter(t => t.status === 'Return Needed')
     }
+
     setDisplayedTickets(filtered)
   }, [allTickets, searchQuery, selectedDate, sortOption])
 
@@ -132,7 +131,7 @@ const TicketsScreen = () => {
           clearFilter={clearFilter}
           isClearDisabled={isClearDisabled}
           onHeightChange={height => setHeaderHeight(height)}
-          iconColor="#333" // Adjust the native icons color to a darker shade
+          iconColor="#333"
         />
         <Animated.ScrollView
           style={styles.scrollView}

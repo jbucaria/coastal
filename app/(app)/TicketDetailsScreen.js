@@ -15,7 +15,7 @@ import {
   Linking,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { updateDoc, doc } from 'firebase/firestore'
+import { updateDoc, doc, arrayUnion } from 'firebase/firestore' // Added arrayUnion
 import { firestore } from '@/firebaseConfig'
 import { getTravelTime } from '@/utils/getTravelTime'
 import { EquipmentModal } from '@/components/EquipmentModal'
@@ -41,10 +41,11 @@ const TicketDetailsScreen = () => {
   const [eta, setEta] = useState(null)
   const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [headerHeight, setHeaderHeight] = useState(0) // State for dynamic header height
+  const [needsReturn, setNeedsReturn] = useState(false) // For marking return trip
+  const [headerHeight, setHeaderHeight] = useState(0)
   const scrollY = useRef(new Animated.Value(0)).current
 
-  const marginBelowHeader = 8 // Define the margin below the header (adjust as needed)
+  const marginBelowHeader = 8
 
   useEffect(() => {
     if (error) {
@@ -62,6 +63,15 @@ const TicketDetailsScreen = () => {
         })
     } else {
       setEta(null)
+    }
+  }, [ticket])
+
+  // Pre-fill needsReturn based on ticket data
+  useEffect(() => {
+    if (ticket) {
+      setNeedsReturn(
+        ticket.remediationRequired || ticket.status === 'Return Needed'
+      )
     }
   }, [ticket])
 
@@ -94,6 +104,8 @@ const TicketDetailsScreen = () => {
     inspectionComplete,
     siteComplete,
     messageCount,
+    status = 'Open', // Default to 'Open' if not set
+    history = [], // Default to empty array
   } = ticket
 
   const handleInspection = () => {
@@ -171,6 +183,33 @@ const TicketDetailsScreen = () => {
     })
   }
 
+  const completeTicket = async () => {
+    const newStatus = needsReturn ? 'Return Needed' : 'Completed'
+    Alert.alert('Confirm', `Mark this ticket as ${newStatus}?`, [
+      {
+        text: 'Yes',
+        onPress: async () => {
+          try {
+            const ticketRef = doc(firestore, 'tickets', projectId)
+            await updateDoc(ticketRef, {
+              status: newStatus,
+              history: arrayUnion({
+                status: newStatus,
+                timestamp: new Date().toISOString(),
+              }),
+            })
+            Alert.alert('Success', `Ticket marked as ${newStatus}.`)
+            router.push('/(tabs)')
+          } catch (error) {
+            console.error('Error updating ticket status:', error)
+            Alert.alert('Error', 'Failed to update ticket status.')
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
+
   const remediationStatus = ticket?.remediationStatus ?? 'notStarted'
 
   const options = [
@@ -201,11 +240,7 @@ const TicketDetailsScreen = () => {
                 }
               },
             },
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => router.push('/(tabs)'),
-            },
+            { text: 'Cancel', style: 'cancel' },
           ]
         )
       },
@@ -343,8 +378,38 @@ const TicketDetailsScreen = () => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Status</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Under Construction</Text>
+            <Text style={styles.infoLabel}>Current Status:</Text>
+            <Text style={styles.infoValue}>{status}</Text>
           </View>
+          {history.length > 0 && (
+            <>
+              <Text style={styles.historyTitle}>History:</Text>
+              {history.map((entry, index) => (
+                <Text key={index} style={styles.historyEntry}>
+                  {entry.status} - {new Date(entry.timestamp).toLocaleString()}
+                </Text>
+              ))}
+            </>
+          )}
+          {/* Completion Controls */}
+          {status !== 'Completed' && status !== 'Return Needed' && (
+            <View style={styles.controls}>
+              <TouchableOpacity
+                style={styles.toggleButton}
+                onPress={() => setNeedsReturn(!needsReturn)}
+              >
+                <Text style={styles.toggleButtonText}>
+                  Needs Return Trip? {needsReturn ? 'Yes' : 'No'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.navButton}
+                onPress={completeTicket}
+              >
+                <Text style={styles.navButtonText}>Complete Ticket</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </Animated.ScrollView>
       <PhotoModal
@@ -376,14 +441,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
     textAlign: 'center',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  backButton: {
-    marginRight: 10,
   },
   card: {
     backgroundColor: '#F5F8FA',
@@ -447,9 +504,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 4,
   },
-  flex1: {
-    flex: 1,
-  },
   loadingContainer: {
     alignItems: 'center',
     flex: 1,
@@ -459,115 +513,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 10,
   },
-  modalCloseContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 5,
-  },
-  modalCloseText: {
-    color: '#2980b9',
-    fontSize: 16,
-  },
-  modalOverlay: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  navButton: {
-    backgroundColor: '#2980b9',
-    borderRadius: 5,
-    elevation: 3,
-    marginHorizontal: 5,
-    padding: 12,
-  },
-  navButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  pickerContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    margin: 5,
-    padding: 5,
-    width: '80%',
-  },
   photo: {
     borderRadius: 5,
     height: 100,
     margin: 5,
     width: 100,
   },
-  photoWrapper: {
-    marginRight: 5,
-    position: 'relative',
-  },
-  photosContainer: {
-    marginVertical: 5,
-  },
-  removePhotoButton: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 15,
-    height: 24,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: 5,
-    top: 5,
-    width: 24,
-  },
-  removePhotoText: {
-    color: 'red',
+  historyTitle: {
+    color: '#14171A',
     fontSize: 14,
-    fontWeight: 'bold',
-  },
-  searchSection: {
-    marginBottom: 5,
-    position: 'relative',
-    width: '100%',
-  },
-  sectionTitle: {
-    color: '#14171A',
-    fontSize: 18,
     fontWeight: '600',
-    marginVertical: 5,
-  },
-  suggestionItem: {
-    borderBottomColor: '#eee',
-    borderBottomWidth: 1,
-    padding: 10,
-  },
-  suggestionText: {
-    color: '#14171A',
-    fontSize: 16,
-  },
-  suggestionsContainer: {
-    maxHeight: 150,
-  },
-  suggestionsWrapper: {
-    backgroundColor: '#ffffff',
-    borderColor: '#ccc',
-    borderRadius: 5,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 55,
-    zIndex: 999,
-  },
-  timePicker: {
-    flex: 1,
-  },
-  timePickerContainer: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    marginTop: 10,
     marginBottom: 5,
+  },
+  historyEntry: {
+    color: '#555555',
+    fontSize: 12,
+    marginBottom: 3,
+  },
+  controls: {
+    marginTop: 10,
+    gap: 10,
   },
   toggleButton: {
     alignItems: 'center',
     backgroundColor: '#2980b9',
     borderRadius: 5,
-    marginBottom: 5,
     padding: 12,
   },
   toggleButtonText: {
@@ -575,16 +546,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  stepContainer: {
-    backgroundColor: '#ffffff',
+  navButton: {
+    backgroundColor: '#2980b9',
     borderRadius: 5,
-    marginBottom: 5,
-    padding: 5,
+    padding: 12,
+    alignItems: 'center',
   },
-  stepTitle: {
-    color: '#14171A',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 5,
+  navButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  link: {
+    color: '#1DA1F2',
   },
 })

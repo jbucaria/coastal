@@ -3,12 +3,12 @@
 const { onRequest } = require('firebase-functions/v2/https')
 const admin = require('firebase-admin')
 admin.initializeApp()
-const firestore = admin.firestore()
-
-async function getFetch() {
-  const { default: fetch } = await import('node-fetch')
-  return fetch
-}
+const firestore =
+  admin.firestore() -
+  async function getFetch() {
+    const { default: fetch } = await import('node-fetch')
+    return fetch
+  }
 
 const QUICKBOOKS_CLIENT_ID =
   'BBH3sQV8BaGA4ZxmDTFSXOF94ErNGHh2Iu82TC6eogpXwMlYTe'
