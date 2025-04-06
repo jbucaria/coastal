@@ -19,6 +19,15 @@ import useAuthStore from '@/store/useAuthStore'
 import * as NavigationBar from 'expo-navigation-bar'
 import 'react-native-get-random-values'
 
+// Function to set navigation bar style
+const setNavigationBarStyle = async () => {
+  if (Platform.OS === 'android') {
+    await NavigationBar.setBackgroundColorAsync('#ffffff') // White background
+    await NavigationBar.setButtonStyleAsync('dark') // Dark icons
+    await NavigationBar.setVisibilityAsync('visible') // Ensure it’s visible
+  }
+}
+
 export default function RootLayout() {
   const [initializing, setInitializing] = useState(true)
   const [profileLoaded, setProfileLoaded] = useState(false)
@@ -27,12 +36,13 @@ export default function RootLayout() {
   const { setUser, user } = useUserStore()
   const { setCredentials } = useAuthStore()
 
-  // Set status bar style and translucent behavior
+  // Set status bar and navigation bar on mount
   useEffect(() => {
     if (Platform.OS === 'android') {
       StatusBar.setTranslucent(true)
       StatusBar.setBackgroundColor('transparent')
       StatusBar.setBarStyle('dark-content')
+      setNavigationBarStyle() // Apply on mount
     } else if (Platform.OS === 'ios') {
       StatusBar.setBarStyle('dark-content')
     }
@@ -45,6 +55,12 @@ export default function RootLayout() {
       NavigationBar.setBackgroundColorAsync('#ffffff')
     }
   }, [])
+  // Reapply navigation bar style on segment change (screen navigation)
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      setNavigationBarStyle() // Reapply when screen changes
+    }
+  }, [segments])
 
   useEffect(() => {
     if (auth.currentUser) {
