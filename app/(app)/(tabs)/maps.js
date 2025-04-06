@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'expo-router'
 import {
   ActivityIndicator,
   Alert,
@@ -27,9 +28,9 @@ import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 
 // Note: This key is still used for HTTP requests; MapView uses the manifest key
 const GOOGLE_MAPS_API_KEY = 'AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs'
-
 const TicketsMapScreen = ({ route }) => {
   const { selectedDate } = useSelectedDate()
+  const router = useRouter()
   const [location, setLocation] = useState(null)
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
@@ -191,7 +192,7 @@ const TicketsMapScreen = ({ route }) => {
       try {
         const response = await fetch(directionsUrl)
         const data = await response.json()
-        console.log('Directions data:', data)
+
         if (data.routes && data.routes.length > 0) {
           const encodedPolyline = data.routes[0].overview_polyline.points
           const coords = decodePolyline(encodedPolyline)

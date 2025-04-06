@@ -206,21 +206,6 @@ const ViewReportScreen = () => {
             onPhotoPress={handlePhotoPress}
           />
         ))}
-        {editedTicket.ticketPhotos && editedTicket.ticketPhotos.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Photos</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {editedTicket.ticketPhotos.map((photoUri, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => handlePhotoPress(photoUri)}
-                >
-                  <Image source={{ uri: photoUri }} style={styles.photo} />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
       </ScrollView>
 
       <Modal

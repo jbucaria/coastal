@@ -6,6 +6,7 @@ import {
   Image,
   StyleSheet,
   TextInput,
+  ScrollView,
 } from 'react-native'
 
 export const TicketDetailsCard = ({
@@ -85,10 +86,9 @@ export const RoomCard = ({
     <View style={styles.card}>
       <Text style={styles.cardTitle}>{roomTitle}</Text>
       <Text style={styles.cardText}>Findings:</Text>
-
       <Text style={styles.cardText}>{inspectionFindings}</Text>
 
-      <View style={styles.photosContainer}>
+      <ScrollView horizontal style={styles.photosContainer}>
         {photos && photos.length > 0 ? (
           photos.map((photo, index) => (
             <TouchableOpacity
@@ -101,7 +101,7 @@ export const RoomCard = ({
         ) : (
           <Text style={styles.cardText}>No photos available.</Text>
         )}
-      </View>
+      </ScrollView>
     </View>
   )
 }

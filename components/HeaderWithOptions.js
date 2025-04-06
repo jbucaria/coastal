@@ -86,7 +86,7 @@ const HeaderWithOptions = ({
                   }}
                   style={styles.headerButton}
                 >
-                  <Ionicons name="home-circle" size={28} color="black" />
+                  <Ionicons name="home" size={28} color="black" />
                 </TouchableOpacity>
               )}
             </View>

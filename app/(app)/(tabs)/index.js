@@ -155,7 +155,7 @@ const TicketsScreen = () => {
                 index % 2 === 0
                   ? 'rgba(245,248,250,0.8)'
                   : 'rgba(255,255,255,0.8)'
-              const timeColor = index % 2 === 0 ? '#0D47A1' : '#1976D2'
+              const timeColor = '#0D47A1'
               return (
                 <View key={ticketKey}>
                   <TicketCard

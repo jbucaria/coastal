@@ -77,12 +77,9 @@ const TicketsHeader = ({
   return (
     <View style={[styles.absoluteHeader, { height: headerHeight }]}>
       <BlurView
-        intensity={80} // Blur intensity (0-100)
+        intensity={0} // Blur intensity (0-100)
         tint="default" // Changed to "default" for consistency across platforms
         style={styles.headerBlur}
-        experimentalBlurMethod={
-          Platform.OS === 'android' ? 'dither' : undefined
-        } // Optional: improve Android blur
       >
         <View style={[styles.headerContent, { paddingTop: insets.top + 8 }]}>
           {/* Search Bar */}
@@ -168,7 +165,10 @@ const TicketsHeader = ({
     </View>
   )
 }
-
+BlurView.defaultProps = {
+  tint: 'dark',
+  intensity: 100,
+}
 const styles = StyleSheet.create({
   absoluteHeader: {
     position: 'absolute',
@@ -176,30 +176,42 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   headerBlur: {
     flex: 1,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    // Changed background color here
+    backgroundColor: '#0073BC',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#ccc',
   },
   headerContent: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   searchBarContainer: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
     width: '100%',
   },
   searchBar: {
     flexDirection: 'row',
-    backgroundColor: '#F2F3F5',
+    backgroundColor: '#fff',
     borderRadius: 25,
     paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingVertical: 10,
     width: '100%',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
@@ -211,16 +223,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 8,
   },
   datePicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F3F5',
+    backgroundColor: '#fff',
     borderRadius: 25,
     paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingVertical: 10,
     flex: 1,
     marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   dateText: {
     marginLeft: 10,
@@ -232,41 +250,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sortButton: {
-    backgroundColor: '#F2F3F5',
+    backgroundColor: '#fff',
     borderRadius: 25,
-    padding: 8,
+    padding: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   clearSortButton: {
     marginLeft: 6,
-    backgroundColor: '#F2F3F5',
+    backgroundColor: '#fff',
     borderRadius: 25,
-    padding: 6,
+    padding: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
+    backgroundColor: '#fff',
+    padding: 25,
     width: '80%',
-    borderRadius: 10,
+    borderRadius: 12,
   },
-  title: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
   optionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 4,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
   optionText: {
     fontSize: 16,
     color: '#333',
   },
   selectedOption: {
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#e6f4ea',
   },
   selectedOptionText: {
     fontWeight: '600',
@@ -274,14 +308,15 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     backgroundColor: '#F39C12',
-    padding: 10,
-    borderRadius: 5,
+    padding: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 15,
   },
   closeButtonText: {
-    color: 'white',
+    color: '#fff',
     fontWeight: '600',
+    fontSize: 16,
   },
 })
 

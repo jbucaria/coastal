@@ -245,7 +245,7 @@ const TicketDetailsScreen = () => {
     <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
         title="Ticket Details"
-        onBack={() => router.back()}
+        onBack={() => router.push('/(tabs)')}
         onOptions={() => {}}
         options={options}
         onHeightChange={height => setHeaderHeight(height)}
@@ -254,7 +254,7 @@ const TicketDetailsScreen = () => {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + marginBelowHeader }, // Add margin below header
+          { paddingTop: headerHeight + marginBelowHeader },
         ]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
