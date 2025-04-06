@@ -16,7 +16,7 @@ const _layout = () => {
       <Stack.Screen name="TicketNotesScreen" />
       <Stack.Screen name="RemediationScreen" />
       <Stack.Screen name="FeedBackScreen" />
-      <Stack.Screen name="EditRemediationScreen" />
+      {/* <Stack.Screen name="EditRemediationScreen" /> */}
       <Stack.Screen name="ViewRemediationScreen" />
       <Stack.Screen name="ButtonSampleScreen" />
       <Stack.Screen name="AddTicketScreen" />
