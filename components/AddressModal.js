@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from 'react-native'
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete'
-import { parseAddressComponents } from '@/utils/helpers' // adjust the path as needed
+import { parseAddressComponents } from '@/utils/helpers'
 
 const AddressModal = ({ visible, onClose, onAddressSelected }) => {
   // Local state for each address component

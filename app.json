@@ -14,7 +14,7 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "LSApplicationQueriesSchemes": ["comgooglemaps"],
-        "GMSApiKey": "AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs" // Add the API key here for iOS
+        "GMSApiKey": "AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs"
       }
     },
     "android": {
@@ -24,7 +24,12 @@
       },
       "googleServicesFile": "./GoogleService-Info.plist",
       "permissions": ["android.permission.RECORD_AUDIO"],
-      "package": "com.jbucaria.coastal"
+      "package": "com.jbucaria.coastal",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs"
+        }
+      }
     },
     "web": {
       "bundler": "metro",

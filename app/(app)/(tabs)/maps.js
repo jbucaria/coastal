@@ -309,7 +309,7 @@ const TicketsMapScreen = ({ route }) => {
           <Text style={styles.detailsButtonText}>Route Details</Text>
         </TouchableOpacity>
       </View>
-      <View style={{ position: 'absolute', left: 25, top: insets.top + 20 }}>
+      <View style={{ position: 'absolute', left: 25, top: insets.top + 80 }}>
         <View style={styles.switchContainer}>
           <Text style={styles.switchLabel}>
             {optimizeRoute ? 'Optimized' : 'Scheduled'}
@@ -394,7 +394,11 @@ const styles = StyleSheet.create({
   detailsModalContainer: {
     flex: 1,
     backgroundColor: '#fff',
-    height: '80%',
+    height: '60%', // Reduced height for iPhone
+    marginTop: 'auto', // Align modal to the bottom
+    borderTopLeftRadius: 16, // Rounded corners for better appearance
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
   },
   detailsModalContent: {
     padding: 16,

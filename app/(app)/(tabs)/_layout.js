@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router'
 import React, { useEffect } from 'react'
-import { Platform, StyleSheet, StatusBar } from 'react-native'
+import { Platform, StyleSheet, StatusBar, View } from 'react-native'
 import HapticTab from '@/components/ui/HapticTab'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import { BlurView } from 'expo-blur'
@@ -21,25 +21,24 @@ export default function TabLayout() {
     <BlurView tint="light" intensity={50} style={StyleSheet.absoluteFill} />
   )
 
+  const SolidTabBarBackground = () => (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]} />
+  )
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#007AFF', // Fixed blue color for active tab
-        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault, // Optional: set inactive color
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
         headerShown: false,
         tabBarButton: props => <HapticTab {...props} />,
-        tabBarBackground: BlurTabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            position: 'absolute',
-            backgroundColor: 'transparent',
-          },
-          android: {
-            position: 'absolute',
-            backgroundColor: 'transparent',
-            elevation: 0,
-          },
+        tabBarBackground: Platform.select({
+          ios: BlurTabBarBackground,
+          android: SolidTabBarBackground,
         }),
+        tabBarStyle: {
+          position: 'absolute',
+        },
       }}
     >
       <Tabs.Screen

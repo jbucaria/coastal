@@ -25,7 +25,7 @@ const TicketsScreen = () => {
   const [sortOption, setSortOption] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [headerHeight, setHeaderHeight] = useState(0) // Add state for dynamic header height
+  const [headerHeight, setHeaderHeight] = useState(0)
 
   const scrollY = useRef(new Animated.Value(0)).current
   const floatingOpacity = scrollY.interpolate({
@@ -131,13 +131,14 @@ const TicketsScreen = () => {
           setSortOption={setSortOption}
           clearFilter={clearFilter}
           isClearDisabled={isClearDisabled}
-          onHeightChange={height => setHeaderHeight(height)} // Pass callback for header height
+          onHeightChange={height => setHeaderHeight(height)}
+          iconColor="#333" // Adjust the native icons color to a darker shade
         />
         <Animated.ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollViewContent,
-            { paddingTop: headerHeight }, // Use dynamic header height
+            { paddingTop: headerHeight },
           ]}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],

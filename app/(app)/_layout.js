@@ -19,6 +19,7 @@ const _layout = () => {
       <Stack.Screen name="EditRemediationScreen" />
       <Stack.Screen name="ViewRemediationScreen" />
       <Stack.Screen name="ButtonSampleScreen" />
+      <Stack.Screen name="AddTicketScreen" />
       <Stack.Screen
         name="EditReportScreen"
         options={{

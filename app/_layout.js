@@ -16,6 +16,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { useUserStore } from '@/store/useUserStore'
 import useAuthStore from '@/store/useAuthStore'
+import 'react-native-get-random-values'
 
 export default function RootLayout() {
   const [initializing, setInitializing] = useState(true)
@@ -109,7 +110,7 @@ export default function RootLayout() {
         return
       }
       if (user.onboarded && inAuthGroup) {
-        router.replace('/(tabs)')
+        router.replace('/(app)')
       }
     }
   }, [initializing, profileLoaded, segments, router, user])

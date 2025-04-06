@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import {
   TouchableOpacity,
   Text,
@@ -14,7 +14,7 @@ import {
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { IconSymbol } from '@/components/ui/IconSymbol' // Replace Ionicons with IconSymbol
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { BlurView } from 'expo-blur'
 
 const HeaderWithOptions = ({
@@ -26,8 +26,9 @@ const HeaderWithOptions = ({
 }) => {
   const [modalVisible, setModalVisible] = useState(false)
   const insets = useSafeAreaInsets()
-  const baseHeaderHeight = 60 // Base height for content
+  const baseHeaderHeight = 40 // Reduced header height to make the header less tall
   const headerHeight = insets.top + baseHeaderHeight + 8 // Dynamic height
+  const router = useRouter()
 
   const scrollY = useRef(new Animated.Value(0)).current
   const translateY = scrollY.interpolate({
@@ -75,7 +76,7 @@ const HeaderWithOptions = ({
                 }}
                 style={styles.headerButton}
               >
-                <IconSymbol name="arrow-back-circle" size={28} color="black" />
+                <Ionicons name="arrow-back-circle" size={28} color="black" />
               </TouchableOpacity>
               {showHome && (
                 <TouchableOpacity
@@ -85,7 +86,7 @@ const HeaderWithOptions = ({
                   }}
                   style={styles.headerButton}
                 >
-                  <IconSymbol name="home-circle" size={28} color="black" />
+                  <Ionicons name="home-circle" size={28} color="black" />
                 </TouchableOpacity>
               )}
             </View>
@@ -97,11 +98,7 @@ const HeaderWithOptions = ({
                 onPress={() => setModalVisible(true)}
                 style={styles.headerButton}
               >
-                <IconSymbol
-                  name="ellipsis-horizontal"
-                  size={28}
-                  color="black"
-                />
+                <Ionicons name="ellipsis-horizontal" size={28} color="black" />
               </TouchableOpacity>
             </View>
           </View>
