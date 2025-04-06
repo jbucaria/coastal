@@ -16,6 +16,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { useUserStore } from '@/store/useUserStore'
 import useAuthStore from '@/store/useAuthStore'
+import * as NavigationBar from 'expo-navigation-bar'
 import 'react-native-get-random-values'
 
 export default function RootLayout() {
@@ -34,6 +35,14 @@ export default function RootLayout() {
       StatusBar.setBarStyle('dark-content')
     } else if (Platform.OS === 'ios') {
       StatusBar.setBarStyle('dark-content')
+    }
+  }, [])
+
+  // Configure the Android navigation bar to keep icons dark
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setButtonStyleAsync('dark')
+      NavigationBar.setBackgroundColorAsync('#ffffff')
     }
   }, [])
 
@@ -143,6 +152,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffffff', // Match the fullScreenContainer background
+    backgroundColor: '#ffffff',
   },
 })
