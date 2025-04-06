@@ -1,41 +1,31 @@
-'use client'
-
 import React, { useState, useCallback, useEffect } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import {
-  Alert,
-  Image,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   View,
-  ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
   TouchableWithoutFeedback,
+  Keyboard,
+  Modal,
+  Platform,
+  Alert,
 } from 'react-native'
-import { Picker } from '@react-native-picker/picker'
 import DateTimePicker from '@react-native-community/datetimepicker'
-import 'react-native-get-random-values'
-import * as ImagePicker from 'expo-image-picker'
-import { collection, getDocs } from 'firebase/firestore'
-import { firestore } from '@/firebaseConfig'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { handleCreateTicket } from '@/utils/generateTicket'
 import { useUserStore } from '@/store/useUserStore'
-import PhotoGallery from '@/components/PhotoGallery'
 import { formatPhoneNumber } from '@/utils/helpers'
 import { IconSymbol } from '@/components/ui/IconSymbol'
-import AddressModal from '@/components/AddressModal'
 import BuilderModal from '@/components/BuilderModal'
-import { formatAddress } from '@/utils/helpers'
+import { collection, getDocs } from 'firebase/firestore'
+import { firestore } from '@/firebaseConfig'
+import PhotoGallery from '@/components/PhotoGallery'
 import { pickAndUploadPhotos } from '@/utils/photoUpload'
-import useAuthStore from '@/store/useAuthStore'
 
-// Initial ticket state object
 const initialTicketStatus = {
   street: '',
   apt: '',
@@ -43,6 +33,8 @@ const initialTicketStatus = {
   state: '',
   zip: '',
   date: '',
+  startTime: '',
+  endTime: '',
   customer: '',
   customerName: '',
   customerNumber: '',
@@ -50,12 +42,11 @@ const initialTicketStatus = {
   customerId: '',
   homeOwnerName: '',
   homeOwnerNumber: '',
+  homeOwnerEmail: '',
   inspectorName: 'John Bucaria',
   reason:
     'Homeowner found wet carpet in the living room. Need to inspect for leaks and water damage.',
-  jobType: 'inspection',
   hours: '2',
-  typeOfJob: 'inspection',
   recommendedActions: '',
   messageCount: 0,
   reportPhotos: [],
@@ -67,60 +58,62 @@ const initialTicketStatus = {
   equipmentOnSite: false,
   siteComplete: false,
   measurementsRequired: false,
+  damageType: [],
+  causeOfDamage: '',
+  categoryOfDamage: '',
+  classOfLoss: '',
+  dateOfLoss: '',
+  images: [],
+  occupied: '',
 }
 
 const CreateTicketScreen = () => {
   const router = useRouter()
   const { user } = useUserStore()
+  const params = useLocalSearchParams()
+  const {
+    address,
+    appointmentDate,
+    startTime: startTimeParam,
+    endTime: endTimeParam,
+  } = params
 
-  // Main state variables
-  const [newTicket, setNewTicket] = useState(initialTicketStatus)
+  const [newTicket, setNewTicket] = useState({
+    ...initialTicketStatus,
+    street: address || '',
+    date: appointmentDate || '',
+    startTime: startTimeParam || '',
+    endTime: endTimeParam || '',
+  })
+  const [selectedTab, setSelectedTab] = useState('Loss Data')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [startTime, setStartTime] = useState(new Date())
-  const [endTime, setEndTime] = useState(new Date())
-  const [jobType, setJobType] = useState('')
-  const [vacancy, setVacancy] = useState('')
-  const [newNote, setNewNote] = useState('')
-  const [selectedAddress, setSelectedAddress] = useState('')
   const [headerHeight, setHeaderHeight] = useState(0)
-  const marginBelowHeader = 8
-
-  // Modal visibility state
-  const [addressModalVisible, setAddressModalVisible] = useState(false)
   const [builderModalVisible, setBuilderModalVisible] = useState(false)
-  const [jobTypeModalVisible, setJobTypeModalVisible] = useState(false)
-  const [vacancyModalVisible, setVacancyModalVisible] = useState(false)
-  const [showDatePicker, setShowDatePicker] = useState(false)
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false)
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false)
-
-  // Builder (customer) selection state
   const [customerSearchQuery, setCustomerSearchQuery] = useState('')
   const [customerSuggestions, setCustomerSuggestions] = useState([])
   const [allCustomers, setAllCustomers] = useState([])
+  const [damageType, setDamageType] = useState([])
+  const [causeOfDamage, setCauseOfDamage] = useState('')
+  const [categoryOfDamage, setCategoryOfDamage] = useState('')
+  const [classOfLoss, setClassOfLoss] = useState('')
+  const [occupied, setOccupied] = useState('')
+  const [dateOfLoss, setDateOfLoss] = useState(null)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [selectedImages, setSelectedImages] = useState([])
+  const marginBelowHeader = 8
 
-  // Toggle for Homeowner info section
-  const [showHomeowner, setShowHomeowner] = useState(false)
-
-  // Load customers from Firestore
   useEffect(() => {
     const fetchCustomers = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(firestore, 'customers'))
-        const customersData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-        setAllCustomers(customersData)
-      } catch (error) {
-        console.error('Error fetching customers:', error)
-      }
+      const querySnapshot = await getDocs(collection(firestore, 'customers'))
+      const customersData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      setAllCustomers(customersData)
     }
     fetchCustomers()
   }, [])
 
-  // Update builder suggestions as the search query changes
   useEffect(() => {
     if (customerSearchQuery.trim() === '') {
       setCustomerSuggestions([])
@@ -133,48 +126,6 @@ const CreateTicketScreen = () => {
     setCustomerSuggestions(filtered)
   }, [customerSearchQuery, allCustomers])
 
-  // Helper to parse address components from Google Places
-  const parseAddressComponents = addressComponents => {
-    const components = { street: '', city: '', state: '', zip: '' }
-    addressComponents.forEach(component => {
-      if (component.types.includes('street_number')) {
-        components.street = component.long_name + ' '
-      }
-      if (component.types.includes('route')) {
-        components.street += component.long_name
-      }
-      if (component.types.includes('locality')) {
-        components.city = component.long_name
-      }
-      if (component.types.includes('administrative_area_level_1')) {
-        components.state = component.short_name
-      }
-      if (component.types.includes('postal_code')) {
-        components.zip = component.long_name
-      }
-    })
-    return components
-  }
-
-  // Address selection handler from Google Places
-  const handleAutocompletePress = (data, details = null) => {
-    if (details && details.address_components) {
-      const parsed = parseAddressComponents(details.address_components)
-      setNewTicket(prev => ({
-        ...prev,
-        street: parsed.street,
-        city: parsed.city,
-        state: parsed.state,
-        zip: parsed.zip,
-      }))
-      setSelectedAddress(data.description)
-    } else {
-      console.log('No details returned:', data)
-      setNewTicket(prev => ({ ...prev, street: data.description }))
-    }
-  }
-
-  // Builder selection handler
   const handleSelectCustomer = selectedCustomer => {
     setNewTicket(prev => ({
       ...prev,
@@ -184,88 +135,58 @@ const CreateTicketScreen = () => {
       customerNumber: selectedCustomer.number || '',
     }))
     setCustomerSearchQuery(selectedCustomer.displayName)
+    setBuilderModalVisible(false)
   }
 
-  // Date and time picker change handlers
-  const handleDateChange = (event, date) => {
-    setShowDatePicker(Platform.OS === 'ios') // Hide picker on Android after selection
-    if (date) {
-      setSelectedDate(date)
-      setStartTime(setTimeToDate(date, startTime))
-      setEndTime(setTimeToDate(date, endTime))
-    }
-  }
-
-  const handleStartTimeChange = (event, time) => {
-    setShowStartTimePicker(Platform.OS === 'ios') // Hide picker on Android after selection
-    if (time) {
-      setStartTime(setTimeToDate(selectedDate, time))
-    }
-  }
-
-  const handleEndTimeChange = (event, time) => {
-    setShowEndTimePicker(Platform.OS === 'ios') // Hide picker on Android after selection
-    if (time) {
-      setEndTime(setTimeToDate(selectedDate, time))
-    }
-  }
-
-  const handleBack = () => {
-    router.back()
-  }
-
-  const resetForm = () => {
-    setNewTicket(initialTicketStatus)
-    setCustomerSearchQuery('')
-    setCustomerSuggestions([])
-  }
-
-  const handleTogglePicker = () => {
-    setJobTypeModalVisible(prev => !prev)
-  }
-  const handleToggleVacancyPicker = () => {
-    setVacancyModalVisible(prev => !prev)
-  }
-
-  const handleRemovePhoto = index => {
-    setNewTicket(prev => ({
-      ...prev,
-      ticketPhotos: prev.ticketPhotos.filter((_, i) => i !== index),
-    }))
-  }
-
-  const handleJobTypeChange = itemValue => {
-    setJobType(itemValue)
-    setNewTicket(prev => ({ ...prev, typeOfJob: itemValue }))
-  }
-  const handleVacancyChange = itemValue => {
-    setVacancy(itemValue)
-    setNewTicket(prev => ({ ...prev, occupied: itemValue === 'occupied' }))
+  const validateForm = () => {
+    const errors = []
+    if (!newTicket.street) errors.push('Address')
+    if (!newTicket.date) errors.push('Appointment Date')
+    if (!newTicket.startTime) errors.push('Start Time')
+    if (!newTicket.endTime) errors.push('End Time')
+    if (!newTicket.customerName) errors.push('Builder')
+    if (damageType.length === 0) errors.push('Type of Damage')
+    if (!causeOfDamage) errors.push('Cause of Damage')
+    if (!categoryOfDamage) errors.push('Category of Damage')
+    if (!classOfLoss) errors.push('Class of Loss')
+    if (!occupied) errors.push('Occupied Status')
+    // Removed validation for selectedImages as it's now optional
+    return errors
   }
 
   const handleCreate = () => {
+    const errors = validateForm()
+    if (errors.length > 0) {
+      Alert.alert(
+        'Missing Required Fields',
+        `Please fill out the following required fields:\n- ${errors.join(
+          '\n- '
+        )}`,
+        [{ text: 'OK' }]
+      )
+      return
+    }
+
     handleCreateTicket(
-      newTicket,
-      selectedDate,
-      startTime,
-      endTime,
-      resetForm,
+      {
+        ...newTicket,
+        damageType,
+        causeOfDamage,
+        categoryOfDamage,
+        classOfLoss,
+        dateOfLoss: dateOfLoss ? dateOfLoss.toISOString() : '',
+        images: selectedImages,
+        occupied,
+      },
+      new Date(newTicket.date),
+      new Date(newTicket.startTime),
+      new Date(newTicket.endTime),
+      () => setNewTicket(initialTicketStatus),
       setIsSubmitting,
       isSubmitting,
-      newNote,
+      null,
       user
     )
-  }
-
-  const setTimeToDate = (baseDate, timeDate) => {
-    const newDate = new Date(baseDate)
-    newDate.setHours(timeDate.getHours(), timeDate.getMinutes(), 0, 0)
-    return newDate
-  }
-
-  const handleHomeOwnerNumberChange = text => {
-    const formatted = formatPhoneNumber(text)
-    setNewTicket(prev => ({ ...prev, homeOwnerNumber: formatted }))
   }
 
   const handleAddPhoto = useCallback(async () => {
@@ -277,35 +198,318 @@ const CreateTicketScreen = () => {
         ...prev,
         ticketPhotos: [...prev.ticketPhotos, ...urls],
       }))
-      Alert.alert('Success', 'Photos added successfully.')
-    } else {
-      Alert.alert('No Selection', 'You did not select any image.')
     }
   }, [])
 
-  const handleAddressSelected = address => {
-    setSelectedAddress(address)
+  const handleRemovePhoto = index => {
     setNewTicket(prev => ({
       ...prev,
-      street: address.street,
-      city: address.city,
-      state: address.state,
-      zip: address.zip,
+      ticketPhotos: prev.ticketPhotos.filter((_, i) => i !== index),
     }))
   }
+
+  const handleDateOfLossChange = (event, date) => {
+    if (event.type === 'dismissed') {
+      setShowDatePicker(false)
+      return
+    }
+    setShowDatePicker(Platform.OS === 'ios')
+    if (date) setDateOfLoss(date)
+  }
+
+  const handleImageSelect = image => {
+    setSelectedImages(prev => {
+      if (prev.includes(image)) {
+        return prev.filter(i => i !== image)
+      }
+      return [...prev, image]
+    })
+  }
+
+  const handleDamageTypeSelect = type => {
+    setDamageType(prev => {
+      if (prev.includes(type)) {
+        return prev.filter(t => t !== type)
+      }
+      return [...prev, type]
+    })
+  }
+
+  const handleOccupiedSelect = value => {
+    setOccupied(value)
+    setNewTicket(prev => ({ ...prev, occupied: value }))
+  }
+
+  const handleHeaderOption = option => {
+    switch (option.label) {
+      case 'Add Photo':
+        handleAddPhoto()
+        break
+      case 'Create':
+        handleCreate()
+        break
+      case 'Cancel':
+        router.back()
+        break
+    }
+  }
+
+  const formatAddressDisplay = () => {
+    const parts = [
+      newTicket.street,
+      newTicket.apt ? `Apt ${newTicket.apt}` : '',
+      newTicket.city,
+      newTicket.state,
+      newTicket.zip,
+    ].filter(Boolean)
+    return parts.join(', ')
+  }
+
+  const formatAppointmentDisplay = () => {
+    const date = new Date(newTicket.date)
+    const start = new Date(newTicket.startTime)
+    const end = new Date(newTicket.endTime)
+    const dateStr = date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    const startStr = start.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    const endStr = end.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    return `${dateStr} at ${startStr} - ${endStr}`
+  }
+
+  const renderTabContent = () => {
+    switch (selectedTab) {
+      case 'Property Data':
+        return (
+          <View style={styles.tabContent}>
+            <View style={styles.readOnlyBox}>
+              <Text style={styles.readOnlyText}>
+                Address: {formatAddressDisplay()}
+              </Text>
+              <Text style={styles.readOnlyText}>
+                Appointment: {formatAppointmentDisplay()}
+              </Text>
+            </View>
+            <Text style={styles.subTitle}>Occupied</Text>
+            <View style={styles.occupiedGrid}>
+              {[
+                { value: 'Empty', icon: '🏚️' },
+                { value: 'Occupied', icon: '🏠' },
+              ].map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.occupiedButton,
+                    occupied === option.value && styles.occupiedButtonActive,
+                  ]}
+                  onPress={() => handleOccupiedSelect(option.value)}
+                >
+                  <Text style={styles.occupiedIcon}>{option.icon}</Text>
+                  <Text style={styles.occupiedText}>{option.value}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )
+      case 'Loss Data':
+        return (
+          <View style={styles.tabContent}>
+            <Text style={styles.subTitle}>Type of Damage</Text>
+            <View style={styles.damageGrid}>
+              {[
+                { type: 'Water', icon: '💧' },
+                { type: 'Fire', icon: '🔥' },
+                { type: 'Mold', icon: '🍄' },
+                { type: 'Remediation', icon: '🛠️' },
+                { type: 'Inspection', icon: '🔍' },
+                { type: 'Smoke', icon: '💨' },
+              ].map(item => (
+                <TouchableOpacity
+                  key={item.type}
+                  style={[
+                    styles.damageButton,
+                    damageType.includes(item.type) && styles.damageButtonActive,
+                  ]}
+                  onPress={() => handleDamageTypeSelect(item.type)}
+                >
+                  <Text style={styles.damageIcon}>{item.icon}</Text>
+                  <Text style={styles.damageText}>{item.type}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={[styles.subTitle, { marginTop: 2 }]}>
+              Cause of Damage
+            </Text>
+            <View style={styles.damageGrid}>
+              {[
+                { cause: 'Wind', icon: '🌬️' },
+                { cause: 'Leaking Pipe', icon: '🚰' },
+                { cause: 'Stucco Crack', icon: '🧱' },
+                { cause: 'Window Frame', icon: '🪟' },
+                { cause: 'Roof Leak', icon: '🏠💧' },
+                { cause: 'Unknown', icon: '❓' },
+              ].map(item => (
+                <TouchableOpacity
+                  key={item.cause}
+                  style={[
+                    styles.damageButton,
+                    causeOfDamage === item.cause && styles.damageButtonActive,
+                  ]}
+                  onPress={() => setCauseOfDamage(item.cause)}
+                >
+                  <Text style={styles.damageIcon}>{item.icon}</Text>
+                  <Text style={styles.damageText}>{item.cause}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.subTitle}>Images (optional)</Text>
+            <View style={styles.damageGrid}>
+              {[
+                { image: 'Image 1' },
+                { image: 'Image 2' },
+                { image: 'Image 3' },
+                { image: 'Image 4' },
+                { image: 'Image 5' },
+                { image: 'Image 6' },
+              ].map(item => (
+                <TouchableOpacity
+                  key={item.image}
+                  style={[
+                    styles.damageButton,
+                    selectedImages.includes(item.image) &&
+                      styles.damageButtonActive,
+                  ]}
+                  onPress={() => handleImageSelect(item.image)}
+                >
+                  <Text style={styles.damageText}>{item.image}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.subTitle}>Category of Damage</Text>
+            <View style={styles.categoryContainer}>
+              {['1', '2', '3'].map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryButton,
+                    categoryOfDamage === cat && styles.categoryButtonActive,
+                  ]}
+                  onPress={() => setCategoryOfDamage(cat)}
+                >
+                  <Text style={styles.categoryText}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.subTitle}>Class of Loss</Text>
+            <View style={styles.categoryContainer}>
+              {['1', '2', '3', '4'].map(cls => (
+                <TouchableOpacity
+                  key={cls}
+                  style={[
+                    styles.categoryButton,
+                    classOfLoss === cls && styles.categoryButtonActive,
+                  ]}
+                  onPress={() => setClassOfLoss(cls)}
+                >
+                  <Text style={styles.categoryText}>{cls}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.subTitle}>Date of Loss (optional)</Text>
+            <TouchableOpacity
+              onPress={() => setShowDatePicker(true)}
+              style={styles.dateButton}
+            >
+              <Text>
+                {dateOfLoss ? dateOfLoss.toLocaleString() : 'Select Date'}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={dateOfLoss || new Date()}
+                mode="datetime"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={handleDateOfLossChange}
+              />
+            )}
+          </View>
+        )
+      case 'Contact Data':
+        return (
+          <View style={styles.tabContent}>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Homeowner Name (optional)"
+              value={newTicket.homeOwnerName}
+              onChangeText={text =>
+                setNewTicket({ ...newTicket, homeOwnerName: text })
+              }
+            />
+            <TextInput
+              style={styles.inputField}
+              placeholder="Homeowner Number (optional)"
+              value={newTicket.homeOwnerNumber}
+              onChangeText={text => {
+                const formatted = formatPhoneNumber(text)
+                setNewTicket({ ...newTicket, homeOwnerNumber: formatted })
+              }}
+              keyboardType="phone-pad"
+            />
+            <TextInput
+              style={styles.inputField}
+              placeholder="Homeowner Email (optional)"
+              value={newTicket.homeOwnerEmail}
+              onChangeText={text =>
+                setNewTicket({ ...newTicket, homeOwnerEmail: text })
+              }
+              keyboardType="email-address"
+            />
+            <View style={styles.selectionContainer}>
+              <Text style={styles.selectionText}>
+                {newTicket.customerName || 'No builder selected'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setBuilderModalVisible(true)}
+                style={styles.plusButton}
+              >
+                <IconSymbol name="plus" color="white" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )
+      default:
+        return null
+    }
+  }
+
+  const headerOptions = [
+    { label: 'Add Photo', onPress: handleAddPhoto },
+    { label: 'Create', onPress: handleCreate },
+    { label: 'Cancel', onPress: () => router.back() },
+  ]
 
   return (
     <View style={styles.fullScreenContainer}>
       <HeaderWithOptions
-        title="Create Ticket"
-        onBack={handleBack}
-        options={[]}
+        title="Project Data"
+        onBack={() => router.back()}
+        options={headerOptions}
         onHeightChange={height => setHeaderHeight(height)}
       />
       <KeyboardAvoidingView
         style={styles.flex1}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={40}
+        keyboardVerticalOffset={headerHeight + 20}
       >
         <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
           <ScrollView
@@ -314,342 +518,32 @@ const CreateTicketScreen = () => {
               styles.contentContainer,
               { paddingTop: headerHeight + marginBelowHeader },
             ]}
-            keyboardShouldPersistTaps="handled"
           >
-            {/* Date & Time Section */}
-            <View style={styles.card}>
-              <View style={styles.dateTimeSection}>
-                <View style={styles.datePickerContainer}>
-                  <Text style={styles.label}>Date:</Text>
-                  {Platform.OS === 'ios' ? (
-                    <DateTimePicker
-                      value={selectedDate}
-                      mode="date"
-                      display="default"
-                      onChange={handleDateChange}
-                      style={styles.datePicker}
-                    />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => setShowDatePicker(true)}
-                        style={styles.dateButton}
-                      >
-                        <Text>{selectedDate.toDateString()}</Text>
-                      </TouchableOpacity>
-                      {showDatePicker && (
-                        <DateTimePicker
-                          value={selectedDate}
-                          mode="date"
-                          display="default"
-                          onChange={handleDateChange}
-                        />
-                      )}
-                    </>
-                  )}
-                </View>
-                <View style={styles.timePickerContainer}>
-                  <Text style={styles.label}>Start Time:</Text>
-                  {Platform.OS === 'ios' ? (
-                    <DateTimePicker
-                      value={startTime}
-                      mode="time"
-                      is24Hour={false}
-                      display="default"
-                      onChange={handleStartTimeChange}
-                      minuteInterval={15}
-                      style={styles.timePicker}
-                    />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => setShowStartTimePicker(true)}
-                        style={styles.dateButton}
-                      >
-                        <Text>
-                          {startTime.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </TouchableOpacity>
-                      {showStartTimePicker && (
-                        <DateTimePicker
-                          value={startTime}
-                          mode="time"
-                          is24Hour={false}
-                          display="default"
-                          onChange={handleStartTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
-                    </>
-                  )}
-                </View>
-                <View style={styles.timePickerContainer}>
-                  <Text style={styles.label}>End Time:</Text>
-                  {Platform.OS === 'ios' ? (
-                    <DateTimePicker
-                      value={endTime}
-                      mode="time"
-                      is24Hour={false}
-                      display="default"
-                      onChange={handleEndTimeChange}
-                      minuteInterval={15}
-                      style={styles.timePicker}
-                    />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => setShowEndTimePicker(true)}
-                        style={styles.dateButton}
-                      >
-                        <Text>
-                          {endTime.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </TouchableOpacity>
-                      {showEndTimePicker && (
-                        <DateTimePicker
-                          value={endTime}
-                          mode="time"
-                          is24Hour={false}
-                          display="default"
-                          onChange={handleEndTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
-                    </>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {/* Address Selection Section */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Address</Text>
-              <View style={styles.selectionContainer}>
-                <Text style={[styles.selectionText, { flex: 1 }]}>
-                  {selectedAddress
-                    ? formatAddress(selectedAddress)
-                    : 'No address selected'}
-                </Text>
+            <View style={styles.buttonBar}>
+              {['Property Data', 'Loss Data', 'Contact Data'].map(tab => (
                 <TouchableOpacity
-                  onPress={() => setAddressModalVisible(true)}
+                  key={tab}
                   style={[
-                    styles.plusButton,
-                    {
-                      backgroundColor: addressModalVisible ? 'red' : '#2980b9',
-                    },
+                    styles.tabButton,
+                    selectedTab === tab && styles.tabButtonActive,
                   ]}
+                  onPress={() => setSelectedTab(tab)}
                 >
-                  <IconSymbol
-                    name={addressModalVisible ? 'minus' : 'plus'}
-                    color="white"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Address Modal */}
-            <AddressModal
-              visible={addressModalVisible}
-              onClose={() => setAddressModalVisible(false)}
-              onAddressSelected={handleAddressSelected}
-            />
-
-            {/* Builder Selection Section */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Builder</Text>
-              <View style={styles.selectionContainer}>
-                <Text style={styles.selectionText}>
-                  {newTicket.customerName
-                    ? newTicket.customerName
-                    : 'No builder selected'}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setBuilderModalVisible(true)}
-                  style={[
-                    styles.plusButton,
-                    {
-                      backgroundColor: builderModalVisible ? 'red' : '#2980b9',
-                    },
-                  ]}
-                >
-                  <IconSymbol
-                    name={builderModalVisible ? 'minus' : 'plus'}
-                    color="white"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Builder Modal */}
-            <BuilderModal
-              visible={builderModalVisible}
-              onClose={() => setBuilderModalVisible(false)}
-              onSelectCustomer={handleSelectCustomer}
-              allCustomers={allCustomers}
-            />
-
-            {/* Homeowner Section */}
-            <View style={styles.card}>
-              <View
-                style={[
-                  styles.selectionContainer,
-                  {
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                  },
-                ]}
-              >
-                <Text style={styles.modalTitle}>Homeowner</Text>
-                <TouchableOpacity
-                  onPress={() => setShowHomeowner(prev => !prev)}
-                  style={[
-                    styles.plusButton,
-                    { backgroundColor: showHomeowner ? 'red' : '#2980b9' },
-                  ]}
-                >
-                  <IconSymbol
-                    name={showHomeowner ? 'minus' : 'plus'}
-                    color="white"
-                  />
-                </TouchableOpacity>
-              </View>
-              {showHomeowner && (
-                <>
-                  <TextInput
-                    style={styles.inputField}
-                    placeholder="Homeowner Name"
-                    value={newTicket.homeOwnerName}
-                    onChangeText={text =>
-                      setNewTicket({ ...newTicket, homeOwnerName: text })
-                    }
-                  />
-                  <TextInput
-                    style={styles.inputField}
-                    placeholder="Homeowner Number"
-                    value={newTicket.homeOwnerNumber}
-                    onChangeText={handleHomeOwnerNumberChange}
-                    keyboardType="phone-pad"
-                  />
-                </>
-              )}
-            </View>
-
-            {/* Ticket Details */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Ticket Details</Text>
-              <TextInput
-                style={styles.inputField}
-                placeholder="Inspector Name"
-                value={newTicket.inspectorName}
-                onChangeText={text =>
-                  setNewTicket({ ...newTicket, inspectorName: text })
-                }
-              />
-              <TextInput
-                style={[styles.inputField, { height: 100 }]}
-                placeholder="Reason for visit"
-                value={newTicket.reason}
-                onChangeText={text =>
-                  setNewTicket({ ...newTicket, reason: text })
-                }
-                multiline
-              />
-              <TextInput
-                style={[styles.inputField, { height: 80 }]}
-                placeholder="Add a note for this ticket..."
-                value={newNote}
-                onChangeText={setNewNote}
-                multiline
-                numberOfLines={4}
-              />
-              <TouchableOpacity
-                onPress={handleTogglePicker}
-                style={styles.button}
-              >
-                <Text style={styles.buttonText}>
-                  {jobType ? jobType : 'Select Job Type'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleToggleVacancyPicker}
-                style={styles.button}
-              >
-                <Text style={styles.buttonText}>
-                  {vacancy === 'occupied'
-                    ? 'Occupied'
-                    : vacancy === 'unoccupied'
-                    ? 'Unoccupied'
-                    : 'Select Occupancy'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Job Type Modal */}
-            <Modal
-              visible={jobTypeModalVisible}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={handleTogglePicker}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={jobType}
-                    onValueChange={handleJobTypeChange}
-                    style={styles.picker}
+                  <Text
+                    style={[
+                      styles.tabButtonText,
+                      selectedTab === tab && styles.tabButtonTextActive,
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
                   >
-                    <Picker.Item label="Select job type" value="" />
-                    <Picker.Item
-                      label="Leak Detection"
-                      value="leak detection"
-                    />
-                    <Picker.Item label="Inspection" value="inspection" />
-                    <Picker.Item label="Containment" value="containment" />
-                    <Picker.Item label="Flood" value="flood" />
-                    <Picker.Item label="Mold Job" value="mold job" />
-                    <Picker.Item label="Wipe Down" value="wipe down" />
-                  </Picker>
-                  <View style={styles.modalCloseContainer}>
-                    <TouchableOpacity onPress={handleTogglePicker}>
-                      <Text style={styles.modalCloseText}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-            {/* Vacancy Modal */}
-            <Modal
-              visible={vacancyModalVisible}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={handleToggleVacancyPicker}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={vacancy}
-                    onValueChange={handleVacancyChange}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Select occupancy" value="" />
-                    <Picker.Item label="Occupied" value="occupied" />
-                    <Picker.Item label="Unoccupied" value="unoccupied" />
-                  </Picker>
-                  <View style={styles.modalCloseContainer}>
-                    <TouchableOpacity onPress={handleToggleVacancyPicker}>
-                      <Text style={styles.modalCloseText}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
+            {renderTabContent()}
 
             {newTicket.ticketPhotos.length > 0 && (
               <PhotoGallery
@@ -657,82 +551,151 @@ const CreateTicketScreen = () => {
                 onRemovePhoto={handleRemovePhoto}
               />
             )}
-            <TouchableOpacity
-              onPress={handleAddPhoto}
-              style={styles.addPhotoButton}
-            >
-              <Text style={styles.addPhotoButtonText}>Add Photo</Text>
-            </TouchableOpacity>
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                onPress={handleCreate}
-                style={[
-                  styles.actionButton,
-                  styles.createButton,
-                  isSubmitting && styles.disabledButton,
-                ]}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.actionButtonText}>
-                  {isSubmitting ? 'Creating...' : 'Create'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleBack}
-                style={[styles.actionButton, styles.cancelButton]}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.actionButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+
+      <BuilderModal
+        visible={builderModalVisible}
+        onClose={() => setBuilderModalVisible(false)}
+        onSelectCustomer={handleSelectCustomer}
+        allCustomers={allCustomers}
+      />
     </View>
   )
 }
 
-export default CreateTicketScreen
-
 const styles = StyleSheet.create({
-  fullScreenContainer: {
-    flex: 1,
-  },
-  flex1: {
-    flex: 1,
-  },
-  scrollView: {
-    paddingHorizontal: 5,
-  },
-  contentContainer: {
-    paddingBottom: 20,
-  },
-  card: {
-    backgroundColor: '#F5F8FA',
-    borderColor: '#E1E8ED',
-    borderRadius: 8,
+  fullScreenContainer: { flex: 1 },
+  flex1: { flex: 1 },
+  scrollView: { paddingHorizontal: 5 },
+  contentContainer: { paddingBottom: 20 },
+  buttonBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
     borderWidth: 1,
-    marginBottom: 10,
-    padding: 12,
+    borderColor: '#000',
+    borderRadius: 20,
+    overflow: 'hidden',
   },
-  dateTimeSection: {
-    marginBottom: 10,
-  },
-  datePickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  timePickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  datePicker: {
+  tabButton: {
     flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    borderRightWidth: 1,
+    borderRightColor: '#000',
   },
-  timePicker: {
+  tabButtonActive: {
+    backgroundColor: '#999999',
+  },
+  tabButtonText: {
+    fontSize: 12,
+    color: '#000',
+  },
+  tabButtonTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  tabContent: { padding: 10 },
+  readOnlyBox: {
+    backgroundColor: '#f9f9f9',
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  readOnlyText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 5,
+  },
+  subTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginVertical: 8,
+    color: '#555',
+  },
+  damageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  damageButton: {
+    width: '30%',
+    aspectRatio: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    backgroundColor: '#f0f0f0',
+  },
+  damageButtonActive: {
+    backgroundColor: '#999999',
+  },
+  damageIcon: {
+    fontSize: 24,
+    marginBottom: 5,
+  },
+  damageText: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#555',
+  },
+  occupiedGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  occupiedButton: {
+    width: '45%',
+    aspectRatio: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    backgroundColor: '#f0f0f0',
+  },
+  occupiedButtonActive: {
+    backgroundColor: '#999999',
+  },
+  occupiedIcon: {
+    fontSize: 24,
+    marginBottom: 5,
+  },
+  occupiedText: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#555',
+  },
+  categoryContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  categoryButton: {
     flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    marginHorizontal: 2,
+    backgroundColor: '#f0f0f0',
+  },
+  categoryButtonActive: {
+    backgroundColor: '#999999',
+  },
+  categoryText: {
+    fontSize: 14,
+    color: '#555',
   },
   dateButton: {
     padding: 10,
@@ -740,27 +703,16 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 4,
     backgroundColor: '#f9f9f9',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginVertical: 8,
-    color: '#2c3e50',
-  },
-  label: {
-    fontSize: 16,
-    color: '#555',
-    marginRight: 8,
+    marginBottom: 10,
   },
   inputField: {
     backgroundColor: '#f9f9f9',
     borderColor: '#ddd',
     borderWidth: 1,
     borderRadius: 4,
-    fontSize: 16,
+    fontSize: 14,
     padding: 10,
     marginBottom: 10,
-    color: '#333',
   },
   selectionContainer: {
     flexDirection: 'row',
@@ -772,7 +724,7 @@ const styles = StyleSheet.create({
   },
   selectionText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     color: '#555',
   },
   plusButton: {
@@ -792,51 +744,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-  },
-  addPhotoButton: {
-    backgroundColor: '#2ecc71',
-    borderRadius: 5,
-    padding: 12,
-    alignItems: 'center',
-    marginVertical: 6,
-  },
-  addPhotoButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 10,
-  },
-  actionButton: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: 5,
-    padding: 12,
-    marginHorizontal: 5,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  createButton: {
-    backgroundColor: '#2c3e50',
-  },
-  cancelButton: {
-    backgroundColor: '#e74c3c',
-  },
-  disabledButton: {
-    opacity: 0.6,
+    fontSize: 14,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   pickerContainer: {
     backgroundColor: '#fff',
@@ -848,20 +762,12 @@ const styles = StyleSheet.create({
   picker: {
     width: '100%',
   },
-  modalCloseContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
   modalCloseText: {
     color: '#2980b9',
-    fontSize: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    fontSize: 14,
     textAlign: 'center',
+    marginTop: 10,
   },
 })
+
+export default CreateTicketScreen

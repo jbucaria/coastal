@@ -179,7 +179,7 @@ const TicketsScreen = () => {
 
         <View style={{ position: 'absolute', right: 24, bottom: 110 }}>
           <FloatingButton
-            onPress={() => router.push('/CreateTicketScreen')}
+            onPress={() => router.push('/AddTicketScreen')}
             title="Ticket"
             animatedOpacity={floatingOpacity}
             iconName="plus.circle"
