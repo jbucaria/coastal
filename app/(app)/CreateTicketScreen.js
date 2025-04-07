@@ -60,14 +60,13 @@ const initialTicketStatus = {
   reportPhotos: [],
   ticketPhotos: [],
   status: 'Open',
-
   onSite: false,
   inspectionComplete: false,
-  remediationRequired: false,
+  remediationRequired: null,
   remediationStatus: '',
   equipmentOnSite: false,
   siteComplete: false,
-  measurementsRequired: false,
+  measurementsRequired: null,
 }
 
 const CreateTicketScreen = () => {
