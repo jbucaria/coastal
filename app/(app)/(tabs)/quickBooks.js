@@ -11,10 +11,12 @@ import {
   TextInput,
   StyleSheet,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { firestore } from '@/firebaseConfig'
 import { collection, setDoc, doc, getDocs } from 'firebase/firestore'
 import * as AuthSession from 'expo-auth-session'
 import useAuthStore from '@/store/useAuthStore'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions' // Import the HeaderWithOptions component
 
 const redirectUri = 'https://coastalrestorationservice.com/oauth/callback'
 const discovery = {
@@ -29,7 +31,9 @@ const QuickBooksManagementScreen = () => {
   const [items, setItems] = useState([])
   const [itemSearchQuery, setItemSearchQuery] = useState('')
   const [loadingItems, setLoadingItems] = useState(false)
+  const [headerHeight, setHeaderHeight] = useState(0) // State to store the header height
 
+  const router = useRouter()
   const {
     quickBooksCompanyId,
     clientId,
@@ -88,35 +92,35 @@ const QuickBooksManagementScreen = () => {
     }
   }
 
-  useEffect(() => {
-    console.log('Current accessToken:', accessToken)
-    console.log('Token expires at:', new Date(tokenExpiresAt).toISOString())
-    const now = Date.now()
-    if (!accessToken || (tokenExpiresAt && now > tokenExpiresAt)) {
-      Alert.alert(
-        'Token Expired',
-        'Please refresh your token.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Refresh Token',
-            onPress: () => {
-              // Clear the token to force a refresh
-              useAuthStore.getState().setCredentials({
-                quickBooksCompanyId,
-                clientId,
-                accessToken: null,
-                refreshToken: null,
-                tokenExpiresAt: null,
-              })
-              promptAsync()
-            },
-          },
-        ],
-        { cancelable: true }
-      )
-    }
-  }, [accessToken, tokenExpiresAt, promptAsync, quickBooksCompanyId, clientId])
+  // useEffect(() => {
+  //   console.log('Current accessToken:', accessToken)
+  //   console.log('Token expires at:', new Date(tokenExpiresAt).toISOString())
+  //   const now = Date.now()
+  //   if (!accessToken || (tokenExpiresAt && now > tokenExpiresAt)) {
+  //     Alert.alert(
+  //       'Token Expired',
+  //       'Please refresh your token.',
+  //       [
+  //         { text: 'Cancel', style: 'cancel' },
+  //         {
+  //           text: 'Refresh Token',
+  //           onPress: () => {
+  //             // Clear the token to force a refresh
+  //             useAuthStore.getState().setCredentials({
+  //               quickBooksCompanyId,
+  //               clientId,
+  //               accessToken: null,
+  //               refreshToken: null,
+  //               tokenExpiresAt: null,
+  //             })
+  //             promptAsync()
+  //           },
+  //         },
+  //       ],
+  //       { cancelable: true }
+  //     )
+  //   }
+  // }, [accessToken, tokenExpiresAt, promptAsync, quickBooksCompanyId, clientId])
 
   useEffect(() => {
     if (response?.type === 'success') {
@@ -304,10 +308,34 @@ const QuickBooksManagementScreen = () => {
     item.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
   )
 
+  // Options for the header menu
+  const headerOptions = [
+    {
+      label: 'Refresh Token',
+      onPress: () => {
+        useAuthStore.getState().setCredentials({
+          quickBooksCompanyId,
+          clientId,
+          accessToken: null,
+          refreshToken: null,
+          tokenExpiresAt: null,
+        })
+        promptAsync()
+      },
+    },
+    {
+      label: 'Clear Credentials',
+      onPress: () => {
+        useAuthStore.getState().clearCredentials()
+        Alert.alert('Success', 'QuickBooks credentials cleared.')
+      },
+    },
+  ]
+
   // UI Components
   const renderSegmentedControl = () => (
     <View style={styles.segmentedControl}>
-      {['customers', 'items', 'tokens'].map(tab => (
+      {['customers', 'items'].map(tab => (
         <TouchableOpacity
           key={tab}
           style={[
@@ -398,8 +426,19 @@ const QuickBooksManagementScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { margin: 5 }]}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>QuickBooks Management</Text>
+      <HeaderWithOptions
+        title="QuickBooks Management"
+        onBack={() => router.back()}
+        options={headerOptions}
+        showHome={false}
+        onHeightChange={setHeaderHeight}
+      />
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContainer,
+          { paddingTop: headerHeight }, // Adjust padding to account for header height
+        ]}
+      >
         {renderSegmentedControl()}
         {activeTab === 'customers'
           ? renderCustomersUI()
@@ -416,7 +455,6 @@ export default QuickBooksManagementScreen
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   scrollContainer: { alignItems: 'center', paddingBottom: 20 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
   segmentedControl: {
     flexDirection: 'row',
     marginBottom: 20,

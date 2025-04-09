@@ -17,7 +17,6 @@ const useAuthStore = create(set => {
           refreshToken: data.refreshToken || null,
           tokenExpiresAt: data.tokenExpiresAt || null,
         })
-        console.log('Loaded auth data from Firestore:', data)
       } else {
         console.error('Company info not found in Firestore')
       }

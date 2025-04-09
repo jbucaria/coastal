@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   FlatList,
   Keyboard,
 } from 'react-native'
@@ -29,6 +28,7 @@ import {
 import { auth, firestore } from '@/firebaseConfig'
 import { useUserStore } from '@/store/useUserStore'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 
 const MessageItem = React.memo(({ item }) => {
   const initials = item.userName
@@ -74,6 +74,7 @@ const TicketNotesScreen = () => {
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [headerHeight, setHeaderHeight] = useState(0)
   const flatListRef = useRef(null)
 
   const { user } = useUserStore()
@@ -118,9 +119,10 @@ const TicketNotesScreen = () => {
     )
 
     return () => {
-      keyboardShowListener.remove() // Properly remove the listener
+      keyboardShowListener.remove()
     }
   }, [])
+
   const handleSend = useCallback(async () => {
     if (newMessage.trim() === '') return
 
@@ -149,34 +151,49 @@ const TicketNotesScreen = () => {
     router.back()
   }
 
+  const headerOptions = [
+    // Add any options here if needed, e.g., { label: 'Option', onPress: () => {} }
+  ]
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <HeaderWithOptions
+          title="Notes"
+          onBack={handleBack}
+          options={headerOptions}
+          showHome={true}
+          onHeightChange={height => setHeaderHeight(height)}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
         </View>
-      </SafeAreaView>
+      </View>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <HeaderWithOptions
+        title="Notes"
+        onBack={handleBack}
+        options={headerOptions}
+        showHome={true}
+        onHeightChange={height => setHeaderHeight(height)}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={10}
+        keyboardVerticalOffset={headerHeight + 10}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notes</Text>
-        </View>
         <FlatList
           data={messages}
           renderItem={({ item }) => <MessageItem item={item} />}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.chatList}
+          contentContainerStyle={[
+            styles.chatList,
+            { paddingTop: headerHeight },
+          ]}
           ref={flatListRef}
           onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({ animated: true })
@@ -194,7 +211,7 @@ const TicketNotesScreen = () => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -204,29 +221,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    backgroundColor: '#f5f5f5',
-  },
-  backButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#2C3E50',
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   chatList: {
     padding: 10,

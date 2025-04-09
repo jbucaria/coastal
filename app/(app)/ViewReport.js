@@ -1,7 +1,8 @@
-'use client'
+// @/screens/ViewReportScreen.js
+'use client';
 
-import React, { useState, useEffect } from 'react'
-import { useLocalSearchParams } from 'expo-router'
+import React, { useState, useEffect } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import {
   View,
   ScrollView,
@@ -13,69 +14,77 @@ import {
   Alert,
   Modal,
   TextInput,
-} from 'react-native'
-import Pdf from 'react-native-pdf'
-import * as Sharing from 'expo-sharing'
-import useTicket from '@/hooks/useTicket'
-import useProjectStore from '@/store/useProjectStore'
-import { useRouter } from 'expo-router'
-import { generatePDF } from '@/utils/pdfGenerator'
-import { HeaderWithOptions } from '@/components/HeaderWithOptions'
-import { FloatingButton } from '@/components/FloatingButton'
-import { uploadPDFToFirestore } from '@/utils/pdfUploader'
-import { updateTicketPdfUrl } from '@/utils/firestoreUtils'
-import { PhotoModal } from '@/components/PhotoModal'
-import { TicketDetailsCard, RoomCard } from '@/components/Cards'
+} from 'react-native';
+import Pdf from 'react-native-pdf';
+import * as Sharing from 'expo-sharing';
+import useTicket from '@/hooks/useTicket';
+import useProjectStore from '@/store/useProjectStore';
+import { useRouter } from 'expo-router';
+import { generatePdf } from '@/utils/pdfGenerator';
+import { HeaderWithOptions } from '@/components/HeaderWithOptions';
+import { uploadPDFToFirestore } from '@/utils/pdfUploader';
+import { updateTicketPdfUrl } from '@/utils/firestoreUtils';
+import { PhotoModal } from '@/components/PhotoModal';
+import { TicketDetailsCard, RoomCard } from '@/components/Cards';
 
 const ViewReportScreen = () => {
-  const router = useRouter()
-  const params = useLocalSearchParams()
-  const projectIdFromParams = params.projectId
-  const { projectId: storeProjectId } = useProjectStore()
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const projectIdFromParams = params.projectId;
+  const { projectId: storeProjectId } = useProjectStore();
 
-  const projectId = projectIdFromParams ?? storeProjectId
+  const projectId = projectIdFromParams ?? storeProjectId;
 
-  const { ticket, error } = useTicket(projectId)
-  const [pdfUri, setPdfUri] = useState(null)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [isViewerVisible, setIsViewerVisible] = useState(false)
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [isEditMode, setIsEditMode] = useState(false)
-  const [editedTicket, setEditedTicket] = useState(null)
-  const [headerHeight, setHeaderHeight] = useState(0)
-  const marginBelowHeader = 8
+  const { ticket, error } = useTicket(projectId);
+  const [pdfUri, setPdfUri] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isViewerVisible, setIsViewerVisible] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedTicket, setEditedTicket] = useState(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const marginBelowHeader = 8;
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('useEffect - ticket:', ticket, 'error:', error);
     if (ticket) {
-      setEditedTicket(ticket)
+      setEditedTicket(ticket);
+      setIsLoading(false);
+    } else if (error) {
+      setIsLoading(false);
     }
-  }, [ticket])
+  }, [ticket, error]);
 
   const handleTicketFieldChange = (field, value) => {
-    setEditedTicket({ ...editedTicket, [field]: value })
-  }
+    setEditedTicket({ ...editedTicket, [field]: value });
+  };
 
   const handleRoomFieldChange = (roomId, newFindings) => {
     const updatedRooms = editedTicket.inspectionData.rooms.map(room =>
       room.id === roomId ? { ...room, inspectionFindings: newFindings } : room
-    )
+    );
     setEditedTicket({
       ...editedTicket,
       inspectionData: { ...editedTicket.inspectionData, rooms: updatedRooms },
-    })
-  }
+    });
+  };
 
   const handleGenerateReport = async () => {
-    if (!ticket) {
-      Alert.alert('Error', 'Ticket data is not available.')
-      return
+    console.log('handleGenerateReport - ticket before check:', ticket);
+    if (!ticket || typeof ticket !== 'object') {
+      Alert.alert('Error', 'Ticket data is incomplete or not available.');
+      return;
     }
-    setIsGenerating(true)
+    setIsGenerating(true);
     try {
-      const localPdfUri = await generatePDF(ticket)
-      const uploadedPdfUrl = await uploadPDFToFirestore(ticket, localPdfUri)
-      await updateTicketPdfUrl(ticket.id, uploadedPdfUrl)
-      setPdfUri(uploadedPdfUrl)
+      const logoBase64 = ''; // Replace with actual base64 string if available
+      const localPdfUri = await generatePdf(logoBase64, ticket);
+      console.log('Generated local PDF URI:', localPdfUri);
+      const uploadedPdfUrl = await uploadPDFToFirestore(ticket, localPdfUri);
+      console.log('Uploaded PDF URL:', uploadedPdfUrl);
+      await updateTicketPdfUrl(ticket.id, uploadedPdfUrl);
+      setPdfUri(localPdfUri); // Use local URI for viewing
       Alert.alert(
         'Success',
         'PDF report generated and uploaded. Would you like to view the report now?',
@@ -83,58 +92,63 @@ const ViewReportScreen = () => {
           { text: 'Home', onPress: () => router.push({ pathname: '/(tabs)' }) },
           { text: 'View Report', onPress: () => setIsViewerVisible(true) },
         ]
-      )
+      );
     } catch (error) {
-      console.error('Error generating and uploading PDF:', error)
-      Alert.alert('Error', 'Failed to generate and upload PDF report.')
+      console.error('Error generating and uploading PDF:', error);
+      Alert.alert(
+        'Error',
+        `Failed to generate and upload PDF report: ${error.message}`
+      );
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false)
-  }
+  };
 
   useEffect(() => {
     if (ticket && ticket.pdfUrl) {
-      setPdfUri(ticket.pdfUrl)
+      setPdfUri(ticket.pdfUrl); // Use existing pdfUrl if available
     }
-  }, [ticket])
+  }, [ticket]);
 
   const handleViewReport = () => {
     if (pdfUri) {
-      setIsViewerVisible(true)
+      console.log('Viewing PDF with URI:', pdfUri);
+      setIsViewerVisible(true);
     } else {
-      Alert.alert('No Report', 'Please generate a report first.')
+      Alert.alert('No Report', 'Please generate a report first.');
     }
-  }
+  };
 
   const handleShareReport = async () => {
     if (pdfUri) {
-      const available = await Sharing.isAvailableAsync()
+      const available = await Sharing.isAvailableAsync();
       if (available) {
-        await Sharing.shareAsync(pdfUri)
+        await Sharing.shareAsync(pdfUri);
       } else {
-        Alert.alert('Share Report', 'Sharing is not available on this device.')
+        Alert.alert('Share Report', 'Sharing is not available on this device.');
       }
     } else {
-      Alert.alert('No Report', 'Please generate a report first.')
+      Alert.alert('No Report', 'Please generate a report first.');
     }
-  }
+  };
 
   const handleSaveChanges = async () => {
     try {
-      await updateTicketData(editedTicket.id, editedTicket)
-      Alert.alert('Success', 'Ticket updated successfully.')
-      setIsEditMode(false)
+      await updateTicketData(editedTicket.id, editedTicket);
+      Alert.alert('Success', 'Ticket updated successfully.');
+      setIsEditMode(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update ticket.')
+      Alert.alert('Error', 'Failed to update ticket.');
     }
-  }
+  };
 
   const headerOptions = isEditMode
     ? [
         {
           label: 'Cancel',
           onPress: () => {
-            setIsEditMode(false)
-            setEditedTicket(ticket)
+            setIsEditMode(false);
+            setEditedTicket(ticket);
           },
         },
         { label: 'Save', onPress: handleSaveChanges },
@@ -146,7 +160,7 @@ const ViewReportScreen = () => {
             router.push({
               pathname: '/InspectionScreen',
               params: { ticketData: JSON.stringify(editedTicket) },
-            })
+            });
           },
         },
         ...(pdfUri
@@ -154,27 +168,41 @@ const ViewReportScreen = () => {
               { label: 'View PDF', onPress: handleViewReport },
               { label: 'Share PDF', onPress: handleShareReport },
             ]
-          : [{ label: 'Generate PDF', onPress: handleGenerateReport }]),
-      ]
+          : [
+              {
+                label: 'Generate PDF',
+                onPress: handleGenerateReport,
+                disabled: isLoading || !ticket || typeof ticket !== 'object' || isGenerating,
+              },
+            ]),
+      ];
 
   const handlePhotoPress = uri => {
-    setSelectedPhoto(uri)
-  }
-  const closePhoto = () => setSelectedPhoto(null)
+    setSelectedPhoto(uri);
+  };
+  const closePhoto = () => setSelectedPhoto(null);
 
   if (error) {
-    Alert.alert('Error', 'Failed to load ticket data.')
+    Alert.alert('Error', 'Failed to load ticket data.');
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>
+          Error loading ticket data: {error.message}
+        </Text>
+      </View>
+    );
   }
-  if (!ticket || !editedTicket) {
+
+  if (isLoading || !ticket || !editedTicket) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1DA1F2" />
         <Text style={styles.loadingText}>Loading ticket data...</Text>
       </View>
-    )
+    );
   }
 
-  const inspectionRooms = editedTicket.inspectionData?.rooms || []
+  const inspectionRooms = editedTicket.inspectionData?.rooms || [];
 
   return (
     <View style={styles.fullScreenContainer}>
@@ -229,8 +257,8 @@ const ViewReportScreen = () => {
                 { paddingTop: headerHeight + marginBelowHeader },
               ]}
               onError={error => {
-                console.log('PDF rendering error:', error)
-                Alert.alert('Error', 'Failed to display PDF.')
+                console.log('PDF rendering error:', error);
+                Alert.alert('Error', 'Failed to display PDF.');
               }}
             />
           )}
@@ -243,10 +271,10 @@ const ViewReportScreen = () => {
         onClose={closePhoto}
       />
     </View>
-  )
-}
+  );
+};
 
-export default ViewReportScreen
+export default ViewReportScreen;
 
 const styles = StyleSheet.create({
   combinedButtonContainer: {
@@ -351,4 +379,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-})
+});

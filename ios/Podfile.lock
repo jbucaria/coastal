@@ -277,7 +277,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - ExpoPrint (14.0.2):
+  - ExpoPrint (14.0.3):
     - ExpoModulesCore
   - ExpoSecureStore (14.0.1):
     - ExpoModulesCore
@@ -1613,6 +1613,8 @@ PODS:
     - Yoga
   - react-native-get-random-values (1.11.0):
     - React-Core
+  - react-native-html-to-pdf (0.12.0):
+    - React-Core
   - react-native-keyboard-controller (1.15.2):
     - DoubleConversion
     - glog
@@ -2313,6 +2315,7 @@ DEPENDENCIES:
   - react-native-blob-util (from `../node_modules/react-native-blob-util`)
   - react-native-date-picker (from `../node_modules/react-native-date-picker`)
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
+  - react-native-html-to-pdf (from `../node_modules/react-native-html-to-pdf`)
   - react-native-keyboard-controller (from `../node_modules/react-native-keyboard-controller`)
   - react-native-maps (from `../node_modules/react-native-maps`)
   - react-native-pdf (from `../node_modules/react-native-pdf`)
@@ -2511,6 +2514,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-date-picker"
   react-native-get-random-values:
     :path: "../node_modules/react-native-get-random-values"
+  react-native-html-to-pdf:
+    :path: "../node_modules/react-native-html-to-pdf"
   react-native-keyboard-controller:
     :path: "../node_modules/react-native-keyboard-controller"
   react-native-maps:
@@ -2622,7 +2627,7 @@ SPEC CHECKSUMS:
   ExpoLocation: a4b472b3cb2d42f1a3f3d7e2ec0e7a4db061ea22
   ExpoMediaLibrary: 634d8bc2ddb2f6e0f6fd2045ce5ebbc253007114
   ExpoModulesCore: f9546265a5e1f1fd67473bb2f0463b28252cee49
-  ExpoPrint: 3f9f5a5a19dbda5b30963d5bf078918f024aa29d
+  ExpoPrint: cdbb10ba76557abaf825121b4136ccf5b279fe37
   ExpoSecureStore: d006eea5e316283099d46f80a6b10055b89a6008
   ExpoSharing: 39a198e64bf522948fe60e270e49a0c7757912c1
   ExpoSplashScreen: 5818efe67bdbcc862b97fef589571c5b4d53fa7d
@@ -2669,6 +2674,7 @@ SPEC CHECKSUMS:
   react-native-blob-util: caa7203c370bbf76ae63b67300d1b489b1a62511
   react-native-date-picker: 543274fea228bdf7427a917d19b71f8f6eca7a72
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
+  react-native-html-to-pdf: 4c5c6e26819fe202971061594058877aa9b25265
   react-native-keyboard-controller: dbd7fb6a233505f937c9242d6d8bb5ebe659ec32
   react-native-maps: ee1e65647460c3d41e778071be5eda10e3da6225
   react-native-pdf: 612757482d19b59e9c2ff42148118248b9080950

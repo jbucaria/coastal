@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useEffect } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import {
   Alert,
   Image,
@@ -16,24 +16,25 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  ActivityIndicator,
 } from 'react-native'
 import { Picker } from '@react-native-picker/picker'
 import DateTimePicker from '@react-native-community/datetimepicker'
+import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete'
 import 'react-native-get-random-values'
 import * as ImagePicker from 'expo-image-picker'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, addDoc } from 'firebase/firestore'
 import { firestore } from '@/firebaseConfig'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import { handleCreateTicket } from '@/utils/generateTicket'
 import { useUserStore } from '@/store/useUserStore'
 import PhotoGallery from '@/components/PhotoGallery'
-import { formatPhoneNumber } from '@/utils/helpers'
+import { formatPhoneNumber, parseAddressComponents } from '@/utils/helpers'
 import { IconSymbol } from '@/components/ui/IconSymbol'
-import AddressModal from '@/components/AddressModal'
-import BuilderModal from '@/components/BuilderModal'
 import { formatAddress } from '@/utils/helpers'
 import { pickAndUploadPhotos } from '@/utils/photoUpload'
 import useAuthStore from '@/store/useAuthStore'
+import { createCustomerInQuickBooks } from '@/utils/quickbooksApi'
 
 // Initial ticket state object
 const initialTicketStatus = {
@@ -56,6 +57,7 @@ const initialTicketStatus = {
   typeOfJob: 'Leak Detection',
   recommendedActions: '',
   startTime: new Date(),
+  endTime: new Date(),
   messageCount: 0,
   reportPhotos: [],
   ticketPhotos: [],
@@ -72,36 +74,62 @@ const initialTicketStatus = {
 const CreateTicketScreen = () => {
   const router = useRouter()
   const { user } = useUserStore()
+  const { accessToken, quickBooksCompanyId } = useAuthStore()
+
+  // Debug logging to check for double rendering
+  useEffect(() => {
+    console.log('CreateTicketScreen mounted')
+    return () => {
+      console.log('CreateTicketScreen unmounted')
+    }
+  }, [])
 
   // Main state variables
   const [newTicket, setNewTicket] = useState(initialTicketStatus)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [startTime, setStartTime] = useState(new Date())
-  const [endTime, setEndTime] = useState(new Date())
-  const [jobType, setJobType] = useState('')
-  const [vacancy, setVacancy] = useState('')
-  const [newNote, setNewNote] = useState('')
-  const [selectedAddress, setSelectedAddress] = useState('')
+  const [selectedDate, setSelectedDate] = useState(new Date()) // Date for both start and end times
+  const [startTime, setStartTime] = useState(new Date()) // Start time
+  const [endTime, setEndTime] = useState(() => {
+    const defaultEndTime = new Date()
+    defaultEndTime.setHours(defaultEndTime.getHours() + 2) // Default to 2 hours after start time
+    return defaultEndTime
+  }) // End time
   const [headerHeight, setHeaderHeight] = useState(0)
   const marginBelowHeader = 8
+  const [step, setStep] = useState(1) // Step for conditional flow
 
-  // Modal visibility state
-  const [addressModalVisible, setAddressModalVisible] = useState(false)
-  const [builderModalVisible, setBuilderModalVisible] = useState(false)
+  // Modal visibility state (for Job Type and Vacancy)
   const [jobTypeModalVisible, setJobTypeModalVisible] = useState(false)
   const [vacancyModalVisible, setVacancyModalVisible] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showStartTimePicker, setShowStartTimePicker] = useState(false)
   const [showEndTimePicker, setShowEndTimePicker] = useState(false)
 
-  // Builder (customer) selection state
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('')
-  const [customerSuggestions, setCustomerSuggestions] = useState([])
+  // Address state (from AddressModal)
+  const [street, setStreet] = useState('')
+  const [city, setCity] = useState('')
+  const [stateField, setStateField] = useState('')
+  const [zip, setZip] = useState('')
+
+  // Builder state (from BuilderModal)
+  const [isAddingNew, setIsAddingNew] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [suggestions, setSuggestions] = useState([])
   const [allCustomers, setAllCustomers] = useState([])
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const [newCompanyName, setNewCompanyName] = useState('')
+  const [newCompanyAddress, setNewCompanyAddress] = useState('')
+  const [loading, setLoading] = useState(false)
 
   // Toggle for Homeowner info section
   const [showHomeowner, setShowHomeowner] = useState(false)
+
+  // Other state variables
+  const [jobType, setJobType] = useState('')
+  const [vacancy, setVacancy] = useState('')
+  const [newNote, setNewNote] = useState('')
 
   // Load customers from Firestore
   useEffect(() => {
@@ -122,74 +150,143 @@ const CreateTicketScreen = () => {
 
   // Update builder suggestions as the search query changes
   useEffect(() => {
-    if (customerSearchQuery.trim() === '') {
-      setCustomerSuggestions([])
+    if (!searchQuery.trim()) {
+      setSuggestions([])
       return
     }
-    const queryLower = customerSearchQuery.toLowerCase()
+    const queryLower = searchQuery.toLowerCase()
     const filtered = allCustomers.filter(c =>
       c.displayName?.toLowerCase().includes(queryLower)
     )
-    setCustomerSuggestions(filtered)
-  }, [customerSearchQuery, allCustomers])
-
-  // Helper to parse address components from Google Places
-  const parseAddressComponents = addressComponents => {
-    const components = { street: '', city: '', state: '', zip: '' }
-    addressComponents.forEach(component => {
-      if (component.types.includes('street_number')) {
-        components.street = component.long_name + ' '
-      }
-      if (component.types.includes('route')) {
-        components.street += component.long_name
-      }
-      if (component.types.includes('locality')) {
-        components.city = component.long_name
-      }
-      if (component.types.includes('administrative_area_level_1')) {
-        components.state = component.short_name
-      }
-      if (component.types.includes('postal_code')) {
-        components.zip = component.long_name
-      }
-    })
-    return components
-  }
-
-  // Builder selection handler
-  const handleSelectCustomer = selectedCustomer => {
-    setNewTicket(prev => ({
-      ...prev,
-      customerId: selectedCustomer.id,
-      customerName: selectedCustomer.displayName || '',
-      customerEmail: selectedCustomer.email || '',
-      customerNumber: selectedCustomer.number || '',
-    }))
-    setCustomerSearchQuery(selectedCustomer.displayName)
-  }
+    setSuggestions(filtered)
+  }, [searchQuery, allCustomers])
 
   // Date and time picker change handlers
   const handleDateChange = (event, date) => {
-    setShowDatePicker(Platform.OS === 'ios') // Hide picker on Android after selection
+    setShowDatePicker(false) // Always hide after selection
     if (date) {
       setSelectedDate(date)
-      setStartTime(setTimeToDate(date, startTime))
-      setEndTime(setTimeToDate(date, endTime))
+      // Update start and end times to use the new date
+      const newStartTime = new Date(startTime)
+      newStartTime.setFullYear(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      )
+      const newEndTime = new Date(endTime)
+      newEndTime.setFullYear(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      )
+      setStartTime(newStartTime)
+      setEndTime(newEndTime)
+      setNewTicket(prev => ({
+        ...prev,
+        startTime: newStartTime,
+        endTime: newEndTime,
+      }))
     }
   }
 
   const handleStartTimeChange = (event, time) => {
-    setShowStartTimePicker(Platform.OS === 'ios')
+    setShowStartTimePicker(false) // Always hide after selection
     if (time) {
-      const updatedTime = setTimeToDate(selectedDate, time)
-      setStartTime(updatedTime)
-      setNewTicket(prev => ({ ...prev, startTime: updatedTime }))
+      const newStartTime = new Date(selectedDate)
+      newStartTime.setHours(time.getHours(), time.getMinutes(), 0, 0)
+      setStartTime(newStartTime)
+      setNewTicket(prev => ({ ...prev, startTime: newStartTime }))
+
+      // Ensure end time is after start time
+      const newEndTime = new Date(endTime)
+      if (newEndTime <= newStartTime) {
+        newEndTime.setTime(newStartTime.getTime() + 2 * 60 * 60 * 1000) // Set end time 2 hours later
+        setEndTime(newEndTime)
+        setNewTicket(prev => ({ ...prev, endTime: newEndTime }))
+      }
     }
   }
+
   const handleEndTimeChange = (event, time) => {
-    setShowEndTimePicker(Platform.OS === 'ios') // Hide picker on Android after selection
+    setShowEndTimePicker(false) // Always hide after selection
     if (time) {
-      setEndTime(setTimeToDate(selectedDate, time))
+      const newEndTime = new Date(selectedDate)
+      newEndTime.setHours(time.getHours(), time.getMinutes(), 0, 0)
+      if (newEndTime <= startTime) {
+        // If end time is the same as or before start time, set it 2 hours later
+        newEndTime.setTime(startTime.getTime() + 2 * 60 * 60 * 1000)
+        Alert.alert(
+          'Adjusted End Time',
+          'End time must be after start time. It has been set to 2 hours after the start time.'
+        )
+      }
+      setEndTime(newEndTime)
+      setNewTicket(prev => ({ ...prev, endTime: newEndTime }))
+    }
+  }
+
+  // Address handlers (from AddressModal)
+  const handleAutocompletePress = (data, details = null) => {
+    if (details && details.address_components) {
+      const components = parseAddressComponents(details.address_components)
+      setStreet(components.street)
+      setCity(components.city)
+      setStateField(components.state)
+      setZip(components.zip)
+    }
+  }
+
+  // Builder handlers (from BuilderModal)
+  const handleSelectCustomer = customer => {
+    setNewTicket(prev => ({
+      ...prev,
+      customerId: customer.id,
+      customerName: customer.displayName || '',
+      customerEmail: customer.email || '',
+      customerNumber: customer.number || '',
+    }))
+    setSearchQuery(customer.displayName)
+  }
+
+  const handleSaveNewCustomer = async () => {
+    setLoading(true)
+    try {
+      const newCustomer = {
+        displayName: newName || '',
+        email: newEmail || '',
+        phone: newPhone || '',
+        companyName: newCompanyName || '',
+        companyAddress: newCompanyAddress || '',
+      }
+
+      // Send the new customer to QuickBooks
+      const qbCustomerId = await createCustomerInQuickBooks(
+        newCustomer,
+        quickBooksCompanyId,
+        accessToken
+      )
+
+      // Add the QuickBooks customer id to the new customer object
+      newCustomer.id = qbCustomerId
+
+      // Save the new customer to Firestore
+      await addDoc(collection(firestore, 'customers'), newCustomer)
+
+      // Update newTicket with the new customer
+      handleSelectCustomer(newCustomer)
+
+      // Reset the form fields
+      setNewName('')
+      setNewEmail('')
+      setNewPhone('')
+      setNewCompanyName('')
+      setNewCompanyAddress('')
+      setIsAddingNew(false)
+    } catch (error) {
+      console.error('Error saving new customer:', error)
+      Alert.alert('Error', 'Failed to save new customer.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -199,8 +296,19 @@ const CreateTicketScreen = () => {
 
   const resetForm = () => {
     setNewTicket(initialTicketStatus)
-    setCustomerSearchQuery('')
-    setCustomerSuggestions([])
+    setSearchQuery('')
+    setSuggestions([])
+    setStep(1) // Reset to the first step
+    setStreet('')
+    setCity('')
+    setStateField('')
+    setZip('')
+    setNewName('')
+    setNewEmail('')
+    setNewPhone('')
+    setNewCompanyName('')
+    setNewCompanyAddress('')
+    setIsAddingNew(false)
   }
 
   const handleTogglePicker = () => {
@@ -230,25 +338,14 @@ const CreateTicketScreen = () => {
     handleCreateTicket(
       newTicket,
       selectedDate,
-      startTime,
-      endTime,
+      newTicket.startTime,
+      newTicket.endTime,
       resetForm,
       setIsSubmitting,
       isSubmitting,
       newNote,
       user
     )
-  }
-
-  const setTimeToDate = (baseDate, timeDate) => {
-    const newDate = new Date(baseDate)
-    newDate.setHours(timeDate.getHours(), timeDate.getMinutes(), 0, 0)
-    return newDate
-  }
-
-  const handleHomeOwnerNumberChange = text => {
-    const formatted = formatPhoneNumber(text)
-    setNewTicket(prev => ({ ...prev, homeOwnerNumber: formatted }))
   }
 
   const handleAddPhoto = useCallback(async () => {
@@ -266,15 +363,44 @@ const CreateTicketScreen = () => {
     }
   }, [])
 
-  const handleAddressSelected = address => {
-    setSelectedAddress(address)
-    setNewTicket(prev => ({
-      ...prev,
-      street: address.street,
-      city: address.city,
-      state: address.state,
-      zip: address.zip,
-    }))
+  // Navigation between steps
+  const handleNextStep = () => {
+    if (step === 2) {
+      // Save address to newTicket before proceeding
+      const addressObj = {
+        street,
+        city,
+        state: stateField,
+        zip,
+      }
+      setNewTicket(prev => ({
+        ...prev,
+        ...addressObj,
+      }))
+    }
+    setStep(prev => Math.min(prev + 1, 5)) // Max step is 5
+  }
+
+  const handlePreviousStep = () => {
+    setStep(prev => Math.max(prev - 1, 1)) // Min step is 1
+  }
+
+  // Format date and time for display
+  const formatDate = date => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  const formatTime = time => {
+    return time.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
   }
 
   return (
@@ -299,279 +425,313 @@ const CreateTicketScreen = () => {
             ]}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Date & Time Section */}
-            <View style={styles.card}>
-              <View style={styles.dateTimeSection}>
-                <View style={styles.datePickerContainer}>
+            {/* Step 1: Date & Time */}
+            {step === 1 && (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Date & Time</Text>
+                <View style={styles.dateTimeSection}>
                   <Text style={styles.label}>Date:</Text>
-                  {Platform.OS === 'ios' ? (
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(true)}
+                    style={styles.dateTimeButton}
+                  >
+                    <Text style={styles.dateTimeText}>
+                      {formatDate(selectedDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
                     <DateTimePicker
                       value={selectedDate}
                       mode="date"
-                      display="default"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
                       onChange={handleDateChange}
-                      style={styles.datePicker}
                     />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => setShowDatePicker(true)}
-                        style={styles.dateButton}
-                      >
-                        <Text>{selectedDate.toDateString()}</Text>
-                      </TouchableOpacity>
-                      {showDatePicker && (
-                        <DateTimePicker
-                          value={selectedDate}
-                          mode="date"
-                          display="default"
-                          onChange={handleDateChange}
-                        />
-                      )}
-                    </>
                   )}
-                </View>
-                <View style={styles.timePickerContainer}>
+
                   <Text style={styles.label}>Start Time:</Text>
-                  {Platform.OS === 'ios' ? (
+                  <TouchableOpacity
+                    onPress={() => setShowStartTimePicker(true)}
+                    style={styles.dateTimeButton}
+                  >
+                    <Text style={styles.dateTimeText}>
+                      {formatTime(startTime)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showStartTimePicker && (
                     <DateTimePicker
                       value={startTime}
                       mode="time"
-                      is24Hour={false}
-                      display="default"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
                       onChange={handleStartTimeChange}
                       minuteInterval={15}
-                      style={styles.timePicker}
                     />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => setShowStartTimePicker(true)}
-                        style={styles.dateButton}
-                      >
-                        <Text>
-                          {startTime.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </TouchableOpacity>
-                      {showStartTimePicker && (
-                        <DateTimePicker
-                          value={startTime}
-                          mode="time"
-                          is24Hour={false}
-                          display="default"
-                          onChange={handleStartTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
-                    </>
                   )}
-                </View>
-                <View style={styles.timePickerContainer}>
+
                   <Text style={styles.label}>End Time:</Text>
-                  {Platform.OS === 'ios' ? (
+                  <TouchableOpacity
+                    onPress={() => setShowEndTimePicker(true)}
+                    style={styles.dateTimeButton}
+                  >
+                    <Text style={styles.dateTimeText}>
+                      {formatTime(endTime)}
+                    </Text>
+                  </TouchableOpacity>
+                  {showEndTimePicker && (
                     <DateTimePicker
                       value={endTime}
                       mode="time"
-                      is24Hour={false}
-                      display="default"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
                       onChange={handleEndTimeChange}
                       minuteInterval={15}
-                      style={styles.timePicker}
                     />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => setShowEndTimePicker(true)}
-                        style={styles.dateButton}
-                      >
-                        <Text>
-                          {endTime.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </TouchableOpacity>
-                      {showEndTimePicker && (
-                        <DateTimePicker
-                          value={endTime}
-                          mode="time"
-                          is24Hour={false}
-                          display="default"
-                          onChange={handleEndTimeChange}
-                          minuteInterval={15}
-                        />
-                      )}
-                    </>
                   )}
                 </View>
               </View>
-            </View>
+            )}
 
-            {/* Address Selection Section */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Address</Text>
-              <View style={styles.selectionContainer}>
-                <Text style={[styles.selectionText, { flex: 1 }]}>
-                  {selectedAddress
-                    ? formatAddress(selectedAddress)
-                    : 'No address selected'}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setAddressModalVisible(true)}
+            {/* Step 2: Address */}
+            {step === 2 && (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Address</Text>
+                {/* Google Places Autocomplete */}
+                <GooglePlacesAutocomplete
+                  debounce={500}
+                  disableScroll={true}
+                  fetchDetails={true}
+                  onPress={(data, details) => {
+                    handleAutocompletePress(data, details)
+                  }}
+                  placeholder="Search address..."
+                  query={{
+                    key: 'AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs',
+                    language: 'en',
+                    components: 'country:us',
+                  }}
+                  styles={{
+                    textInputContainer: styles.autocompleteContainer,
+                    textInput: styles.searchInput,
+                    listView: {
+                      backgroundColor: 'white',
+                      elevation: 5,
+                      maxHeight: 200,
+                    },
+                  }}
+                />
+
+                {/* Address Input Fields */}
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="Street"
+                  value={street}
+                  onChangeText={setStreet}
+                />
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="City"
+                  value={city}
+                  onChangeText={setCity}
+                />
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="State"
+                  value={stateField}
+                  onChangeText={setStateField}
+                />
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="Zip"
+                  value={zip}
+                  onChangeText={setZip}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+
+            {/* Step 3: Builder */}
+            {step === 3 && (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Builder</Text>
+                {isAddingNew ? (
+                  <View>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Name"
+                      value={newName}
+                      onChangeText={setNewName}
+                    />
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Email"
+                      value={newEmail}
+                      onChangeText={setNewEmail}
+                    />
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Phone Number"
+                      value={newPhone}
+                      onChangeText={setNewPhone}
+                      keyboardType="phone-pad"
+                    />
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Company Name"
+                      value={newCompanyName}
+                      onChangeText={setNewCompanyName}
+                    />
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Company Address"
+                      value={newCompanyAddress}
+                      onChangeText={setNewCompanyAddress}
+                    />
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#2980b9" />
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.saveButton}
+                        onPress={handleSaveNewCustomer}
+                      >
+                        <Text style={styles.saveButtonText}>Save Customer</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={() => setIsAddingNew(false)}>
+                      <Text style={styles.modalClose}>Back to Search</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Search builder by name..."
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+                    <ScrollView style={styles.modalList}>
+                      {suggestions.map(cust => (
+                        <TouchableOpacity
+                          key={cust.id}
+                          onPress={() => handleSelectCustomer(cust)}
+                          style={styles.modalItem}
+                        >
+                          <Text style={styles.modalItemText}>
+                            {cust.displayName}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <TouchableOpacity onPress={() => setIsAddingNew(true)}>
+                      <Text style={styles.addNewText}>+ Add New Customer</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Step 4: Homeowner */}
+            {step === 4 && (
+              <View style={styles.card}>
+                <View
                   style={[
-                    styles.plusButton,
+                    styles.selectionContainer,
                     {
-                      backgroundColor: addressModalVisible ? 'red' : '#2980b9',
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
                     },
                   ]}
                 >
-                  <IconSymbol
-                    name={addressModalVisible ? 'minus' : 'plus'}
-                    color="white"
-                  />
-                </TouchableOpacity>
+                  <Text style={styles.modalTitle}>Homeowner</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowHomeowner(prev => !prev)}
+                    style={[
+                      styles.plusButton,
+                      { backgroundColor: showHomeowner ? 'red' : '#2980b9' },
+                    ]}
+                  >
+                    <IconSymbol
+                      name={showHomeowner ? 'minus' : 'plus'}
+                      color="white"
+                    />
+                  </TouchableOpacity>
+                </View>
+                {showHomeowner && (
+                  <>
+                    <TextInput
+                      style={styles.inputField}
+                      placeholder="Homeowner Name"
+                      value={newTicket.homeOwnerName}
+                      onChangeText={text =>
+                        setNewTicket({ ...newTicket, homeOwnerName: text })
+                      }
+                    />
+                    <TextInput
+                      style={styles.inputField}
+                      placeholder="Homeowner Number"
+                      value={newTicket.homeOwnerNumber}
+                      onChangeText={text => {
+                        const formatted = formatPhoneNumber(text)
+                        setNewTicket(prev => ({
+                          ...prev,
+                          homeOwnerNumber: formatted,
+                        }))
+                      }}
+                      keyboardType="phone-pad"
+                    />
+                  </>
+                )}
               </View>
-            </View>
+            )}
 
-            {/* Address Modal */}
-            <AddressModal
-              visible={addressModalVisible}
-              onClose={() => setAddressModalVisible(false)}
-              onAddressSelected={handleAddressSelected}
-            />
-
-            {/* Builder Selection Section */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Builder</Text>
-              <View style={styles.selectionContainer}>
-                <Text style={styles.selectionText}>
-                  {newTicket.customerName
-                    ? newTicket.customerName
-                    : 'No builder selected'}
-                </Text>
+            {/* Step 5: Ticket Details */}
+            {step === 5 && (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Ticket Details</Text>
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="Inspector Name"
+                  value={newTicket.inspectorName}
+                  onChangeText={text =>
+                    setNewTicket({ ...newTicket, inspectorName: text })
+                  }
+                />
+                <TextInput
+                  style={[styles.inputField, { height: 100 }]}
+                  placeholder="Reason for visit"
+                  value={newTicket.reason}
+                  onChangeText={text =>
+                    setNewTicket({ ...newTicket, reason: text })
+                  }
+                  multiline
+                />
+                <TextInput
+                  style={[styles.inputField, { height: 80 }]}
+                  placeholder="Add a note for this ticket..."
+                  value={newNote}
+                  onChangeText={setNewNote}
+                  multiline
+                  numberOfLines={4}
+                />
                 <TouchableOpacity
-                  onPress={() => setBuilderModalVisible(true)}
-                  style={[
-                    styles.plusButton,
-                    {
-                      backgroundColor: builderModalVisible ? 'red' : '#2980b9',
-                    },
-                  ]}
+                  onPress={handleTogglePicker}
+                  style={styles.button}
                 >
-                  <IconSymbol
-                    name={builderModalVisible ? 'minus' : 'plus'}
-                    color="white"
-                  />
+                  <Text style={styles.buttonText}>
+                    {jobType ? jobType : 'Select Job Type'}
+                  </Text>
                 </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Builder Modal */}
-            <BuilderModal
-              visible={builderModalVisible}
-              onClose={() => setBuilderModalVisible(false)}
-              onSelectCustomer={handleSelectCustomer}
-              allCustomers={allCustomers}
-            />
-
-            {/* Homeowner Section */}
-            <View style={styles.card}>
-              <View
-                style={[
-                  styles.selectionContainer,
-                  {
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                  },
-                ]}
-              >
-                <Text style={styles.modalTitle}>Homeowner</Text>
                 <TouchableOpacity
-                  onPress={() => setShowHomeowner(prev => !prev)}
-                  style={[
-                    styles.plusButton,
-                    { backgroundColor: showHomeowner ? 'red' : '#2980b9' },
-                  ]}
+                  onPress={handleToggleVacancyPicker}
+                  style={styles.button}
                 >
-                  <IconSymbol
-                    name={showHomeowner ? 'minus' : 'plus'}
-                    color="white"
-                  />
+                  <Text style={styles.buttonText}>
+                    {vacancy === 'occupied'
+                      ? 'Occupied'
+                      : vacancy === 'unoccupied'
+                        ? 'Unoccupied'
+                        : 'Select Occupancy'}
+                  </Text>
                 </TouchableOpacity>
               </View>
-              {showHomeowner && (
-                <>
-                  <TextInput
-                    style={styles.inputField}
-                    placeholder="Homeowner Name"
-                    value={newTicket.homeOwnerName}
-                    onChangeText={text =>
-                      setNewTicket({ ...newTicket, homeOwnerName: text })
-                    }
-                  />
-                  <TextInput
-                    style={styles.inputField}
-                    placeholder="Homeowner Number"
-                    value={newTicket.homeOwnerNumber}
-                    onChangeText={handleHomeOwnerNumberChange}
-                    keyboardType="phone-pad"
-                  />
-                </>
-              )}
-            </View>
-
-            {/* Ticket Details */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Ticket Details</Text>
-              <TextInput
-                style={styles.inputField}
-                placeholder="Inspector Name"
-                value={newTicket.inspectorName}
-                onChangeText={text =>
-                  setNewTicket({ ...newTicket, inspectorName: text })
-                }
-              />
-              <TextInput
-                style={[styles.inputField, { height: 100 }]}
-                placeholder="Reason for visit"
-                value={newTicket.reason}
-                onChangeText={text =>
-                  setNewTicket({ ...newTicket, reason: text })
-                }
-                multiline
-              />
-              <TextInput
-                style={[styles.inputField, { height: 80 }]}
-                placeholder="Add a note for this ticket..."
-                value={newNote}
-                onChangeText={setNewNote}
-                multiline
-                numberOfLines={4}
-              />
-              <TouchableOpacity
-                onPress={handleTogglePicker}
-                style={styles.button}
-              >
-                <Text style={styles.buttonText}>
-                  {jobType ? jobType : 'Select Job Type'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleToggleVacancyPicker}
-                style={styles.button}
-              >
-                <Text style={styles.buttonText}>
-                  {vacancy === 'occupied'
-                    ? 'Occupied'
-                    : vacancy === 'unoccupied'
-                    ? 'Unoccupied'
-                    : 'Select Occupancy'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            )}
 
             {/* Job Type Modal */}
             <Modal
@@ -634,39 +794,56 @@ const CreateTicketScreen = () => {
               </View>
             </Modal>
 
-            {newTicket.ticketPhotos.length > 0 && (
-              <PhotoGallery
-                photos={newTicket.ticketPhotos}
-                onRemovePhoto={handleRemovePhoto}
-              />
+            {/* Photo Gallery and Add Photo (only on Step 5) */}
+            {step === 5 && (
+              <>
+                {newTicket.ticketPhotos.length > 0 && (
+                  <PhotoGallery
+                    photos={newTicket.ticketPhotos}
+                    onRemovePhoto={handleRemovePhoto}
+                  />
+                )}
+                <TouchableOpacity
+                  onPress={handleAddPhoto}
+                  style={styles.addPhotoButton}
+                >
+                  <Text style={styles.addPhotoButtonText}>Add Photo</Text>
+                </TouchableOpacity>
+              </>
             )}
-            <TouchableOpacity
-              onPress={handleAddPhoto}
-              style={styles.addPhotoButton}
-            >
-              <Text style={styles.addPhotoButtonText}>Add Photo</Text>
-            </TouchableOpacity>
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                onPress={handleCreate}
-                style={[
-                  styles.actionButton,
-                  styles.createButton,
-                  isSubmitting && styles.disabledButton,
-                ]}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.actionButtonText}>
-                  {isSubmitting ? 'Creating...' : 'Create'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleBack}
-                style={[styles.actionButton, styles.cancelButton]}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.actionButtonText}>Cancel</Text>
-              </TouchableOpacity>
+
+            {/* Navigation Buttons */}
+            <View style={styles.navigationButtons}>
+              {step > 1 && (
+                <TouchableOpacity
+                  onPress={handlePreviousStep}
+                  style={[styles.actionButton, styles.previousButton]}
+                >
+                  <Text style={styles.actionButtonText}>Previous</Text>
+                </TouchableOpacity>
+              )}
+              {step < 5 ? (
+                <TouchableOpacity
+                  onPress={handleNextStep}
+                  style={[styles.actionButton, styles.nextButton]}
+                >
+                  <Text style={styles.actionButtonText}>Next</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleCreate}
+                  style={[
+                    styles.actionButton,
+                    styles.createButton,
+                    isSubmitting && styles.disabledButton,
+                  ]}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.actionButtonText}>
+                    {isSubmitting ? 'Creating...' : 'Create'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
@@ -701,28 +878,17 @@ const styles = StyleSheet.create({
   dateTimeSection: {
     marginBottom: 10,
   },
-  datePickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  timePickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  datePicker: {
-    flex: 1,
-  },
-  timePicker: {
-    flex: 1,
-  },
-  dateButton: {
+  dateTimeButton: {
     padding: 10,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 4,
+    borderRadius: 8,
     backgroundColor: '#f9f9f9',
+    marginVertical: 5,
+  },
+  dateTimeText: {
+    fontSize: 16,
+    color: '#333',
   },
   sectionTitle: {
     fontSize: 18,
@@ -733,7 +899,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     color: '#555',
-    marginRight: 8,
+    marginBottom: 5,
   },
   inputField: {
     backgroundColor: '#f9f9f9',
@@ -757,6 +923,18 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#555',
+  },
+  selectButton: {
+    backgroundColor: '#2980b9',
+    borderRadius: 15,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectButtonText: {
+    color: 'white',
+    fontSize: 14,
   },
   plusButton: {
     backgroundColor: '#2980b9',
@@ -788,7 +966,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
   },
-  actionButtons: {
+  navigationButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginVertical: 10,
@@ -805,11 +983,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  previousButton: {
+    backgroundColor: '#7f8c8d',
+  },
+  nextButton: {
+    backgroundColor: '#2980b9',
+  },
   createButton: {
     backgroundColor: '#2c3e50',
-  },
-  cancelButton: {
-    backgroundColor: '#e74c3c',
   },
   disabledButton: {
     opacity: 0.6,
@@ -846,5 +1027,66 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: '#333',
     textAlign: 'center',
+  },
+  // Styles from AddressModal
+  autocompleteContainer: {
+    backgroundColor: 'transparent',
+    padding: 0,
+    margin: 0,
+    marginBottom: 10,
+  },
+  searchInput: {
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 4,
+    padding: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+  saveButton: {
+    backgroundColor: '#2980b9',
+    paddingVertical: 12,
+    borderRadius: 4,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  modalClose: {
+    color: '#2980b9',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 15,
+  },
+  // Styles from BuilderModal
+  modalInput: {
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 4,
+    padding: 10,
+    fontSize: 16,
+    marginBottom: 10,
+    color: '#333',
+  },
+  modalList: {
+    maxHeight: 200,
+    marginBottom: 10,
+  },
+  modalItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: '#555',
+  },
+  addNewText: {
+    fontSize: 16,
+    color: '#2980b9',
+    textAlign: 'center',
+    marginVertical: 10,
   },
 })

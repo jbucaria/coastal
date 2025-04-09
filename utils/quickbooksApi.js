@@ -282,11 +282,6 @@ export const createCustomerInQuickBooks = async (
       return null
     }
 
-    console.log(
-      'QuickBooks Create Customer Response:',
-      JSON.stringify(responseData, null, 2)
-    )
-
     if (response.ok) {
       return responseData
     } else {
