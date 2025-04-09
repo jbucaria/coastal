@@ -20,7 +20,7 @@ export default function QuickBooksAuthScreen() {
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId,
-      scopes: ['com.intuit.quickbooks.accounting'],
+      scopes: ['com.intuitss.quickbooks.accounting'],
       redirectUri, // Use the HTTPS redirect URI for QuickBooks
       responseType: 'code',
       state: projectId, // Pass projectId as state
@@ -42,6 +42,7 @@ export default function QuickBooksAuthScreen() {
       <Button
         disabled={!request}
         title="Connect to QuickBooks"
+        color="#0070f3"
         onPress={() => promptAsync()}
       />
     </View>

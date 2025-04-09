@@ -22,24 +22,22 @@ const discovery = {
 }
 
 const QuickBooksManagementScreen = () => {
-  // Active tab state: "customers" or "items"
   const [activeTab, setActiveTab] = useState('customers')
-
-  // State for customers
   const [customers, setCustomers] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingCustomers, setLoadingCustomers] = useState(false)
-
-  // State for items
   const [items, setItems] = useState([])
   const [itemSearchQuery, setItemSearchQuery] = useState('')
   const [loadingItems, setLoadingItems] = useState(false)
 
-  // Get QuickBooks auth values
-  const { quickBooksCompanyId, clientId, accessToken, tokenExpiresAt } =
-    useAuthStore()
+  const {
+    quickBooksCompanyId,
+    clientId,
+    accessToken,
+    tokenExpiresAt,
+    setAccessToken,
+  } = useAuthStore()
 
-  // OAuth request for token management
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId,
@@ -53,12 +51,10 @@ const QuickBooksManagementScreen = () => {
 
   useEffect(() => {
     const now = Date.now()
-    console.log('Current time:', now)
-    console.log('Token expires at:', tokenExpiresAt)
     if (!accessToken || (tokenExpiresAt && now > tokenExpiresAt)) {
       Alert.alert(
         'Token Expired',
-        'Your access token has expired. Please refresh your token before proceeding.',
+        'Please refresh your token.',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Refresh Token', onPress: () => promptAsync() },
@@ -70,71 +66,67 @@ const QuickBooksManagementScreen = () => {
 
   useEffect(() => {
     if (response?.type === 'success') {
-      console.log('OAuth process completed successfully.')
+      const { code } = response.params
+      // Replace with your backend endpoint for token exchange
+      fetch('https://your-backend.com/token-exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirectUri }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          setAccessToken(data.access_token, Date.now() + data.expires_in * 1000)
+        })
+        .catch(err => console.error('Token exchange failed:', err))
     }
-  }, [response])
+  }, [response, setAccessToken])
 
-  // --------------------------
   // Customers Functions
-  // --------------------------
   const fetchCustomersFromFirestore = async () => {
     try {
       const querySnapshot = await getDocs(collection(firestore, 'customers'))
-      const customersData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
-      setCustomers(customersData)
+      setCustomers(
+        querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      )
     } catch (error) {
-      console.error('Error fetching customers from Firestore:', error)
+      console.error('Firestore fetch error:', error)
       Alert.alert('Error', 'Failed to fetch customers from Firestore.')
     }
   }
 
   const fetchCustomersFromQuickBooks = async () => {
-    if (!quickBooksCompanyId || !accessToken) {
-      Alert.alert('Error', 'QuickBooks credentials are missing.')
-      return
-    }
+    if (!quickBooksCompanyId || !accessToken)
+      return Alert.alert('Error', 'Missing credentials')
     setLoadingCustomers(true)
     const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
-      'SELECT * FROM Customer'
-    )}`
+      'SELECT * FROM Customer STARTPOSITION 1 MAXRESULTS 100'
+    )}&minorversion=4`
     const headers = {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/json',
-      'Content-Type': 'application/json',
     }
     try {
       const response = await fetch(url, { method: 'GET', headers })
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`HTTP Error ${response.status}: ${errorText}`)
-        throw new Error(`HTTP Error ${response.status}: ${errorText}`)
-      }
+      if (!response.ok) throw new Error(await response.text())
       const data = await response.json()
-      if (!data.QueryResponse || !data.QueryResponse.Customer) {
-        console.error('Unexpected response structure:', data)
-        throw new Error(
-          'Unexpected response structure: ' + JSON.stringify(data, null, 2)
-        )
-      }
-      const customersData = data.QueryResponse.Customer.map(customer => ({
-        id: customer.Id,
-        displayName: customer.DisplayName,
-        email: customer.PrimaryEmailAddr
-          ? customer.PrimaryEmailAddr.Address
-          : 'No email',
-      }))
+      const customersData =
+        data.QueryResponse?.Customer?.map(customer => ({
+          id: customer.Id,
+          displayName: customer.DisplayName,
+          email: customer.PrimaryEmailAddr?.Address || 'No email',
+          givenName: customer.GivenName || '',
+          familyName: customer.FamilyName || '',
+          companyName: customer.CompanyName || '',
+          phone: customer.PrimaryPhone?.FreeFormNumber || '',
+          address: customer.BillAddr || {},
+        })) || []
+      console.log('Customer data:', customersData) // Debug full data
       await saveCustomersToFirestore(customersData)
-      Alert.alert('Success', 'Customers synced successfully.')
       fetchCustomersFromFirestore()
+      Alert.alert('Success', 'Customers synced')
     } catch (error) {
-      console.error('Error fetching QuickBooks customers:', error)
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to fetch customers from QuickBooks.'
-      )
+      console.error('QuickBooks fetch error:', error)
+      Alert.alert('Error', error.message)
     } finally {
       setLoadingCustomers(false)
     }
@@ -142,73 +134,56 @@ const QuickBooksManagementScreen = () => {
 
   const saveCustomersToFirestore = async customersData => {
     try {
-      const batch = customersData.map(customer =>
-        setDoc(doc(firestore, 'customers', customer.id), customer)
+      await Promise.all(
+        customersData.map(customer =>
+          setDoc(doc(firestore, 'customers', customer.id), customer)
+        )
       )
-      await Promise.all(batch)
     } catch (error) {
-      console.error('Error saving customers to Firestore:', error)
-      Alert.alert('Error', 'Failed to save customers to database.')
+      console.error('Firestore save error:', error)
+      Alert.alert('Error', 'Failed to save customers')
     }
   }
 
-  // Filter customers by search query
-  const filteredCustomers = customers.filter(customer => {
-    const query = searchQuery.toLowerCase()
-    return (
-      customer.id.toLowerCase().includes(query) ||
-      (customer.displayName &&
-        customer.displayName.toLowerCase().includes(query)) ||
-      (customer.email && customer.email.toLowerCase().includes(query))
+  const filteredCustomers = customers.filter(c =>
+    [c.id, c.displayName, c.email].some(f =>
+      f?.toLowerCase().includes(searchQuery.toLowerCase())
     )
-  })
+  )
 
-  // --------------------------
   // Items Functions
-  // --------------------------
   const fetchItemsFromQB = async () => {
-    if (!quickBooksCompanyId || !accessToken) {
-      Alert.alert('Error', 'Missing QuickBooks credentials.')
-      return
-    }
+    if (!quickBooksCompanyId || !accessToken)
+      return Alert.alert('Error', 'Missing credentials')
     setLoadingItems(true)
-    const query = encodeURIComponent('SELECT * FROM Item')
-    // You can adjust minorversion and URL (sandbox vs production) as needed.
-    const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${query}&minorversion=4`
+    const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
+      'SELECT * FROM Item STARTPOSITION 1 MAXRESULTS 100'
+    )}&minorversion=4`
     const headers = {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/json',
-      'Content-Type': 'text/plain',
     }
     try {
       const response = await fetch(url, { method: 'GET', headers })
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`HTTP Error ${response.status}: ${errorText}`)
-        throw new Error(`HTTP Error ${response.status}: ${errorText}`)
-      }
+      if (!response.ok) throw new Error(await response.text())
       const data = await response.json()
-      if (!data.QueryResponse || !data.QueryResponse.Item) {
-        console.error('Unexpected response structure:', data)
-        throw new Error(
-          'Unexpected response structure: ' + JSON.stringify(data, null, 2)
-        )
-      }
-      const itemsData = data.QueryResponse.Item.map(item => ({
-        id: item.Id,
-        name: item.Name,
-        description: item.Description || '',
-        unitPrice: item.UnitPrice,
-      }))
+      const itemsData =
+        data.QueryResponse?.Item?.map(item => ({
+          id: item.Id,
+          name: item.Name,
+          description: item.Description || '',
+          unitPrice: item.UnitPrice || 0,
+          type: item.Type || '',
+          qtyOnHand: item.QtyOnHand || 0,
+          incomeAccount: item.IncomeAccountRef || {},
+        })) || []
+      console.log('Item data:', itemsData) // Debug full data
       await saveItemsToFirestore(itemsData)
       setItems(itemsData)
-      Alert.alert('Success', 'Items retrieved and saved successfully.')
+      Alert.alert('Success', 'Items synced')
     } catch (error) {
-      console.error('Error fetching items from QB:', error)
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to retrieve items from QuickBooks.'
-      )
+      console.error('QuickBooks fetch error:', error)
+      Alert.alert('Error', error.message)
     } finally {
       setLoadingItems(false)
     }
@@ -216,166 +191,111 @@ const QuickBooksManagementScreen = () => {
 
   const saveItemsToFirestore = async itemsData => {
     try {
-      const batch = itemsData.map(item =>
-        setDoc(doc(firestore, 'items', item.id), item)
+      await Promise.all(
+        itemsData.map(item => setDoc(doc(firestore, 'items', item.id), item))
       )
-      await Promise.all(batch)
     } catch (error) {
-      console.error('Error saving items to Firestore:', error)
-      Alert.alert('Error', 'Failed to save items to database.')
+      console.error('Firestore save error:', error)
+      Alert.alert('Error', 'Failed to save items')
     }
   }
 
-  // --------------------------
-  // UI: Segmented Control
-  // --------------------------
-  const renderSegmentedControl = () => {
-    return (
-      <View style={styles.segmentedControl}>
+  const filteredItems = items.filter(item =>
+    item.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
+  )
+
+  // UI Components (unchanged except for filteredItems usage)
+  const renderSegmentedControl = () => (
+    <View style={styles.segmentedControl}>
+      {['customers', 'items', 'tokens'].map(tab => (
         <TouchableOpacity
+          key={tab}
           style={[
             styles.segmentButton,
-            activeTab === 'customers' && styles.activeSegment,
+            activeTab === tab && styles.activeSegment,
           ]}
-          onPress={() => setActiveTab('customers')}
+          onPress={() => setActiveTab(tab)}
         >
           <Text
             style={[
               styles.segmentText,
-              activeTab === 'customers' && styles.activeSegmentText,
+              activeTab === tab && styles.activeSegmentText,
             ]}
           >
-            Customers
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.segmentButton,
-            activeTab === 'items' && styles.activeSegment,
-          ]}
-          onPress={() => setActiveTab('items')}
-        >
-          <Text
-            style={[
-              styles.segmentText,
-              activeTab === 'items' && styles.activeSegmentText,
-            ]}
-          >
-            Items
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.segmentButton,
-            activeTab === 'tokens' && styles.activeSegment,
-          ]}
-          onPress={() => setActiveTab('tokens')}
-        >
-          <Text
-            style={[
-              styles.segmentText,
-              activeTab === 'tokens' && styles.activeSegmentText,
-            ]}
-          >
-            Tokens
-          </Text>
-        </TouchableOpacity>
-      </View>
-    )
-  }
+      ))}
+    </View>
+  )
 
-  // --------------------------
-  // Render: Customers Management UI
-  // --------------------------
-  const renderCustomersUI = () => {
-    return (
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Manage Customers</Text>
-        <TouchableOpacity
-          onPress={fetchCustomersFromQuickBooks}
-          style={styles.syncButton}
-        >
-          <Text style={styles.syncButtonText}>
-            {loadingCustomers ? 'Syncing Customers...' : 'Sync Customers'}
-          </Text>
-        </TouchableOpacity>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search customer by name..."
-          value={searchQuery}
-          onChangeText={text => {
-            setSearchQuery(text)
-          }}
-        />
-        <ScrollView style={styles.listContainer}>
-          {filteredCustomers.map(customer => (
-            <View key={customer.id} style={styles.listItem}>
-              <Text style={styles.listItemText}>
-                {customer.id} - {customer.displayName} ({customer.email})
-              </Text>
-              {/* You can add edit and delete buttons here */}
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-    )
-  }
+  const renderCustomersUI = () => (
+    <View style={styles.sectionContainer}>
+      <Text style={styles.sectionTitle}>Manage Customers</Text>
+      <TouchableOpacity
+        onPress={fetchCustomersFromQuickBooks}
+        style={styles.syncButton}
+      >
+        <Text style={styles.syncButtonText}>
+          {loadingCustomers ? 'Syncing...' : 'Sync Customers'}
+        </Text>
+      </TouchableOpacity>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search customer by name..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <ScrollView style={styles.listContainer}>
+        {filteredCustomers.map(customer => (
+          <View key={customer.id} style={styles.listItem}>
+            <Text style={styles.listItemText}>
+              {customer.id} - {customer.displayName} ({customer.email})
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  )
 
-  // --------------------------
-  // Render: Items Management UI
-  // --------------------------
-  const renderItemsUI = () => {
-    return (
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Manage Items</Text>
-        <TouchableOpacity onPress={fetchItemsFromQB} style={styles.syncButton}>
-          <Text style={styles.syncButtonText}>
-            {loadingItems ? 'Loading Items...' : 'Sync Items'}
-          </Text>
-        </TouchableOpacity>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search item by name..."
-          value={itemSearchQuery}
-          onChangeText={text => setItemSearchQuery(text)}
-        />
-        <ScrollView style={styles.listContainer}>
-          {items
-            .filter(item =>
-              item.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
-            )
-            .map(item => (
-              <View key={item.id} style={styles.listItem}>
-                <Text style={styles.listItemText}>
-                  {item.id} - {item.name} - Price: {item.unitPrice}
-                </Text>
-                {/* You can add edit and delete buttons here */}
-              </View>
-            ))}
-        </ScrollView>
-      </View>
-    )
-  }
+  const renderItemsUI = () => (
+    <View style={styles.sectionContainer}>
+      <Text style={styles.sectionTitle}>Manage Items</Text>
+      <TouchableOpacity onPress={fetchItemsFromQB} style={styles.syncButton}>
+        <Text style={styles.syncButtonText}>
+          {loadingItems ? 'Loading...' : 'Sync Items'}
+        </Text>
+      </TouchableOpacity>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search item by name..."
+        value={itemSearchQuery}
+        onChangeText={setItemSearchQuery}
+      />
+      <ScrollView style={styles.listContainer}>
+        {filteredItems.map(item => (
+          <View key={item.id} style={styles.listItem}>
+            <Text style={styles.listItemText}>
+              {item.id} - {item.name} - Price: {item.unitPrice}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  )
 
-  const renderTokensUI = () => {
-    return (
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Manage Tokens</Text>
-        <View style={styles.oauthContainer}>
-          <TouchableOpacity
-            onPress={() => promptAsync()}
-            style={styles.oauthButton}
-          >
-            <Text style={styles.buttonText}>Get Auth Token</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    )
-  }
+  const renderTokensUI = () => (
+    <View style={styles.sectionContainer}>
+      <Text style={styles.sectionTitle}>Manage Tokens</Text>
+      <TouchableOpacity
+        onPress={() => promptAsync()}
+        style={styles.oauthButton}
+      >
+        <Text style={styles.buttonText}>Get Auth Token</Text>
+      </TouchableOpacity>
+    </View>
+  )
 
-  // --------------------------
-  // Render
-  // --------------------------
   return (
     <SafeAreaView style={[styles.container, { margin: 5 }]}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -394,19 +314,9 @@ const QuickBooksManagementScreen = () => {
 export default QuickBooksManagementScreen
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  scrollContainer: {
-    alignItems: 'center',
-    paddingBottom: 20,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
+  container: { flex: 1, padding: 16 },
+  scrollContainer: { alignItems: 'center', paddingBottom: 20 },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
   segmentedControl: {
     flexDirection: 'row',
     marginBottom: 20,
@@ -421,21 +331,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f2f2f2',
     alignItems: 'center',
   },
-  activeSegment: {
-    backgroundColor: '#3498DB',
-  },
-  segmentText: {
-    fontSize: 16,
-    color: '#2c3e50',
-  },
-  activeSegmentText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-  },
-  sectionContainer: {
-    width: '100%',
-    marginBottom: 30,
-  },
+  activeSegment: { backgroundColor: '#3498DB' },
+  segmentText: { fontSize: 16, color: '#2c3e50' },
+  activeSegmentText: { color: '#FFF', fontWeight: 'bold' },
+  sectionContainer: { width: '100%', marginBottom: 30 },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
@@ -449,11 +348,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignItems: 'center',
   },
-  syncButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  syncButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   searchInput: {
     width: '100%',
     borderWidth: 1,
@@ -472,20 +367,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'white',
   },
-  listItem: {
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  listItemText: {
-    fontSize: 16,
-    color: '#2c3e50',
-  },
-  oauthContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
+  listItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  listItemText: { fontSize: 16, color: '#2c3e50' },
+  oauthContainer: { width: '100%', alignItems: 'center', marginBottom: 20 },
   oauthButton: {
     width: '90%',
     backgroundColor: '#B9770E',
@@ -493,9 +377,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  buttonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 })
