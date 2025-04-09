@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   ActivityIndicator,
   View,
@@ -92,6 +92,7 @@ export default function RootLayout() {
               quickBooksCompanyId: companyData.quickBooksCompanyId,
               clientId: companyData.clientId,
               accessToken: companyData.accessToken,
+              refreshToken: companyData.refreshToken, // Include refreshToken
               tokenExpiresAt: companyData.tokenExpiresAt,
             })
           } else {

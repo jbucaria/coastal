@@ -1,84 +1,103 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { firestore } from '@/firebaseConfig'
 
-// Dynamically require AsyncStorage only on the client.
-// On the server, we provide a stub that does nothing.
-let AsyncStorageForZustand
-if (typeof window !== 'undefined') {
-  AsyncStorageForZustand =
-    require('@react-native-async-storage/async-storage').default
-} else {
-  AsyncStorageForZustand = {
-    getItem: async () => null,
-    setItem: async () => {},
-    removeItem: async () => {},
+const useAuthStore = create(set => {
+  const loadAuthData = async () => {
+    try {
+      const authDocRef = doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV')
+      const authDoc = await getDoc(authDocRef)
+      if (authDoc.exists()) {
+        const data = authDoc.data()
+        set({
+          quickBooksCompanyId: data.quickBooksCompanyId || null,
+          clientId: data.clientId || null,
+          clientSecret: data.clientSecret || null,
+          accessToken: data.accessToken || null,
+          refreshToken: data.refreshToken || null,
+          tokenExpiresAt: data.tokenExpiresAt || null,
+        })
+        console.log('Loaded auth data from Firestore:', data)
+      } else {
+        console.error('Company info not found in Firestore')
+      }
+    } catch (error) {
+      console.error('Failed to load auth data from Firestore:', error)
+    }
   }
-}
 
-const useAuthStore = create(
-  persist(
-    set => ({
-      quickBooksCompanyId: null,
-      clientId: null,
-      accessToken: null,
-      refreshToken: null,
-      tokenExpiresAt: null, // New field for the token's expiration timestamp
+  // Load auth data on store initialization
+  loadAuthData()
 
-      // ✅ Set credentials after login (include tokenExpiresAt)
-      setCredentials: ({
+  return {
+    quickBooksCompanyId: null,
+    clientId: null,
+    clientSecret: null,
+    accessToken: null,
+    refreshToken: null,
+    tokenExpiresAt: null,
+    setCredentials: ({
+      quickBooksCompanyId,
+      clientId,
+      accessToken,
+      refreshToken,
+      tokenExpiresAt,
+    }) => {
+      set({
         quickBooksCompanyId,
         clientId,
         accessToken,
         refreshToken,
         tokenExpiresAt,
-      }) =>
-        set({
-          quickBooksCompanyId,
-          clientId,
-          accessToken,
-          refreshToken,
-          tokenExpiresAt,
-        }),
-
-      // ✅ Clear credentials on logout
-      clearCredentials: () =>
-        set({
+      })
+      // Prepare data for Firestore, excluding undefined values
+      const dataToSave = {
+        quickBooksCompanyId,
+        clientId,
+        clientSecret: useAuthStore.getState().clientSecret,
+        accessToken,
+        refreshToken,
+        tokenExpiresAt,
+        updatedAt: new Date().toISOString(),
+      }
+      // Filter out undefined values
+      const filteredData = Object.fromEntries(
+        Object.entries(dataToSave).filter(([_, value]) => value !== undefined)
+      )
+      // Save to Firestore
+      const authDocRef = doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV')
+      setDoc(authDocRef, filteredData, { merge: true }).catch(error => {
+        console.error('Failed to save auth data to Firestore:', error)
+      })
+    },
+    clearCredentials: () => {
+      set({
+        quickBooksCompanyId: null,
+        clientId: null,
+        clientSecret: null,
+        accessToken: null,
+        refreshToken: null,
+        tokenExpiresAt: null,
+      })
+      // Clear in Firestore
+      const authDocRef = doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV')
+      setDoc(
+        authDocRef,
+        {
           quickBooksCompanyId: null,
           clientId: null,
+          clientSecret: null,
           accessToken: null,
           refreshToken: null,
           tokenExpiresAt: null,
-        }),
-    }),
-    {
-      name: 'auth-storage',
-      storage: {
-        getItem: async key => {
-          try {
-            const value = await AsyncStorageForZustand.getItem(key)
-            return value ? JSON.parse(value) : null // ✅ Parse JSON before returning
-          } catch (error) {
-            console.error(`Error getting ${key} from storage:`, error)
-            return null
-          }
+          updatedAt: new Date().toISOString(),
         },
-        setItem: async (key, value) => {
-          try {
-            await AsyncStorageForZustand.setItem(key, JSON.stringify(value)) // ✅ Stringify object before storing
-          } catch (error) {
-            console.error(`Error setting ${key} in storage:`, error)
-          }
-        },
-        removeItem: async key => {
-          try {
-            await AsyncStorageForZustand.removeItem(key)
-          } catch (error) {
-            console.error(`Error removing ${key} from storage:`, error)
-          }
-        },
-      },
-    }
-  )
-)
+        { merge: true }
+      ).catch(error => {
+        console.error('Failed to clear auth data in Firestore:', error)
+      })
+    },
+  }
+})
 
 export default useAuthStore

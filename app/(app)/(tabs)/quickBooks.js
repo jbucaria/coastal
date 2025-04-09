@@ -35,7 +35,7 @@ const QuickBooksManagementScreen = () => {
     clientId,
     accessToken,
     tokenExpiresAt,
-    setAccessToken,
+    setCredentials,
   } = useAuthStore()
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
@@ -49,7 +49,48 @@ const QuickBooksManagementScreen = () => {
     discovery
   )
 
+  // Refresh token function
+  const refreshQuickBooksToken = async () => {
+    const { clientId, clientSecret, refreshToken } = useAuthStore.getState()
+    if (!refreshToken) {
+      throw new Error('No refresh token available')
+    }
+
+    const tokenUrl = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    })
+
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: body.toString(),
+    })
+
+    const data = await response.json()
+    if (data.access_token) {
+      setCredentials({
+        quickBooksCompanyId,
+        clientId,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        tokenExpiresAt: Date.now() + data.expires_in * 1000,
+      })
+      return data.access_token
+    } else {
+      throw new Error('Failed to refresh token: ' + JSON.stringify(data))
+    }
+  }
+
   useEffect(() => {
+    console.log('Current accessToken:', accessToken)
+    console.log('Token expires at:', new Date(tokenExpiresAt).toISOString())
     const now = Date.now()
     if (!accessToken || (tokenExpiresAt && now > tokenExpiresAt)) {
       Alert.alert(
@@ -57,29 +98,75 @@ const QuickBooksManagementScreen = () => {
         'Please refresh your token.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Refresh Token', onPress: () => promptAsync() },
+          {
+            text: 'Refresh Token',
+            onPress: () => {
+              // Clear the token to force a refresh
+              useAuthStore.getState().setCredentials({
+                quickBooksCompanyId,
+                clientId,
+                accessToken: null,
+                refreshToken: null,
+                tokenExpiresAt: null,
+              })
+              promptAsync()
+            },
+          },
         ],
         { cancelable: true }
       )
     }
-  }, [accessToken, tokenExpiresAt, promptAsync])
+  }, [accessToken, tokenExpiresAt, promptAsync, quickBooksCompanyId, clientId])
 
   useEffect(() => {
     if (response?.type === 'success') {
       const { code } = response.params
-      // Replace with your backend endpoint for token exchange
-      fetch('https://your-backend.com/token-exchange', {
+      const { clientId, clientSecret } = useAuthStore.getState()
+
+      const tokenUrl =
+        'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      })
+
+      fetch(tokenUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, redirectUri }),
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: body.toString(),
       })
         .then(res => res.json())
         .then(data => {
-          setAccessToken(data.access_token, Date.now() + data.expires_in * 1000)
+          if (data.access_token) {
+            setCredentials({
+              quickBooksCompanyId,
+              clientId,
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token,
+              tokenExpiresAt: Date.now() + data.expires_in * 1000,
+            })
+            console.log('Access token received:', data.access_token)
+            console.log('Refresh token received:', data.refresh_token)
+          } else {
+            console.error('Token exchange response:', data)
+            Alert.alert('Error', 'Failed to obtain access token.')
+          }
         })
-        .catch(err => console.error('Token exchange failed:', err))
+        .catch(err => {
+          console.error('Token exchange failed:', err)
+          Alert.alert('Error', 'Token exchange failed: ' + err.message)
+        })
+    } else if (response?.type === 'error') {
+      console.error('Auth error:', response)
+      Alert.alert('Error', 'Authentication failed: ' + response.error)
     }
-  }, [response, setAccessToken])
+  }, [response, setCredentials, quickBooksCompanyId, clientId])
 
   // Customers Functions
   const fetchCustomersFromFirestore = async () => {
@@ -95,8 +182,9 @@ const QuickBooksManagementScreen = () => {
   }
 
   const fetchCustomersFromQuickBooks = async () => {
-    if (!quickBooksCompanyId || !accessToken)
+    if (!quickBooksCompanyId || !accessToken) {
       return Alert.alert('Error', 'Missing credentials')
+    }
     setLoadingCustomers(true)
     const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
       'SELECT * FROM Customer STARTPOSITION 1 MAXRESULTS 100'
@@ -105,8 +193,14 @@ const QuickBooksManagementScreen = () => {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/json',
     }
+
     try {
-      const response = await fetch(url, { method: 'GET', headers })
+      let response = await fetch(url, { method: 'GET', headers })
+      if (response.status === 401) {
+        const newToken = await refreshQuickBooksToken()
+        headers.Authorization = `Bearer ${newToken}`
+        response = await fetch(url, { method: 'GET', headers })
+      }
       if (!response.ok) throw new Error(await response.text())
       const data = await response.json()
       const customersData =
@@ -120,7 +214,7 @@ const QuickBooksManagementScreen = () => {
           phone: customer.PrimaryPhone?.FreeFormNumber || '',
           address: customer.BillAddr || {},
         })) || []
-      console.log('Customer data:', customersData) // Debug full data
+      console.log('Customer data:', customersData)
       await saveCustomersToFirestore(customersData)
       fetchCustomersFromFirestore()
       Alert.alert('Success', 'Customers synced')
@@ -153,8 +247,9 @@ const QuickBooksManagementScreen = () => {
 
   // Items Functions
   const fetchItemsFromQB = async () => {
-    if (!quickBooksCompanyId || !accessToken)
+    if (!quickBooksCompanyId || !accessToken) {
       return Alert.alert('Error', 'Missing credentials')
+    }
     setLoadingItems(true)
     const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
       'SELECT * FROM Item STARTPOSITION 1 MAXRESULTS 100'
@@ -164,7 +259,12 @@ const QuickBooksManagementScreen = () => {
       Accept: 'application/json',
     }
     try {
-      const response = await fetch(url, { method: 'GET', headers })
+      let response = await fetch(url, { method: 'GET', headers })
+      if (response.status === 401) {
+        const newToken = await refreshQuickBooksToken()
+        headers.Authorization = `Bearer ${newToken}`
+        response = await fetch(url, { method: 'GET', headers })
+      }
       if (!response.ok) throw new Error(await response.text())
       const data = await response.json()
       const itemsData =
@@ -177,7 +277,7 @@ const QuickBooksManagementScreen = () => {
           qtyOnHand: item.QtyOnHand || 0,
           incomeAccount: item.IncomeAccountRef || {},
         })) || []
-      console.log('Item data:', itemsData) // Debug full data
+      console.log('Item data:', itemsData)
       await saveItemsToFirestore(itemsData)
       setItems(itemsData)
       Alert.alert('Success', 'Items synced')
@@ -204,7 +304,7 @@ const QuickBooksManagementScreen = () => {
     item.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
   )
 
-  // UI Components (unchanged except for filteredItems usage)
+  // UI Components
   const renderSegmentedControl = () => (
     <View style={styles.segmentedControl}>
       {['customers', 'items', 'tokens'].map(tab => (
@@ -304,8 +404,8 @@ const QuickBooksManagementScreen = () => {
         {activeTab === 'customers'
           ? renderCustomersUI()
           : activeTab === 'tokens'
-          ? renderTokensUI()
-          : renderItemsUI()}
+            ? renderTokensUI()
+            : renderItemsUI()}
       </ScrollView>
     </SafeAreaView>
   )
