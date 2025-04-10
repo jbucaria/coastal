@@ -13,7 +13,9 @@
       "bundleIdentifier": "com.jbucaria.Coastal",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["comgooglemaps"],
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps"
+        ],
         "GMSApiKey": "AIzaSyCaaprXbVDmKz6W5rn3s6W4HhF4S1K2-zs"
       }
     },
@@ -23,7 +25,9 @@
         "backgroundColor": "#ffffff"
       },
       "googleServicesFile": "./GoogleService-Info.plist",
-      "permissions": ["android.permission.RECORD_AUDIO"],
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "package": "com.jbucaria.coastal",
       "config": {
         "googleMaps": {
@@ -59,7 +63,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
