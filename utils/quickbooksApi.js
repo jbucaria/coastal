@@ -1,5 +1,6 @@
 // utils/quickbooksApi.js
 import { Alert } from 'react-native'
+import useAuthStore from '@/store/useAuthStore'
 
 // ---------------------------------------------------------------------
 // 1. Create Invoice in QuickBooks (Save Invoice)
@@ -10,8 +11,11 @@ export const createInvoiceInQuickBooks = async (
   quickBooksCompanyId
 ) => {
   if (!quickBooksCompanyId || !accessToken) {
+    console.error('Missing QuickBooks credentials:', {
+      quickBooksCompanyId,
+      accessToken,
+    })
     Alert.alert('Error', 'Missing QuickBooks credentials.')
-    console.error('QuickBooks Error: Missing token or Company ID')
     return null
   }
 
@@ -22,11 +26,10 @@ export const createInvoiceInQuickBooks = async (
     'Content-Type': 'application/json',
   }
 
-  // Build the invoice creation payload
   const requestBody = {
     AutoDocNumber: true,
     CustomerRef: {
-      value: invoiceData.customerId || '188', // update as needed
+      value: invoiceData.customerId || '188',
     },
     BillEmail: {
       Address: invoiceData.customerEmail,
@@ -40,14 +43,14 @@ export const createInvoiceInQuickBooks = async (
       Description: item.description,
       SalesItemLineDetail: {
         ItemRef: {
-          value: '1', // update to your valid ItemRef if needed
+          value: '1',
           name: 'Services',
         },
         UnitPrice: item.amount,
         Qty: item.quantity,
       },
     })),
-    TxnDate: invoiceData.invoiceDate, // format: "YYYY-MM-DD"
+    TxnDate: invoiceData.invoiceDate,
     CurrencyRef: {
       value: 'USD',
     },
@@ -83,7 +86,7 @@ export const createInvoiceInQuickBooks = async (
     console.log('QuickBooks Create Invoice Response:', responseData)
 
     if (response.ok) {
-      return responseData // Expected to contain { Invoice: { ... } }
+      return responseData
     } else {
       const errorDetails = responseData.fault?.error || []
       let errorMessage = `QBO Create Invoice Error: ${response.status} ${response.statusText}`
@@ -116,18 +119,21 @@ export const sendInvoiceEmailToQuickBooks = async (
 ) => {
   const { quickBooksCompanyId } = useAuthStore.getState()
   if (!quickBooksCompanyId || !accessToken) {
+    console.error('Missing QuickBooks credentials:', {
+      quickBooksCompanyId,
+      accessToken,
+    })
     Alert.alert('Error', 'Missing QuickBooks credentials.')
     return null
   }
 
-  // Build the send email endpoint URL (using sendTo to override the default)
   const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/invoice/${invoiceId}/send?sendTo=${encodeURIComponent(
     email
   )}`
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     Accept: 'application/json',
-    'Content-Type': 'application/octet-stream', // required per QBO docs
+    'Content-Type': 'application/octet-stream',
   }
 
   try {
@@ -155,7 +161,7 @@ export const sendInvoiceEmailToQuickBooks = async (
     console.log('QuickBooks Send Invoice Response:', responseData)
 
     if (response.ok) {
-      return responseData // Indicates that the email was sent successfully.
+      return responseData
     } else {
       const errorDetails = responseData.fault?.error || []
       let errorMessage = `QBO Email Invoice Error: ${response.status} ${response.statusText}`
@@ -185,126 +191,26 @@ export const createAndSendInvoiceInQuickBooks = async (
   invoiceData,
   accessToken
 ) => {
-  // First, create the invoice
   const createResponse = await createInvoiceInQuickBooks(
     invoiceData,
     accessToken
   )
   if (!createResponse || !createResponse.Invoice?.Id) {
-    // Create failed – return null
     return null
   }
 
   const invoiceId = createResponse.Invoice.Id
-
-  // Now, send the invoice email
   const sendResponse = await sendInvoiceEmailToQuickBooks(
     invoiceId,
     invoiceData.customerEmail,
     accessToken
   )
   if (!sendResponse) {
-    // Optionally, you may decide how to handle a send failure.
     return null
   }
 
   return {
     createdInvoice: createResponse,
     sendResponse,
-  }
-}
-
-export const createCustomerInQuickBooks = async (
-  newCustomer,
-  quickBooksCompanyId,
-  accessToken
-) => {
-  if (!quickBooksCompanyId || !accessToken) {
-    Alert.alert('Error', 'Missing QuickBooks credentials.')
-    console.error('QuickBooks Error: Missing token or Company ID')
-    return null
-  }
-
-  const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/customer`
-
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  }
-
-  // Build the invoice creation payload
-  const requestBody = {
-    FullyQualifiedName: 'Acme Inc LLC',
-    PrimaryEmailAddr: {
-      Address: 'contact@acmeinc.com',
-    },
-    DisplayName: 'Acme Inc LLC',
-    Suffix: 'LLC',
-    Title: 'Dr',
-    MiddleName: 'Allen',
-    Notes: 'Created via our new API integration.',
-    FamilyName: 'Doe',
-    PrimaryPhone: {
-      FreeFormNumber: '(123) 456-7890',
-    },
-    CompanyName: 'Acme Inc',
-    BillAddr: {
-      CountrySubDivisionCode: 'NY',
-      City: 'New York',
-      PostalCode: '10001',
-      Line1: '456 Park Ave',
-      Country: 'USA',
-    },
-    GivenName: 'John',
-  }
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-    })
-
-    const responseText = await response.text()
-    let responseData
-    try {
-      responseData = JSON.parse(responseText)
-    } catch (error) {
-      console.error(
-        'Failed to parse JSON response from invoice creation:',
-        responseText
-      )
-      Alert.alert(
-        'Error',
-        'Invalid JSON from QuickBooks while creating invoice.'
-      )
-      return null
-    }
-
-    if (response.ok) {
-      return responseData
-    } else {
-      const errorDetails = responseData.fault?.error || []
-      let errorMessage = `QBO Create Customer Error: ${response.status} ${response.statusText}`
-      if (errorDetails.length > 0) {
-        // Log each error in detail
-        errorDetails.forEach((err, index) => {
-          console.error(`Error ${index}:`, JSON.stringify(err, null, 2))
-        })
-        errorMessage += `\nDetails: ${
-          errorDetails[0]?.message || 'Unknown Error'
-        }`
-      }
-      Alert.alert('Error', errorMessage)
-      return null
-    }
-  } catch (err) {
-    Alert.alert(
-      'Error',
-      'Failed to connect to QuickBooks API while creating customer.'
-    )
-    console.error('Network or Unexpected Error (create invoice):', err)
-    return null
   }
 }

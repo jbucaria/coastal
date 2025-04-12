@@ -22,9 +22,9 @@ import 'react-native-get-random-values'
 // Function to set navigation bar style
 const setNavigationBarStyle = async () => {
   if (Platform.OS === 'android') {
-    await NavigationBar.setBackgroundColorAsync('#ffffff') // White background
-    await NavigationBar.setButtonStyleAsync('dark') // Dark icons
-    await NavigationBar.setVisibilityAsync('visible') // Ensure it’s visible
+    await NavigationBar.setBackgroundColorAsync('#ffffff')
+    await NavigationBar.setButtonStyleAsync('dark')
+    await NavigationBar.setVisibilityAsync('visible')
   }
 }
 
@@ -34,7 +34,6 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
   const { setUser, user } = useUserStore()
-  const { setCredentials } = useAuthStore()
 
   // Set status bar and navigation bar on mount
   useEffect(() => {
@@ -42,7 +41,7 @@ export default function RootLayout() {
       StatusBar.setTranslucent(true)
       StatusBar.setBackgroundColor('transparent')
       StatusBar.setBarStyle('dark-content')
-      setNavigationBarStyle() // Apply on mount
+      setNavigationBarStyle()
     } else if (Platform.OS === 'ios') {
       StatusBar.setBarStyle('dark-content')
     }
@@ -51,7 +50,7 @@ export default function RootLayout() {
   // Reapply navigation bar style on segment change (screen navigation)
   useEffect(() => {
     if (Platform.OS === 'android') {
-      setNavigationBarStyle() // Reapply when screen changes
+      setNavigationBarStyle()
     }
   }, [segments])
 
@@ -85,18 +84,20 @@ export default function RootLayout() {
             'Vj0FigLyhZCyprQ8iGGV'
           )
           const companySnap = await getDoc(companyRef)
-
           if (companySnap.exists()) {
             const companyData = companySnap.data()
-            setCredentials({
-              quickBooksCompanyId: companyData.quickBooksCompanyId,
-              clientId: companyData.clientId,
-              accessToken: companyData.accessToken,
-              refreshToken: companyData.refreshToken, // Include refreshToken
-              tokenExpiresAt: companyData.tokenExpiresAt,
-            })
+            console.log('Firestore company data:', companyData)
+            // Only update fields that are not null to avoid overwriting existing credentials
+            const filteredData = Object.fromEntries(
+              Object.entries(companyData).filter(([_, value]) => value !== null)
+            )
+            await useAuthStore.getState().setCredentials(filteredData)
+            console.log(
+              'Store after setCredentials in _layout:',
+              useAuthStore.getState()
+            )
           } else {
-            console.error('Company info not found in Firestore')
+            console.error('Company info document not found in Firestore')
           }
         } catch (error) {
           console.error(
@@ -111,29 +112,32 @@ export default function RootLayout() {
       if (initializing) setInitializing(false)
     })
     return unsubscribe
-  }, [initializing, setUser, setCredentials])
+  }, [initializing, setUser])
 
   useEffect(() => {
     if (initializing || !profileLoaded) return
 
     const inAuthGroup = segments[0] === '(auth)'
 
-    if (!auth.currentUser && !inAuthGroup) {
+    if (!auth.currentUser) {
+      // Not logged in – force login
       router.replace('/login')
       return
     }
 
-    if (auth.currentUser) {
-      if (!user || !user.onboarded) {
-        router.replace('/onboarding')
-        return
-      }
-      if (user.onboarded && inAuthGroup) {
-        router.replace('/(app)')
-      }
+    // User is logged in
+    if (!user || !user.onboarded) {
+      // User isn’t set or onboarded yet – go to onboarding
+      router.replace('/onboarding')
+      return
+    }
+
+    // User is authenticated and onboarded:
+    // Only redirect if we're in the auth group (i.e., the login-related screens)
+    if (inAuthGroup) {
+      router.replace('/(app)')
     }
   }, [initializing, profileLoaded, segments, router, user])
-
   if (initializing || !profileLoaded) {
     return (
       <View style={styles.loadingContainer}>

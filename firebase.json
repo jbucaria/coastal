@@ -1,26 +1,26 @@
 {
   "hosting": {
     "public": "public",
-    "rewrites": [
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [
       {
-        "source": "/oauth/callback",
-        "function": "quickBooksRedirectHandler"
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      },
+      {
+        "source": "/.well-known/assetlinks.json",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
       }
     ]
-  },
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run lint"]
-    }
-  ]
+  }
 }

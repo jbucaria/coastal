@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appID": "N9B67S6R32.com.jbucaria.Coastal",
+        "paths": [
+          "/oauth/callback"
+        ]
+      }
+    ]
+  }
+}

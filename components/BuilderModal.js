@@ -710,8 +710,8 @@ const CreateTicketScreen = () => {
                     {vacancy === 'occupied'
                       ? 'Occupied'
                       : vacancy === 'unoccupied'
-                        ? 'Unoccupied'
-                        : 'Select Occupancy'}
+                      ? 'Unoccupied'
+                      : 'Select Occupancy'}
                   </Text>
                 </TouchableOpacity>
               </View>
