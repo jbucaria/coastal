@@ -18,73 +18,82 @@ export const createInvoiceInQuickBooks = async (
     Alert.alert('Error', 'Missing QuickBooks credentials.')
     return null
   }
-
-  const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/invoice`
+  if (
+    !invoiceData.customerEmail ||
+    invoiceData.customerEmail === 'No Email Provided'
+  ) {
+    Alert.alert('Error', 'Customer email is required for sending invoices.')
+    return null
+  }
+  const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/invoice?minorversion=65`
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
   }
-
+  const lines = invoiceData.lineItems
+    .filter(
+      item =>
+        !(
+          item.tax &&
+          item.amount === 0 &&
+          item.quantity === 0 &&
+          item.unitPrice === 0
+        )
+    )
+    .map(item => {
+      if (
+        typeof item.amount === 'undefined' ||
+        !item.itemId ||
+        typeof item.unitPrice === 'undefined' ||
+        typeof item.quantity === 'undefined'
+      ) {
+        console.warn('Skipping item due to missing required fields:', item)
+        return null
+      }
+      return {
+        DetailType: 'SalesItemLineDetail',
+        Amount: item.amount,
+        Description: item.description || '',
+        SalesItemLineDetail: {
+          ItemRef: { value: item.itemId },
+          UnitPrice: item.unitPrice,
+          Qty: item.quantity,
+        },
+      }
+    })
+    .filter(Boolean)
+  const totalAmt = lines.reduce((sum, line) => sum + (line.Amount || 0), 0)
   const requestBody = {
     AutoDocNumber: true,
-    CustomerRef: {
-      value: invoiceData.customerId || '188',
-    },
-    BillEmail: {
-      Address: invoiceData.customerEmail,
-    },
-    EmailStatus: 'NeedToSend',
-    AllowOnlineCreditCardPayment: true,
-    AllowOnlineACHPayment: true,
-    Line: invoiceData.lineItems.map(item => ({
-      DetailType: 'SalesItemLineDetail',
-      Amount: item.amount,
-      Description: item.description,
-      SalesItemLineDetail: {
-        ItemRef: {
-          value: '1',
-          name: 'Services',
-        },
-        UnitPrice: item.amount,
-        Qty: item.quantity,
-      },
-    })),
-    TxnDate: invoiceData.invoiceDate,
-    CurrencyRef: {
-      value: 'USD',
-    },
-    TotalAmt: invoiceData.lineItems.reduce(
-      (total, item) => total + item.quantity * item.amount,
-      0
-    ),
-  }
+    CustomerRef: { value: invoiceData.customerId || '188' },
+    BillEmail: { Address: invoiceData.customerEmail },
 
+    TxnDate: invoiceData.invoiceDate,
+    CurrencyRef: { value: 'USD' },
+    Line: lines,
+    TotalAmt: totalAmt,
+  }
+  console.log('🚀 Sending Invoice Data:', JSON.stringify(requestBody, null, 2))
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
     })
-
     const responseText = await response.text()
     let responseData
     try {
       responseData = JSON.parse(responseText)
     } catch (error) {
-      console.error(
-        'Failed to parse JSON response from invoice creation:',
-        responseText
-      )
-      Alert.alert(
-        'Error',
-        'Invalid JSON from QuickBooks while creating invoice.'
-      )
+      console.error('🛑 Failed to parse JSON response:', responseText)
+      Alert.alert('Error', 'Invalid JSON response from QuickBooks.')
       return null
     }
-
-    console.log('QuickBooks Create Invoice Response:', responseData)
-
+    console.log(
+      'QuickBooks Create Invoice Response:',
+      JSON.stringify(responseData, null, 2)
+    )
     if (response.ok) {
       return responseData
     } else {
@@ -126,7 +135,6 @@ export const sendInvoiceEmailToQuickBooks = async (
     Alert.alert('Error', 'Missing QuickBooks credentials.')
     return null
   }
-
   const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/invoice/${invoiceId}/send?sendTo=${encodeURIComponent(
     email
   )}`
@@ -135,13 +143,8 @@ export const sendInvoiceEmailToQuickBooks = async (
     Accept: 'application/json',
     'Content-Type': 'application/octet-stream',
   }
-
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-    })
-
+    const response = await fetch(url, { method: 'POST', headers })
     const responseText = await response.text()
     let responseData
     try {
@@ -157,9 +160,7 @@ export const sendInvoiceEmailToQuickBooks = async (
       )
       return null
     }
-
     console.log('QuickBooks Send Invoice Response:', responseData)
-
     if (response.ok) {
       return responseData
     } else {
@@ -193,12 +194,12 @@ export const createAndSendInvoiceInQuickBooks = async (
 ) => {
   const createResponse = await createInvoiceInQuickBooks(
     invoiceData,
-    accessToken
+    accessToken,
+    useAuthStore.getState().quickBooksCompanyId
   )
   if (!createResponse || !createResponse.Invoice?.Id) {
     return null
   }
-
   const invoiceId = createResponse.Invoice.Id
   const sendResponse = await sendInvoiceEmailToQuickBooks(
     invoiceId,
@@ -208,9 +209,5 @@ export const createAndSendInvoiceInQuickBooks = async (
   if (!sendResponse) {
     return null
   }
-
-  return {
-    createdInvoice: createResponse,
-    sendResponse,
-  }
+  return { createdInvoice: createResponse, sendResponse }
 }

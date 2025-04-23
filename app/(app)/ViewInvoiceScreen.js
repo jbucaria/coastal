@@ -19,33 +19,38 @@ import * as AuthSession from 'expo-auth-session'
 import { sendInvoiceToQuickBooks } from '@/utils/sendInvoice'
 import useAuthStore from '@/store/useAuthStore'
 import useProjectStore from '@/store/useProjectStore'
+import { useUserStore } from '@/store/useUserStore'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 
-// Define your QuickBooks app's redirect URI
 const redirectUri = 'https://coastalrestorationservice.com/oauth/callback'
 const discovery = {
   authorizationEndpoint: 'https://appcenter.intuit.com/connect/oauth2',
+  tokenEndpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
 }
 
 const ViewInvoiceScreen = () => {
   const { projectId } = useProjectStore()
-  const { clientId, accessToken, tokenExpiresAt } = useAuthStore()
+  const { user } = useUserStore()
+  const {
+    clientId,
+    accessToken,
+    tokenExpiresAt,
+    refreshToken,
+    setCredentials,
+  } = useAuthStore()
 
-  // Invoice basic states
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(new Date())
-
-  // Instead of flattening line items, we now group them by room.
   const [groupedLineItems, setGroupedLineItems] = useState([])
-
-  // Local overrides (if user edits the amount); keys are measurement IDs.
   const [overrides, setOverrides] = useState({})
-
   const [isSending, setIsSending] = useState(false)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const marginBelowHeader = 8
+  const [needsTokenRefresh, setNeedsTokenRefresh] = useState(false)
 
-  // OAuth request for QuickBooks
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId,
@@ -57,14 +62,83 @@ const ViewInvoiceScreen = () => {
     discovery
   )
 
+  const refreshAccessToken = async () => {
+    if (!refreshToken) {
+      Alert.alert('Error', 'No refresh token available.')
+      return false
+    }
+
+    try {
+      console.log('Refreshing token with refreshToken:', refreshToken)
+      const tokenUrl =
+        'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+      const body = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+        client_secret: useAuthStore.getState().clientSecret,
+      })
+
+      const tokenResponse = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: body.toString(),
+      })
+
+      const data = await tokenResponse.json()
+      console.log('Token refresh response:', data)
+
+      if (data.access_token) {
+        const expiresIn = Number(data.expires_in) || 3600 // Default to 1 hour if undefined
+        const newAuthData = {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token || refreshToken,
+          tokenExpiresAt: Date.now() + expiresIn * 1000,
+          clientId,
+          clientSecret: useAuthStore.getState().clientSecret,
+          quickBooksCompanyId: useAuthStore.getState().quickBooksCompanyId,
+        }
+
+        console.log('New auth data to save:', newAuthData)
+        await setCredentials(newAuthData)
+        console.log('setCredentials called in refreshAccessToken')
+        return true
+      } else {
+        throw new Error('Failed to refresh token: ' + JSON.stringify(data))
+      }
+    } catch (error) {
+      console.error('Failed to refresh token:', error)
+      Alert.alert(
+        'Error',
+        'Failed to refresh QuickBooks token: ' + error.message
+      )
+      return false
+    }
+  }
+
   useEffect(() => {
     const now = Date.now()
     console.log('Current time:', now)
     console.log('Token expires at:', tokenExpiresAt)
-    if (!accessToken || (tokenExpiresAt && now > tokenExpiresAt)) {
+
+    const timeUntilExpiry = tokenExpiresAt - now
+    const refreshThreshold = 5 * 60 * 1000 // 5 minutes in milliseconds
+
+    if (
+      !accessToken ||
+      (tokenExpiresAt &&
+        (now > tokenExpiresAt || timeUntilExpiry < refreshThreshold))
+    ) {
+      const message =
+        now > tokenExpiresAt
+          ? 'Your access token has expired.'
+          : 'Your access token will expire soon.'
       Alert.alert(
-        'Token Expired',
-        'Your access token has expired. Please refresh your token before proceeding.',
+        'Token Action Required',
+        `${message} Please refresh your token to continue.`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Refresh Token', onPress: () => promptAsync() },
@@ -76,11 +150,88 @@ const ViewInvoiceScreen = () => {
 
   useEffect(() => {
     if (response?.type === 'success') {
-      console.log('OAuth process completed successfully.')
-    }
-  }, [response])
+      console.log('OAuth process completed successfully:', response)
+      const { code } = response.params
+      console.log('Authorization code:', code)
+      const { clientId, clientSecret } = useAuthStore.getState()
 
-  // Fetch invoice data from Firestore and group by room
+      const tokenUrl =
+        'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      })
+
+      fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: body.toString(),
+      })
+        .then(res => res.json())
+        .then(async data => {
+          console.log('Token exchange response:', data)
+          if (data.access_token) {
+            const companyRef = doc(
+              firestore,
+              'companyInfo',
+              'Vj0FigLyhZCyprQ8iGGV'
+            )
+            const companySnap = await getDoc(companyRef)
+            let updatedQuickBooksCompanyId =
+              useAuthStore.getState().quickBooksCompanyId
+            if (companySnap.exists()) {
+              const companyData = companySnap.data()
+              updatedQuickBooksCompanyId =
+                companyData.quickBooksCompanyId || updatedQuickBooksCompanyId
+            }
+
+            const expiresIn = Number(data.expires_in) || 3600 // Default to 1 hour if undefined
+            const newAuthData = {
+              quickBooksCompanyId: updatedQuickBooksCompanyId,
+              clientId,
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token,
+              tokenExpiresAt: Date.now() + expiresIn * 1000,
+            }
+
+            console.log('New auth data to save in useEffect:', newAuthData)
+            await setCredentials(newAuthData)
+            console.log('setCredentials called in useEffect')
+
+            if (needsTokenRefresh) {
+              setNeedsTokenRefresh(false)
+              handleSendInvoice()
+            }
+          } else {
+            console.error('Token exchange response:', data)
+            Alert.alert('Error', 'Failed to obtain access token.')
+            setIsSending(false)
+          }
+        })
+        .catch(err => {
+          console.error('Token exchange failed:', err)
+          Alert.alert('Error', 'Token exchange failed: ' + err.message)
+          setIsSending(false)
+        })
+    } else if (response?.type === 'error') {
+      console.error('OAuth error:', response)
+      Alert.alert(
+        'Error',
+        'Authentication failed: ' + (response.error || 'Unknown error')
+      )
+      setIsSending(false)
+    } else if (response?.type === 'cancel') {
+      console.log('OAuth flow canceled')
+      setIsSending(false)
+    }
+  }, [response, needsTokenRefresh])
+
   useEffect(() => {
     const fetchInvoiceData = async () => {
       try {
@@ -97,19 +248,26 @@ const ViewInvoiceScreen = () => {
           )
 
           if (data.remediationData?.rooms) {
-            // Group measurements by room
-            const grouped = data.remediationData.rooms.map(room => ({
-              roomName: room.name || 'Room',
-              measurements:
-                room.measurements?.map(measurement => ({
-                  id: measurement.id || `${room.id}-${Math.random()}`,
-                  description: measurement.description || 'No description',
-                  quantity: measurement.quantity || 0,
-                  unitPrice: measurement.unitPrice || 0,
-                  itemId: measurement.itemId || '',
-                  name: measurement.name || ' item',
-                })) || [],
-            }))
+            const grouped = data.remediationData.rooms
+              .map(room => {
+                const actualMeasurements = (room.measurements || []).filter(
+                  m => !m.isRoomName
+                )
+                if (actualMeasurements.length === 0) return null
+
+                return {
+                  roomName: room.roomTitle || 'Room',
+                  measurements: actualMeasurements.map(measurement => ({
+                    id: measurement.id || `${room.id}-${Math.random()}`,
+                    description: measurement.description || 'No description',
+                    quantity: measurement.quantity || 0,
+                    unitPrice: measurement.unitPrice || 0,
+                    itemId: measurement.itemId || '1010000001',
+                    name: measurement.name || 'item',
+                  })),
+                }
+              })
+              .filter(room => room !== null)
             setGroupedLineItems(grouped)
           }
         } else {
@@ -126,7 +284,6 @@ const ViewInvoiceScreen = () => {
     fetchInvoiceData()
   }, [projectId])
 
-  // Compute overall total by summing each room's measurements
   const totalCost = groupedLineItems.reduce((roomSum, room) => {
     const roomTotal = room.measurements.reduce((itemSum, item) => {
       const computed =
@@ -138,7 +295,6 @@ const ViewInvoiceScreen = () => {
     return roomSum + roomTotal
   }, 0)
 
-  // When user changes an override in a TextInput
   const handleOverrideChange = (lineItemId, newValue) => {
     setOverrides(prev => ({
       ...prev,
@@ -146,7 +302,6 @@ const ViewInvoiceScreen = () => {
     }))
   }
 
-  // When sending the invoice, build final line items from the grouped data.
   const handleSendInvoice = async () => {
     setIsSending(true)
     if (!accessToken) {
@@ -157,13 +312,22 @@ const ViewInvoiceScreen = () => {
     console.log('creating invoice')
     const finalLineItems = []
     groupedLineItems.forEach(room => {
+      const roomNameLineItem = {
+        description: room.roomName,
+        quantity: 0,
+        amount: 0,
+        itemId: '',
+        unitPrice: 0,
+        tax: true,
+      }
+      finalLineItems.push(roomNameLineItem)
+
       room.measurements.forEach(item => {
         const computed =
           (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
         const override = overrides[item.id]
         const finalAmount = override !== undefined ? override : computed
 
-        // Include room information if desired (here, we add a custom field "room")
         finalLineItems.push({
           description: item.description,
           quantity: item.quantity,
@@ -178,9 +342,9 @@ const ViewInvoiceScreen = () => {
 
     const invoiceData = {
       customerEmail: customerEmail,
-      customerId: customerId, // Replace with the actual QuickBooks Customer ID as needed
+      customerId: customerId,
       customerName: customerName,
-      invoiceDate: invoiceDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      invoiceDate: invoiceDate.toISOString().split('T')[0],
       lineItems: finalLineItems,
     }
     console.log('Invoice data:', invoiceData)
@@ -194,13 +358,43 @@ const ViewInvoiceScreen = () => {
       console.log('Invoice successfully sent:', result)
       setIsSending(false)
       router.back()
+    } else {
+      if (result?.fault?.error?.some(err => err.code === '3200')) {
+        const refreshed = await refreshAccessToken()
+        if (refreshed) {
+          handleSendInvoice()
+        } else {
+          setNeedsTokenRefresh(true)
+          Alert.alert(
+            'Authentication Failed',
+            'Your QuickBooks session has expired. Please refresh your token to continue.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Refresh Token', onPress: () => promptAsync() },
+            ],
+            { cancelable: true }
+          )
+        }
+      } else {
+        setIsSending(false)
+      }
     }
   }
 
-  // Optional: Save changes button (currently just alerts)
   const handleSaveChanges = async () => {
     Alert.alert('Note', 'Currently not saving total overrides to Firestore.')
   }
+
+  const headerOptions = [
+    {
+      label: 'Save Changes',
+      onPress: handleSaveChanges,
+    },
+    {
+      label: 'Send Invoice to QB',
+      onPress: handleSendInvoice,
+    },
+  ]
 
   if (loading) {
     return (
@@ -212,7 +406,18 @@ const ViewInvoiceScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <HeaderWithOptions
+        title="Invoice"
+        onBack={() => router.back()}
+        options={headerOptions}
+        onHeightChange={height => setHeaderHeight(height)}
+      />
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContainer,
+          { paddingTop: headerHeight + marginBelowHeader },
+        ]}
+      >
         <Text style={styles.title}>Invoice</Text>
 
         {/* Customer Info */}
@@ -235,7 +440,7 @@ const ViewInvoiceScreen = () => {
               key={`${room.roomName}-${roomIndex}`}
               style={styles.roomGroup}
             >
-              <Text style={styles.roomHeader}>{room.roomName}</Text>
+              <Text style={styles.roomHeader}>{room.roomName} (Taxable)</Text>
               {room.measurements.map((item, itemIndex) => {
                 const computedTotal =
                   (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
@@ -247,6 +452,9 @@ const ViewInvoiceScreen = () => {
                   <View key={`${item.id}-${itemIndex}`} style={styles.lineItem}>
                     <Text style={styles.label}>Item Description</Text>
                     <Text style={styles.textValue}>{item.name}</Text>
+                    {item.description && (
+                      <Text style={styles.description}>{item.description}</Text>
+                    )}
 
                     <Text style={styles.label}>Quantity</Text>
                     <Text style={styles.textValue}>
@@ -278,19 +486,6 @@ const ViewInvoiceScreen = () => {
         <View style={styles.totalContainer}>
           <Text style={styles.totalText}>Total: ${totalCost.toFixed(2)}</Text>
         </View>
-
-        {/* Save & Send Buttons */}
-        <TouchableOpacity onPress={handleSaveChanges} style={styles.saveButton}>
-          <Text style={styles.buttonText}>Save Changes</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={handleSendInvoice} style={styles.sendButton}>
-          {isSending ? (
-            <ActivityIndicator size="large" color="#27AE60" />
-          ) : (
-            <Text style={styles.buttonText}>Save Invoice To QB</Text>
-          )}
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   )
@@ -342,6 +537,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECECEC',
     padding: 8,
     borderRadius: 6,
+    marginTop: 4,
+  },
+  description: {
+    fontSize: 14,
+    color: '#657786',
     marginTop: 4,
   },
   sectionTitle: {

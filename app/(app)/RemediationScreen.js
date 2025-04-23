@@ -199,8 +199,8 @@ const RemediationScreen = () => {
       Alert.alert('Invalid Input', 'Number of fans cannot be negative.')
       return
     }
-    if (numericValue > 100) {
-      Alert.alert('Limit Reached', 'Number of fans cannot exceed 100.')
+    if (numericValue > 20) {
+      Alert.alert('Limit Reached', 'Number of fans cannot exceed 20 per room.')
       return
     }
 
@@ -210,7 +210,6 @@ const RemediationScreen = () => {
 
         let updatedMeasurements = [...room.measurements]
 
-        // Check if "Air mover" line item exists
         const airMoverIndex = updatedMeasurements.findIndex(
           m => m.id === '1010000001'
         )
@@ -228,20 +227,18 @@ const RemediationScreen = () => {
             type: 'Service',
             unitPrice: 35,
             quantity: numericValue,
+            itemId: '1010000001', // Use the correct QuickBooks ItemId
           }
 
           if (airMoverIndex !== -1) {
-            // Update existing "Air mover" item
             updatedMeasurements[airMoverIndex] = {
               ...updatedMeasurements[airMoverIndex],
               quantity: numericValue,
             }
           } else {
-            // Add new "Air mover" item
             updatedMeasurements.push(airMoverItem)
           }
         } else {
-          // Remove "Air mover" item if numberOfFans is 0
           if (airMoverIndex !== -1) {
             updatedMeasurements = updatedMeasurements.filter(
               m => m.id !== '1010000001'
@@ -257,7 +254,6 @@ const RemediationScreen = () => {
       })
     )
   }
-
   // -------------------- Measurement Logic --------------------
   const handleCreateMeasurement = roomId => {
     const newMeasurementId = uuidv4()

@@ -26,22 +26,20 @@ export default function ViewRemediationScreen() {
   const projectIdFromParams = params.projectId
   const { projectId: storeProjectId } = useProjectStore()
 
-  // Use the local param if available; otherwise, fall back to the global store.
   const projectId = projectIdFromParams ?? storeProjectId
 
   const router = useRouter()
 
   const [ticket, setTicket] = useState(null)
   const [remediationData, setRemediationData] = useState(null)
+  const [filteredRooms, setFilteredRooms] = useState([])
   const [loading, setLoading] = useState(true)
   const [headerHeight, setHeaderHeight] = useState(0)
   const marginBelowHeader = 8
 
-  // Photo Modal State
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
 
-  // Define header options: Edit, Export CSV, Create Invoice, and Share PDF
   const headerOptions = [
     {
       label: 'Edit',
@@ -65,7 +63,6 @@ export default function ViewRemediationScreen() {
     },
   ]
 
-  // Fetch remediation data when component mounts
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -74,8 +71,17 @@ export default function ViewRemediationScreen() {
 
         if (docSnap.exists()) {
           const data = docSnap.data()
-          setTicket(data) // Store full ticket data
-          setRemediationData(data.remediationData || { rooms: [] })
+          setTicket(data)
+          const remData = data.remediationData || { rooms: [] }
+          // Filter rooms with actual line items (excluding room name line items)
+          const roomsWithLineItems = remData.rooms.filter(room => {
+            const actualMeasurements = (room.measurements || []).filter(
+              m => !m.isRoomName
+            )
+            return actualMeasurements.length > 0
+          })
+          setRemediationData({ ...remData, rooms: roomsWithLineItems })
+          setFilteredRooms(roomsWithLineItems)
         } else {
           Alert.alert('Error', 'No remediation data found.')
         }
@@ -90,7 +96,6 @@ export default function ViewRemediationScreen() {
     fetchData()
   }, [projectId])
 
-  // Function to generate HTML for the PDF report
   const generateHTML = (ticket, remediationData) => {
     let html = `
       <html>
@@ -99,9 +104,14 @@ export default function ViewRemediationScreen() {
             body { font-family: Arial, sans-serif; margin: 20px; }
             h1 { text-align: center; }
             h2 { color: #333; }
+            h3 { color: #555; }
             .room { margin-bottom: 20px; }
             .photo { width: 200px; height: 200px; margin-right: 10px; }
+            .photo-label { font-size: 12px; color: #666; margin-bottom: 10px; }
             ul { list-style-type: none; padding-left: 0; }
+            li { margin-bottom: 5px; }
+            .notes { font-style: italic; color: #666; }
+            .fans { color: #17BF63; }
           </style>
         </head>
         <body>
@@ -130,16 +140,31 @@ export default function ViewRemediationScreen() {
         html += `
           <div class="room">
             <h3>${room.roomTitle || 'Unnamed Room'}</h3>
-            <ul>
         `
+        if (room.notes) {
+          html += `<p class="notes"><strong>Notes:</strong> ${room.notes}</p>`
+        }
+        if (room.numberOfFans > 0) {
+          html += `<p class="fans"><strong>Number of Fans:</strong> ${room.numberOfFans}</p>`
+        }
+        html += `<ul>`
         ;(room.measurements || []).forEach(measurement => {
-          html += `<li>${measurement.name}: ${measurement.quantity}</li>`
+          if (measurement.isRoomName) {
+            html += `<li><strong>${measurement.name}</strong> (Taxable)</li>`
+          } else {
+            html += `<li>${measurement.name}${
+              measurement.description ? ` - ${measurement.description}` : ''
+            }: ${measurement.quantity}</li>`
+          }
         })
         html += `</ul>`
         if (room.photos && room.photos.length > 0) {
           html += `<div>`
           room.photos.forEach(photo => {
             html += `<img src="${photo.downloadURL}" class="photo" />`
+            if (photo.label) {
+              html += `<p class="photo-label">${photo.label}</p>`
+            }
           })
           html += `</div>`
         }
@@ -154,7 +179,6 @@ export default function ViewRemediationScreen() {
     return html
   }
 
-  // Function to generate and share the PDF report
   const generatePDFReport = async (ticket, remediationData) => {
     if (!ticket || !remediationData) {
       Alert.alert('Error', 'Data not loaded yet.')
@@ -179,14 +203,18 @@ export default function ViewRemediationScreen() {
     )
   }
 
-  if (
-    !remediationData ||
-    !remediationData.rooms ||
-    remediationData.rooms.length === 0
-  ) {
+  if (!remediationData || !filteredRooms || filteredRooms.length === 0) {
     return (
       <View style={styles.fullScreenContainer}>
-        <Text style={styles.errorText}>No remediation data available.</Text>
+        <HeaderWithOptions
+          title="Remediation Report"
+          onBack={() => router.back()}
+          options={headerOptions}
+          onHeightChange={height => setHeaderHeight(height)}
+        />
+        <Text style={styles.errorText}>
+          No remediation data with line items available.
+        </Text>
       </View>
     )
   }
@@ -206,7 +234,7 @@ export default function ViewRemediationScreen() {
           { paddingTop: headerHeight + marginBelowHeader },
         ]}
       >
-        {remediationData.rooms.map((room, roomIndex) => {
+        {filteredRooms.map((room, roomIndex) => {
           const roomKey = room.id
             ? room.id
             : `room-${roomIndex}-${room.roomTitle || 'Room'}`
@@ -216,6 +244,18 @@ export default function ViewRemediationScreen() {
               <Text style={styles.roomTitle}>
                 {room.roomTitle || 'Unnamed Room'}
               </Text>
+              {room.notes && (
+                <Text style={styles.notesText}>
+                  <Text style={styles.label}>Notes: </Text>
+                  {room.notes}
+                </Text>
+              )}
+              {room.numberOfFans > 0 && (
+                <Text style={styles.fansText}>
+                  <Text style={styles.label}>Number of Fans: </Text>
+                  {room.numberOfFans}
+                </Text>
+              )}
               {room.measurements &&
                 room.measurements.map((measurement, measIndex) => {
                   const measurementKey = measurement.id
@@ -223,9 +263,19 @@ export default function ViewRemediationScreen() {
                     : `meas-${roomKey}-${measIndex}`
                   return (
                     <View key={measurementKey} style={styles.measurementRow}>
-                      <Text style={styles.measurementText}>
-                        {measurement.name}: {measurement.quantity}
-                      </Text>
+                      {measurement.isRoomName ? (
+                        <Text style={styles.roomNameMeasurement}>
+                          {measurement.name} (Taxable)
+                        </Text>
+                      ) : (
+                        <Text style={styles.measurementText}>
+                          {measurement.name}
+                          {measurement.description
+                            ? ` - ${measurement.description}`
+                            : ''}
+                          : {measurement.quantity}
+                        </Text>
+                      )}
                     </View>
                   )
                 })}
@@ -250,6 +300,9 @@ export default function ViewRemediationScreen() {
                             source={{ uri: photo.downloadURL }}
                             style={styles.photoImage}
                           />
+                          {photo.label && (
+                            <Text style={styles.photoLabel}>{photo.label}</Text>
+                          )}
                         </TouchableOpacity>
                       )
                     })}
@@ -304,8 +357,28 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 4,
   },
+  notesText: {
+    fontSize: 14,
+    color: '#657786',
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
+  fansText: {
+    fontSize: 14,
+    color: '#17BF63',
+    marginBottom: 4,
+  },
+  label: {
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
   measurementRow: {
     marginVertical: 4,
+  },
+  roomNameMeasurement: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2C3E50',
   },
   measurementText: {
     fontSize: 14,
@@ -316,11 +389,18 @@ const styles = StyleSheet.create({
   },
   photoItem: {
     marginRight: 8,
+    alignItems: 'center',
   },
   photoImage: {
     width: 80,
     height: 80,
     borderRadius: 6,
+  },
+  photoLabel: {
+    fontSize: 12,
+    color: '#657786',
+    marginTop: 4,
+    textAlign: 'center',
   },
   errorText: {
     textAlign: 'center',

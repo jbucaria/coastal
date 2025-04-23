@@ -2,7 +2,7 @@ import { Alert } from 'react-native'
 import useAuthStore from '@/store/useAuthStore'
 
 const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
-  const { quickBooksCompanyId } = useAuthStore.getState() // Retrieve stored company ID
+  const { quickBooksCompanyId } = useAuthStore.getState()
 
   if (!quickBooksCompanyId || !accessToken) {
     Alert.alert('Error', 'Missing QuickBooks credentials.')
@@ -18,43 +18,39 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
     'Content-Type': 'application/json',
   }
 
-  // Grouping: Use invoiceData.rooms if available; otherwise, group flat lineItems by room.
-  let rooms = []
-  if (invoiceData.rooms && Array.isArray(invoiceData.rooms)) {
-    rooms = invoiceData.rooms
-  } else if (invoiceData.lineItems && Array.isArray(invoiceData.lineItems)) {
-    const grouped = {}
-    invoiceData.lineItems.forEach(item => {
-      const roomName = item.room || 'Default Room'
-      if (!grouped[roomName]) {
-        grouped[roomName] = []
-      }
-      grouped[roomName].push(item)
-    })
-    rooms = Object.keys(grouped).map(roomName => ({
+  // Group line items by room, excluding tax-only lines
+  const rooms = []
+  const grouped = {}
+  invoiceData.lineItems.forEach(item => {
+    if (
+      item.tax &&
+      item.amount === 0 &&
+      item.quantity === 0 &&
+      item.unitPrice === 0
+    ) {
+      return
+    }
+    const roomName = item.room || 'Default Room'
+    if (!grouped[roomName]) {
+      grouped[roomName] = []
+    }
+    grouped[roomName].push(item)
+  })
+
+  // Convert grouped items into a rooms array (skip empty Default Room)
+  Object.keys(grouped).forEach(roomName => {
+    if (roomName === 'Default Room' && grouped[roomName].length === 0) return
+    rooms.push({
       roomTitle: roomName,
       items: grouped[roomName],
-    }))
-  } else {
-    console.error(
-      'invoiceData has neither "rooms" nor "lineItems" as an array.'
-    )
-    Alert.alert('Error', 'Invalid invoice data structure.')
-    return null
-  }
+    })
+  })
 
-  // Build the "Line" array:
+  // (Removed the description-only lines for tax items)
+
+  // Build the Line array without description-only line items
   const lines = []
   rooms.forEach(room => {
-    // Add a header line for the room using the nested DescriptionOnlyLineDetail object.
-    lines.push({
-      DetailType: 'DescriptionOnlyLineDetail',
-      Amount: 0, // Header lines don't affect the total.
-      DescriptionOnlyLineDetail: {
-        Description: room.roomTitle, // Room header text
-      },
-    })
-    // Then add each item in this room as a SalesItemLineDetail.
     room.items.forEach(item => {
       if (
         typeof item.amount === 'undefined' ||
@@ -72,7 +68,7 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
       }
       lines.push({
         DetailType: 'SalesItemLineDetail',
-        Amount: item.amount, // The computed or overridden line total.
+        Amount: item.amount,
         Description: item.description || '',
         SalesItemLineDetail: {
           ItemRef: { value: item.itemId },
@@ -83,7 +79,6 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
     })
   })
 
-  // Calculate the total from only SalesItemLineDetail lines.
   const totalAmt = lines
     .filter(line => line.DetailType === 'SalesItemLineDetail')
     .reduce((sum, line) => sum + (line.Amount || 0), 0)
@@ -91,13 +86,7 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
   const requestBody = {
     AutoDocNumber: true,
     CustomerRef: { value: invoiceData.customerId },
-
-    EmailStatus: 'NeedToSend',
-    AllowOnlinePayment: true,
-    AllowOnlineCreditCardPayment: true,
-    AllowOnlineACHPayment: true,
-    // Omitting BillAddr so that QBO uses the customer's default billing address.
-    TxnDate: invoiceData.invoiceDate, // Ensure this is a string in "YYYY-MM-DD" format.
+    TxnDate: invoiceData.invoiceDate,
     CurrencyRef: { value: 'USD' },
     Line: lines,
     TotalAmt: totalAmt,
@@ -132,16 +121,16 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
       console.log('✅ Invoice Created:', responseData)
       return responseData
     } else {
-      const errorDetails = responseData.fault?.error || []
+      const errorDetails = responseData.Fault?.Error || []
       let errorMessage = `QuickBooks API Error: ${response.status} ${response.statusText}`
       if (errorDetails.length > 0) {
         errorMessage += `\nDetails: ${
-          errorDetails[0]?.message || 'Unknown Error'
+          errorDetails[0]?.Message || 'Unknown Error'
         }`
       }
       Alert.alert('Error', errorMessage)
       console.error('❌ QuickBooks Error Details:', errorDetails)
-      return null
+      return responseData
     }
   } catch (networkError) {
     Alert.alert('Error', 'Failed to connect to QuickBooks API.')
