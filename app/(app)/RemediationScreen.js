@@ -31,21 +31,19 @@ import { pickAndUploadPhotos } from '@/utils/photoUpload'
 import PhotoGallery from '@/components/PhotoGallery'
 import AddRoomModal from '@/components/AddRoomModal'
 import { BlurView } from 'expo-blur'
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons' // For the fan icon
 
 const RemediationScreen = () => {
   const params = useLocalSearchParams()
   const projectIdFromParams = params.projectId
   const { projectId: storeProjectId } = useProjectStore()
 
-  // Use the local param if available; otherwise, fall back to the global store.
   const projectId = projectIdFromParams ?? storeProjectId
 
-  // Rooms (each has measurements and photos)
   const [rooms, setRooms] = useState([])
-  const [headerHeight, setHeaderHeight] = useState(0) // Add state for dynamic header height
-  const marginBelowHeader = 8 // Define margin below header (adjust as needed)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const marginBelowHeader = 8
 
-  // For the Items picker modal
   const [showItemsModal, setShowItemsModal] = useState(false)
   const [currentRoomId, setCurrentRoomId] = useState(null)
   const [currentMeasurementId, setCurrentMeasurementId] = useState(null)
@@ -54,7 +52,6 @@ const RemediationScreen = () => {
   const [loadingItemsModal, setLoadingItemsModal] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState(null)
 
-  // For the "Add Room" modal
   const [showAddRoomModal, setShowAddRoomModal] = useState(false)
   const [selectedRoomType, setSelectedRoomType] = useState('')
   const [customRoomName, setCustomRoomName] = useState('')
@@ -78,7 +75,16 @@ const RemediationScreen = () => {
           const remediationData = data.remediationData || { rooms: [] }
           const remediationStatus = data.remediationStatus || 'notStarted'
           setTicket({ ...data, remediationData, remediationStatus })
-          setRooms(remediationData.rooms || []) // Update the rooms state here
+          const updatedRooms = (remediationData.rooms || []).map(room => ({
+            ...room,
+            notes: room.notes || '', // Ensure notes field exists
+            numberOfFans: room.numberOfFans || 0, // Ensure numberOfFans field exists
+            photos: (room.photos || []).map(photo => ({
+              ...photo,
+              label: photo.label || '', // Ensure label field exists
+            })),
+          }))
+          setRooms(updatedRooms)
         } else {
           Alert.alert('Error', 'Ticket not found.')
         }
@@ -109,6 +115,8 @@ const RemediationScreen = () => {
     const newRoom = {
       id: uuidv4(),
       roomTitle: roomName,
+      notes: '',
+      numberOfFans: 0,
       measurements: [],
       photos: [],
     }
@@ -118,6 +126,136 @@ const RemediationScreen = () => {
 
   const handleDeleteRoom = roomId => {
     setRooms(prev => prev.filter(room => room.id !== roomId))
+  }
+
+  // -------------------- Notes Logic --------------------
+  const handleNotesChange = (roomId, value) => {
+    if (value.length > 1000) {
+      Alert.alert('Limit Reached', 'Notes cannot exceed 1000 characters.')
+      return
+    }
+    setRooms(prev =>
+      prev.map(room => (room.id === roomId ? { ...room, notes: value } : room))
+    )
+  }
+
+  // -------------------- Photo Logic --------------------
+  const handleAddPhoto = async (roomId, projectId) => {
+    const folder = `remediationPhotos/${projectId}`
+    const photosArray = await pickAndUploadPhotos({ folder, quality: 0.5 })
+    if (photosArray.length > 0) {
+      const photosWithLabels = photosArray.map(photo => ({
+        ...photo,
+        label: '',
+      }))
+      setRooms(prev =>
+        prev.map(room =>
+          room.id === roomId
+            ? { ...room, photos: [...room.photos, ...photosWithLabels] }
+            : room
+        )
+      )
+    }
+  }
+
+  const handleDeletePhoto = (roomId, storagePath) => {
+    setRooms(prev =>
+      prev.map(room =>
+        room.id === roomId
+          ? {
+              ...room,
+              photos: room.photos.filter(p => p.storagePath !== storagePath),
+            }
+          : room
+      )
+    )
+  }
+
+  const handlePhotoLabelChange = (roomId, storagePath, value) => {
+    if (value.length > 100) {
+      Alert.alert('Limit Reached', 'Photo labels cannot exceed 100 characters.')
+      return
+    }
+    setRooms(prev =>
+      prev.map(room =>
+        room.id === roomId
+          ? {
+              ...room,
+              photos: room.photos.map(photo =>
+                photo.storagePath === storagePath
+                  ? { ...photo, label: value }
+                  : photo
+              ),
+            }
+          : room
+      )
+    )
+  }
+
+  // -------------------- Number of Fans Logic --------------------
+  const handleNumberOfFansChange = (roomId, value) => {
+    const numericValue = parseInt(value) || 0
+    if (numericValue < 0) {
+      Alert.alert('Invalid Input', 'Number of fans cannot be negative.')
+      return
+    }
+    if (numericValue > 100) {
+      Alert.alert('Limit Reached', 'Number of fans cannot exceed 100.')
+      return
+    }
+
+    setRooms(prev =>
+      prev.map(room => {
+        if (room.id !== roomId) return room
+
+        let updatedMeasurements = [...room.measurements]
+
+        // Check if "Air mover" line item exists
+        const airMoverIndex = updatedMeasurements.findIndex(
+          m => m.id === '1010000001'
+        )
+
+        if (numericValue > 0) {
+          const airMoverItem = {
+            description: 'Price per day',
+            id: '1010000001',
+            incomeAccount: {
+              name: 'Services',
+              value: '5',
+            },
+            name: 'Air mover',
+            qtyOnHand: 0,
+            type: 'Service',
+            unitPrice: 35,
+            quantity: numericValue,
+          }
+
+          if (airMoverIndex !== -1) {
+            // Update existing "Air mover" item
+            updatedMeasurements[airMoverIndex] = {
+              ...updatedMeasurements[airMoverIndex],
+              quantity: numericValue,
+            }
+          } else {
+            // Add new "Air mover" item
+            updatedMeasurements.push(airMoverItem)
+          }
+        } else {
+          // Remove "Air mover" item if numberOfFans is 0
+          if (airMoverIndex !== -1) {
+            updatedMeasurements = updatedMeasurements.filter(
+              m => m.id !== '1010000001'
+            )
+          }
+        }
+
+        return {
+          ...room,
+          numberOfFans: numericValue,
+          measurements: updatedMeasurements,
+        }
+      })
+    )
   }
 
   // -------------------- Measurement Logic --------------------
@@ -130,6 +268,7 @@ const RemediationScreen = () => {
       quantity: 0,
       itemId: '',
       unitPrice: 0,
+      roomName: rooms.find(room => room.id === roomId).roomTitle,
     }
     setRooms(prev =>
       prev.map(room =>
@@ -142,6 +281,7 @@ const RemediationScreen = () => {
     setCurrentMeasurementId(newMeasurementId)
     openItemsModal()
   }
+
   const currentStatus = ticket?.remediationStatus ?? 'notStarted'
 
   const headerOptions = [
@@ -213,10 +353,11 @@ const RemediationScreen = () => {
           m.id === currentMeasurementId
             ? {
                 ...m,
-                name: item.name, // sets measurement.name
+                name: item.name,
                 description: item.description,
                 itemId: item.id,
                 unitPrice: item.unitPrice,
+                roomName: room.roomTitle,
               }
             : m
         )
@@ -229,52 +370,45 @@ const RemediationScreen = () => {
     setCurrentMeasurementId(null)
   }
 
-  const handleAddPhoto = async (roomId, projectId) => {
-    const folder = `remediationPhotos/${projectId}`
-    const photosArray = await pickAndUploadPhotos({ folder, quality: 0.5 })
-    if (photosArray.length > 0) {
-      setRooms(prev =>
-        prev.map(room =>
-          room.id === roomId
-            ? { ...room, photos: [...room.photos, ...photosArray] }
-            : room
-        )
-      )
-    }
-  }
-
-  const handleDeletePhoto = (roomId, storagePath) => {
-    setRooms(prev =>
-      prev.map(room =>
-        room.id === roomId
-          ? {
-              ...room,
-              photos: room.photos.filter(p => p.storagePath !== storagePath),
-            }
-          : room
-      )
-    )
-  }
-
   // -------------------- Save Data to Firestore --------------------
   const handleSaveRemediationData = async complete => {
     try {
-      // Update each room to ensure each measurement has a roomName.
-      const updatedRooms = rooms.map(room => ({
-        ...room,
-        measurements: room.measurements.map(m => ({
-          ...m,
-          roomName: m.roomName || room.roomTitle,
-        })),
-      }))
+      // Validate that each room has at least one photo
+      const roomsWithoutPhotos = rooms.filter(room => room.photos.length === 0)
+      if (roomsWithoutPhotos.length > 0) {
+        const roomNames = roomsWithoutPhotos
+          .map(room => room.roomTitle)
+          .join(', ')
+        Alert.alert(
+          'Photos Required',
+          `Please add at least one photo to the following rooms: ${roomNames}.`
+        )
+        return
+      }
 
-      // Create your remediationData object without including the status.
+      // Prepare measurements with room name line items
+      const updatedRooms = rooms.map(room => {
+        const roomNameLineItem = {
+          id: `room-name-${room.id}`,
+          name: room.roomTitle,
+          isRoomName: true,
+          tax: true,
+        }
+        const measurementsWithRoomName = [
+          roomNameLineItem,
+          ...room.measurements,
+        ]
+        return {
+          ...room,
+          measurements: measurementsWithRoomName,
+        }
+      })
+
       const remediationData = {
         rooms: updatedRooms,
         updatedAt: new Date(),
       }
 
-      // Update the document with remediationData, remediationRequired, and the top-level remediationStatus.
       await updateDoc(doc(firestore, 'tickets', projectId), {
         remediationData,
         remediationRequired: false,
@@ -330,6 +464,41 @@ const RemediationScreen = () => {
                   </TouchableOpacity>
                 </View>
 
+                {/* Notes Section */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Notes</Text>
+                  <TextInput
+                    style={styles.notesInput}
+                    placeholder="Add notes (optional)..."
+                    value={room.notes}
+                    onChangeText={text => handleNotesChange(room.id, text)}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
+                {/* Number of Fans Section */}
+                <View style={styles.section}>
+                  <View style={styles.fansRow}>
+                    <Icon
+                      name="fan"
+                      size={24}
+                      color="#17BF63"
+                      style={styles.fanIcon}
+                    />
+                    <Text style={styles.sectionTitle}>Number of Fans</Text>
+                  </View>
+                  <TextInput
+                    style={styles.numberOfFansInput}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    value={room.numberOfFans.toString()}
+                    onChangeText={text =>
+                      handleNumberOfFansChange(room.id, text)
+                    }
+                  />
+                </View>
+
                 {/* Line Items Section */}
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
@@ -351,18 +520,25 @@ const RemediationScreen = () => {
                         placeholder="Item Name"
                         value={measurement.name}
                         onFocus={() => {
+                          if (measurement.id === '1010000001') return // Prevent editing "Air mover"
                           setCurrentRoomId(room.id)
                           setCurrentMeasurementId(measurement.id)
                           openItemsModal()
                         }}
-                        editable={false}
+                        editable={measurement.id !== '1010000001'}
                       />
+                      {measurement.description && (
+                        <Text style={styles.measurementDescription}>
+                          {measurement.description}
+                        </Text>
+                      )}
                       <TextInput
                         style={[styles.measurementInput, { width: 70 }]}
                         placeholder="Qty"
                         keyboardType="numeric"
                         value={measurement.quantity.toString()}
                         onChangeText={val => {
+                          if (measurement.id === '1010000001') return // Prevent editing "Air mover" quantity
                           const numericValue = parseFloat(val) || 0
                           handleMeasurementChange(
                             room.id,
@@ -371,12 +547,12 @@ const RemediationScreen = () => {
                             numericValue
                           )
                         }}
+                        editable={measurement.id !== '1010000001'}
                       />
                       <TouchableOpacity
                         onPress={() =>
                           handleDeleteMeasurement(room.id, measurement.id)
                         }
-                        // style={styles.deleteMeasurementButton}
                       >
                         <IconSymbol name="trash" size={26} color="red" />
                       </TouchableOpacity>
@@ -399,13 +575,36 @@ const RemediationScreen = () => {
                     </TouchableOpacity>
                   </View>
                   {room.photos.length > 0 ? (
-                    <PhotoGallery
-                      photos={room.photos.map(photo => photo.downloadURL)}
-                      onRemovePhoto={index => {
-                        const photoToRemove = room.photos[index]
-                        handleDeletePhoto(room.id, photoToRemove.storagePath)
-                      }}
-                    />
+                    <ScrollView horizontal style={styles.photoRow}>
+                      {room.photos.map((photo, index) => (
+                        <View key={index} style={styles.photoItem}>
+                          <Image
+                            source={{ uri: photo.downloadURL }}
+                            style={styles.photoImage}
+                          />
+                          <TextInput
+                            style={styles.photoLabelInput}
+                            placeholder="Add label (optional)..."
+                            value={photo.label}
+                            onChangeText={text =>
+                              handlePhotoLabelChange(
+                                room.id,
+                                photo.storagePath,
+                                text
+                              )
+                            }
+                          />
+                          <TouchableOpacity
+                            onPress={() =>
+                              handleDeletePhoto(room.id, photo.storagePath)
+                            }
+                            style={styles.deletePhotoButton}
+                          >
+                            <Text style={styles.deletePhotoButtonText}>X</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </ScrollView>
                   ) : (
                     <Text style={styles.noPhotoText}>No photos added.</Text>
                   )}
@@ -593,6 +792,38 @@ const styles = StyleSheet.create({
     color: '#14171A',
     marginRight: 6,
   },
+  notesInput: {
+    backgroundColor: '#fff',
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    color: '#14171A',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#E1E8ED',
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  fansRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fanIcon: {
+    marginRight: 8,
+  },
+  numberOfFansInput: {
+    backgroundColor: '#fff',
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    color: '#14171A',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#E1E8ED',
+    width: 60,
+  },
   measurementRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -608,6 +839,11 @@ const styles = StyleSheet.create({
     marginRight: 8,
     borderWidth: 1,
     borderColor: '#E1E8ED',
+  },
+  measurementDescription: {
+    fontSize: 12,
+    color: '#657786',
+    marginRight: 8,
   },
   deleteMeasurementButton: {
     borderRadius: 4,
@@ -660,6 +896,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#E1E8ED',
+  },
+  photoLabelInput: {
+    backgroundColor: '#fff',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    fontSize: 12,
+    color: '#14171A',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#E1E8ED',
+    width: 70,
   },
   deletePhotoButton: {
     position: 'absolute',
