@@ -38,9 +38,6 @@ const useAuthStore = create(
       },
       clearCredentials: async () => {
         const clearedCredentials = {
-          quickBooksCompanyId: '9130351967520606', // Preserve hardcoded value
-          clientId: 'BBH3sQV8BaGA4ZxmDTFSXOF94ErNGHh2Iu82TC6eogpXwMlYTe', // Preserve initial value
-          clientSecret: 'J68Jzvy0X5BfcV2do84ef5dPKBeq4SQ1xcJh6NzF', // Preserve initial value
           accessToken: null,
           refreshToken: null,
           tokenExpiresAt: null,
@@ -76,9 +73,6 @@ const useAuthStore = create(
           })
         } else {
           const defaults = {
-            quickBooksCompanyId: '9130351967520606',
-            clientId: 'BBH3sQV8BaGA4ZxmDTFSXOF94ErNGHh2Iu82TC6eogpXwMlYTe',
-            clientSecret: 'J68Jzvy0X5BfcV2do84ef5dPKBeq4SQ1xcJh6NzF',
             accessToken: null,
             refreshToken: null,
             tokenExpiresAt: null,

@@ -35,6 +35,7 @@ import { formatAddress } from '@/utils/helpers'
 import { pickAndUploadPhotos } from '@/utils/photoUpload'
 import useAuthStore from '@/store/useAuthStore'
 import { createCustomerInQuickBooks } from '@/utils/quickbooksApi'
+import { ScrollView as RNScrollView } from 'react-native'
 
 // Initial ticket state object
 const initialTicketStatus = {
@@ -130,6 +131,13 @@ const CreateTicketScreen = () => {
   const [jobType, setJobType] = useState('')
   const [vacancy, setVacancy] = useState('')
   const [newNote, setNewNote] = useState('')
+  const [inspectorModalVisible, setInspectorModalVisible] = useState(false)
+  const [addPhotoModalVisible, setAddPhotoModalVisible] = useState(false)
+
+  // Function to toggle inspector modal
+  const handleToggleInspectorPicker = () => {
+    setInspectorModalVisible(!inspectorModalVisible)
+  }
 
   // Load customers from Firestore
   useEffect(() => {
@@ -640,98 +648,171 @@ const CreateTicketScreen = () => {
                   ]}
                 >
                   <Text style={styles.modalTitle}>Homeowner</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowHomeowner(prev => !prev)}
-                    style={[
-                      styles.plusButton,
-                      { backgroundColor: showHomeowner ? 'red' : '#2980b9' },
-                    ]}
-                  >
-                    <IconSymbol
-                      name={showHomeowner ? 'minus' : 'plus'}
-                      color="white"
-                    />
-                  </TouchableOpacity>
                 </View>
-                {showHomeowner && (
-                  <>
-                    <TextInput
-                      style={styles.inputField}
-                      placeholder="Homeowner Name"
-                      value={newTicket.homeOwnerName}
-                      onChangeText={text =>
-                        setNewTicket({ ...newTicket, homeOwnerName: text })
-                      }
-                    />
-                    <TextInput
-                      style={styles.inputField}
-                      placeholder="Homeowner Number"
-                      value={newTicket.homeOwnerNumber}
-                      onChangeText={text => {
-                        const formatted = formatPhoneNumber(text)
-                        setNewTicket(prev => ({
-                          ...prev,
-                          homeOwnerNumber: formatted,
-                        }))
-                      }}
-                      keyboardType="phone-pad"
-                    />
-                  </>
-                )}
+
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="Homeowner Name"
+                  value={newTicket.homeOwnerName}
+                  onChangeText={text =>
+                    setNewTicket({ ...newTicket, homeOwnerName: text })
+                  }
+                />
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="Homeowner Number"
+                  value={newTicket.homeOwnerNumber}
+                  onChangeText={text => {
+                    const formatted = formatPhoneNumber(text)
+                    setNewTicket(prev => ({
+                      ...prev,
+                      homeOwnerNumber: formatted,
+                    }))
+                  }}
+                  keyboardType="phone-pad"
+                />
               </View>
             )}
 
             {/* Step 5: Ticket Details */}
             {step === 5 && (
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Ticket Details</Text>
-                <TextInput
-                  style={styles.inputField}
-                  placeholder="Inspector Name"
-                  value={newTicket.inspectorName}
-                  onChangeText={text =>
-                    setNewTicket({ ...newTicket, inspectorName: text })
-                  }
-                />
-                <TextInput
-                  style={[styles.inputField, { height: 100 }]}
-                  placeholder="Reason for visit"
-                  value={newTicket.reason}
-                  onChangeText={text =>
-                    setNewTicket({ ...newTicket, reason: text })
-                  }
-                  multiline
-                />
-                <TextInput
-                  style={[styles.inputField, { height: 80 }]}
-                  placeholder="Add a note for this ticket..."
-                  value={newNote}
-                  onChangeText={setNewNote}
-                  multiline
-                  numberOfLines={4}
-                />
-                <TouchableOpacity
-                  onPress={handleTogglePicker}
-                  style={styles.button}
-                >
-                  <Text style={styles.buttonText}>
-                    {jobType ? jobType : 'Select Job Type'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleToggleVacancyPicker}
-                  style={styles.button}
-                >
-                  <Text style={styles.buttonText}>
-                    {vacancy === 'occupied'
-                      ? 'Occupied'
-                      : vacancy === 'unoccupied'
-                        ? 'Unoccupied'
-                        : 'Select Occupancy'}
-                  </Text>
-                </TouchableOpacity>
+              <View style={styles.stepContainer}>
+                {/* Ticket Details Section */}
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>Ticket Details</Text>
+                  <View style={styles.inputGroup}>
+                    <TouchableOpacity
+                      onPress={handleToggleInspectorPicker}
+                      style={styles.pickerButton}
+                      accessibilityLabel="Select Inspector"
+                    >
+                      <Text style={styles.pickerButtonText}>
+                        {newTicket.inspectorName
+                          ? newTicket.inspectorName
+                          : 'Select Inspector'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <TextInput
+                      style={styles.inputField}
+                      placeholder="Reason for visit"
+                      value={newTicket.reason}
+                      onChangeText={text =>
+                        setNewTicket({ ...newTicket, reason: text })
+                      }
+                      multiline
+                      numberOfLines={4}
+                      accessibilityLabel="Reason for visit"
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <TextInput
+                      style={styles.inputField}
+                      placeholder="Add a note for this ticket..."
+                      value={newNote}
+                      onChangeText={setNewNote}
+                      multiline
+                      numberOfLines={3}
+                      accessibilityLabel="Ticket note"
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <TouchableOpacity
+                      onPress={handleTogglePicker}
+                      style={styles.pickerButton}
+                      accessibilityLabel="Select Job Type"
+                    >
+                      <Text style={styles.pickerButtonText}>
+                        {jobType ? jobType : 'Select Job Type'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <TouchableOpacity
+                      onPress={handleToggleVacancyPicker}
+                      style={styles.pickerButton}
+                      accessibilityLabel="Select Occupancy"
+                    >
+                      <Text style={styles.pickerButtonText}>
+                        {vacancy === 'occupied'
+                          ? 'Occupied'
+                          : vacancy === 'unoccupied'
+                          ? 'Unoccupied'
+                          : 'Select Occupancy'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Photos Section */}
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>Photos</Text>
+                  {newTicket.ticketPhotos.length > 0 ? (
+                    <RNScrollView horizontal style={styles.photoGallery}>
+                      {newTicket.ticketPhotos.map((photo, index) => (
+                        <View key={index} style={styles.photoContainer}>
+                          <PhotoGallery
+                            photos={[photo]}
+                            onRemovePhoto={() => handleRemovePhoto(index)}
+                          />
+                        </View>
+                      ))}
+                    </RNScrollView>
+                  ) : (
+                    <Text style={styles.noPhotosText}>
+                      No photos added yet.
+                    </Text>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => setAddPhotoModalVisible(true)}
+                    style={styles.pickerButton}
+                    accessibilityLabel="Add Photo"
+                  >
+                    <Text style={styles.pickerButtonText}>Add Photo</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
+
+            {/* Inspector Modal */}
+            <Modal
+              visible={inspectorModalVisible}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={handleToggleInspectorPicker}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContainer}>
+                  <Text style={styles.modalTitle}>Select Inspector</Text>
+                  <Picker
+                    selectedValue={newTicket.inspectorName}
+                    onValueChange={itemValue => {
+                      setNewTicket({ ...newTicket, inspectorName: itemValue })
+                      handleToggleInspectorPicker() // Close modal on selection
+                    }}
+                    style={styles.modalPicker}
+                    itemStyle={styles.pickerItem}
+                    accessibilityLabel="Select Inspector"
+                  >
+                    <Picker.Item label="Select Inspector" value="" />
+                    <Picker.Item
+                      label="Bobby Blasewitz"
+                      value="Bobby Blasewitz"
+                    />
+                    <Picker.Item label="David Sprott" value="David Sprott" />
+                    <Picker.Item label="John Bucaria" value="John Bucaria" />
+                  </Picker>
+                  <TouchableOpacity
+                    onPress={handleToggleInspectorPicker}
+                    style={styles.modalCloseButton}
+                    accessibilityLabel="Close Inspector Modal"
+                  >
+                    <Text style={styles.modalCloseButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
 
             {/* Job Type Modal */}
             <Modal
@@ -741,13 +822,19 @@ const CreateTicketScreen = () => {
               onRequestClose={handleTogglePicker}
             >
               <View style={styles.modalOverlay}>
-                <View style={styles.pickerContainer}>
+                <View style={styles.modalContainer}>
+                  <Text style={styles.modalTitle}>Select Job Type</Text>
                   <Picker
                     selectedValue={jobType}
-                    onValueChange={handleJobTypeChange}
-                    style={styles.picker}
+                    onValueChange={itemValue => {
+                      handleJobTypeChange(itemValue)
+                      handleTogglePicker() // Close modal on selection
+                    }}
+                    style={styles.modalPicker}
+                    itemStyle={styles.pickerItem}
+                    accessibilityLabel="Select Job Type"
                   >
-                    <Picker.Item label="Select job type" value="" />
+                    <Picker.Item label="Select Job Type" value="" />
                     <Picker.Item
                       label="Leak Detection"
                       value="leak detection"
@@ -758,11 +845,13 @@ const CreateTicketScreen = () => {
                     <Picker.Item label="Mold Job" value="mold job" />
                     <Picker.Item label="Wipe Down" value="wipe down" />
                   </Picker>
-                  <View style={styles.modalCloseContainer}>
-                    <TouchableOpacity onPress={handleTogglePicker}>
-                      <Text style={styles.modalCloseText}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    onPress={handleTogglePicker}
+                    style={styles.modalCloseButton}
+                    accessibilityLabel="Close Job Type Modal"
+                  >
+                    <Text style={styles.modalCloseButtonText}>Close</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </Modal>
@@ -775,42 +864,66 @@ const CreateTicketScreen = () => {
               onRequestClose={handleToggleVacancyPicker}
             >
               <View style={styles.modalOverlay}>
-                <View style={styles.pickerContainer}>
+                <View style={styles.modalContainer}>
+                  <Text style={styles.modalTitle}>Select Occupancy</Text>
                   <Picker
                     selectedValue={vacancy}
-                    onValueChange={handleVacancyChange}
-                    style={styles.picker}
+                    onValueChange={itemValue => {
+                      handleVacancyChange(itemValue)
+                      handleToggleVacancyPicker() // Close modal on selection
+                    }}
+                    style={styles.modalPicker}
+                    itemStyle={styles.pickerItem}
+                    accessibilityLabel="Select Occupancy"
                   >
-                    <Picker.Item label="Select occupancy" value="" />
+                    <Picker.Item label="Select Occupancy" value="" />
                     <Picker.Item label="Occupied" value="occupied" />
                     <Picker.Item label="Unoccupied" value="unoccupied" />
                   </Picker>
-                  <View style={styles.modalCloseContainer}>
-                    <TouchableOpacity onPress={handleToggleVacancyPicker}>
-                      <Text style={styles.modalCloseText}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    onPress={handleToggleVacancyPicker}
+                    style={styles.modalCloseButton}
+                    accessibilityLabel="Close Occupancy Modal"
+                  >
+                    <Text style={styles.modalCloseButtonText}>Close</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </Modal>
 
-            {/* Photo Gallery and Add Photo (only on Step 5) */}
-            {step === 5 && (
-              <>
-                {newTicket.ticketPhotos.length > 0 && (
-                  <PhotoGallery
-                    photos={newTicket.ticketPhotos}
-                    onRemovePhoto={handleRemovePhoto}
-                  />
-                )}
-                <TouchableOpacity
-                  onPress={handleAddPhoto}
-                  style={styles.addPhotoButton}
-                >
-                  <Text style={styles.addPhotoButtonText}>Add Photo</Text>
-                </TouchableOpacity>
-              </>
-            )}
+            {/* Add Photo Modal */}
+            <Modal
+              visible={addPhotoModalVisible}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setAddPhotoModalVisible(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContainer}>
+                  <Text style={styles.modalTitle}>Add a Photo</Text>
+                  <Text style={styles.modalMessage}>
+                    Do you want to add a photo to this ticket?
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      handleAddPhoto()
+                      setAddPhotoModalVisible(false)
+                    }}
+                    style={styles.modalConfirmButton}
+                    accessibilityLabel="Confirm Add Photo"
+                  >
+                    <Text style={styles.modalConfirmButtonText}>Add Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setAddPhotoModalVisible(false)}
+                    style={styles.modalCloseButton}
+                    accessibilityLabel="Cancel Add Photo"
+                  >
+                    <Text style={styles.modalCloseButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
 
             {/* Navigation Buttons */}
             <View style={styles.navigationButtons}>
@@ -855,17 +968,51 @@ const CreateTicketScreen = () => {
 export default CreateTicketScreen
 
 const styles = StyleSheet.create({
-  fullScreenContainer: {
+  actionButton: {
     flex: 1,
+    alignItems: 'center',
+    borderRadius: 5,
+    padding: 12,
+    marginHorizontal: 5,
   },
-  flex1: {
-    flex: 1,
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
-  scrollView: {
-    paddingHorizontal: 5,
+  addNewText: {
+    fontSize: 16,
+    color: '#2980b9',
+    textAlign: 'center',
+    marginVertical: 10,
   },
-  contentContainer: {
-    paddingBottom: 20,
+  addPhotoButton: {
+    backgroundColor: '#2ecc71',
+    borderRadius: 5,
+    padding: 12,
+    alignItems: 'center',
+    marginVertical: 6,
+  },
+  addPhotoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  autocompleteContainer: {
+    backgroundColor: 'transparent',
+    padding: 0,
+    margin: 0,
+    marginBottom: 10,
+  },
+  button: {
+    backgroundColor: '#2980b9',
+    borderRadius: 5,
+    padding: 12,
+    alignItems: 'center',
+    marginVertical: 6,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
   },
   card: {
     backgroundColor: '#F5F8FA',
@@ -875,8 +1022,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     padding: 12,
   },
-  dateTimeSection: {
-    marginBottom: 10,
+  contentContainer: {
+    paddingBottom: 20,
+  },
+  createButton: {
+    backgroundColor: '#2c3e50',
   },
   dateTimeButton: {
     padding: 10,
@@ -886,7 +1036,211 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
     marginVertical: 5,
   },
+  dateTimeSection: {
+    marginBottom: 10,
+  },
   dateTimeText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  flex1: {
+    flex: 1,
+  },
+  fullScreenContainer: {
+    flex: 1,
+  },
+  inputField: {
+    width: '100%',
+    height: 100,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+    textAlignVertical: 'top',
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
+  label: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 5,
+  },
+  modalClose: {
+    color: '#2980b9',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 15,
+  },
+  modalCloseButton: {
+    marginTop: 15,
+    backgroundColor: '#3498DB',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalCloseButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalCloseContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  modalCloseText: {
+    color: '#2980b9',
+    fontSize: 16,
+  },
+  modalConfirmButton: {
+    marginTop: 15,
+    backgroundColor: '#2ecc71',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalConfirmButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalContainer: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalInput: {
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 4,
+    padding: 10,
+    fontSize: 16,
+    marginBottom: 10,
+    color: '#333',
+  },
+  modalItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: '#555',
+  },
+  modalList: {
+    maxHeight: 200,
+    marginBottom: 10,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#555',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalPicker: {
+    width: '100%',
+    height: 150,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 12,
+    color: '#333',
+    textAlign: 'center',
+  },
+  navigationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 10,
+  },
+  nextButton: {
+    backgroundColor: '#2980b9',
+  },
+  noPhotosText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  photoContainer: {
+    marginRight: 10,
+  },
+  photoGallery: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  pickerButton: {
+    height: 50,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#2C3E50',
+  },
+  pickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 10,
+    width: '90%',
+    elevation: 5,
+  },
+  plusButton: {
+    backgroundColor: '#2980b9',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previousButton: {
+    backgroundColor: '#7f8c8d',
+  },
+  saveButton: {
+    backgroundColor: '#2980b9',
+    paddingVertical: 12,
+    borderRadius: 4,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  scrollView: {
+    paddingHorizontal: 5,
+  },
+  searchInput: {
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 4,
+    padding: 10,
     fontSize: 16,
     color: '#333',
   },
@@ -896,20 +1250,17 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     color: '#2c3e50',
   },
-  label: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 5,
+  selectButton: {
+    backgroundColor: '#2980b9',
+    borderRadius: 15,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  inputField: {
-    backgroundColor: '#f9f9f9',
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 4,
-    fontSize: 16,
-    padding: 10,
-    marginBottom: 10,
-    color: '#333',
+  selectButtonText: {
+    color: 'white',
+    fontSize: 14,
   },
   selectionContainer: {
     flexDirection: 'row',
@@ -924,169 +1275,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#555',
   },
-  selectButton: {
-    backgroundColor: '#2980b9',
-    borderRadius: 15,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  selectButtonText: {
-    color: 'white',
-    fontSize: 14,
-  },
-  plusButton: {
-    backgroundColor: '#2980b9',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  button: {
-    backgroundColor: '#2980b9',
-    borderRadius: 5,
-    padding: 12,
-    alignItems: 'center',
-    marginVertical: 6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  addPhotoButton: {
-    backgroundColor: '#2ecc71',
-    borderRadius: 5,
-    padding: 12,
-    alignItems: 'center',
-    marginVertical: 6,
-  },
-  addPhotoButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  navigationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 10,
-  },
-  actionButton: {
+  stepContainer: {
     flex: 1,
-    alignItems: 'center',
-    borderRadius: 5,
-    padding: 12,
-    marginHorizontal: 5,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  previousButton: {
-    backgroundColor: '#7f8c8d',
-  },
-  nextButton: {
-    backgroundColor: '#2980b9',
-  },
-  createButton: {
-    backgroundColor: '#2c3e50',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 10,
-    width: '90%',
-    elevation: 5,
-  },
-  picker: {
-    width: '100%',
-  },
-  modalCloseContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  modalCloseText: {
-    color: '#2980b9',
-    fontSize: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
-    textAlign: 'center',
-  },
-  // Styles from AddressModal
-  autocompleteContainer: {
-    backgroundColor: 'transparent',
-    padding: 0,
-    margin: 0,
-    marginBottom: 10,
-  },
-  searchInput: {
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 4,
-    padding: 10,
-    fontSize: 16,
-    color: '#333',
-  },
-  saveButton: {
-    backgroundColor: '#2980b9',
-    paddingVertical: 12,
-    borderRadius: 4,
-    alignItems: 'center',
-    marginTop: 15,
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  modalClose: {
-    color: '#2980b9',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 15,
-  },
-  // Styles from BuilderModal
-  modalInput: {
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 4,
-    padding: 10,
-    fontSize: 16,
-    marginBottom: 10,
-    color: '#333',
-  },
-  modalList: {
-    maxHeight: 200,
-    marginBottom: 10,
-  },
-  modalItem: {
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderColor: '#eee',
-  },
-  modalItemText: {
-    fontSize: 16,
-    color: '#555',
-  },
-  addNewText: {
-    fontSize: 16,
-    color: '#2980b9',
-    textAlign: 'center',
-    marginVertical: 10,
   },
 })

@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import * as Linking from 'expo-linking'
 import {
   SafeAreaView,
   ScrollView,
@@ -14,14 +13,13 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { firestore } from '@/firebaseConfig'
-import { collection, setDoc, doc, getDocs } from 'firebase/firestore'
+import { collection, setDoc, doc, getDocs, getDoc } from 'firebase/firestore'
 import * as AuthSession from 'expo-auth-session'
-import { HeaderWithOptions } from '@/components/HeaderWithOptions'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as WebBrowser from 'expo-web-browser'
 import useAuthStore from '@/store/useAuthStore'
+import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 
 const redirectUri = 'https://coastalrestorationservice.com/oauth/callback'
-
 const discovery = {
   authorizationEndpoint: 'https://appcenter.intuit.com/connect/oauth2',
 }
@@ -35,72 +33,32 @@ const QuickBooksManagementScreen = () => {
   const [itemSearchQuery, setItemSearchQuery] = useState('')
   const [loadingItems, setLoadingItems] = useState(false)
   const [headerHeight, setHeaderHeight] = useState(0)
-  const [isAuthLoaded, setIsAuthLoaded] = useState(false)
-
-  // Local state for tokens
-  const [accessToken, setAccessToken] = useState()
-  const [refreshToken, setRefreshToken] = useState()
-  const [tokenExpiresAt, setTokenExpiresAt] = useState()
 
   const router = useRouter()
-
-  // Get credentials from useAuthStore
-  const { clientId, clientSecret, quickBooksCompanyId } =
-    useAuthStore.getState()
+  const {
+    quickBooksCompanyId,
+    clientId,
+    accessToken,
+    tokenExpiresAt,
+    setCredentials,
+  } = useAuthStore()
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
-      clientId: clientId || '',
+      clientId,
       scopes: ['com.intuit.quickbooks.accounting'],
       redirectUri,
       responseType: 'code',
       state: 'quickbooks_auth',
-      prompt: 'login',
+      prompt: 'login select_account', // Force sign-in and account selection
     },
     discovery
   )
 
-  // Add redirect URL logging
-  useEffect(() => {
-    const subscription = Linking.addEventListener('url', event => {
-      console.log('Received URL:', event.url)
-    })
-    return () => subscription.remove()
-  }, [])
-
-  useEffect(() => {
-    console.log('AuthSession response:', response)
-    // Rest of your code...
-  }, [response, quickBooksCompanyId, clientId])
-
-  // Function to save tokens to Firestore
-  const saveTokensToFirestore = async tokens => {
-    try {
-      const companyRef = doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV')
-      const updatedCredentials = {
-        quickBooksCompanyId: quickBooksCompanyId || '',
-        clientId: clientId || '',
-        clientSecret: clientSecret || '',
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        tokenExpiresAt: tokens.tokenExpiresAt,
-        updatedAt: new Date().toISOString(),
-      }
-      await setDoc(companyRef, updatedCredentials, { merge: true })
-      console.log('Tokens saved to Firestore:', updatedCredentials)
-    } catch (error) {
-      console.error('Error saving tokens to Firestore:', error)
-      Alert.alert(
-        'Error',
-        'Failed to save tokens to Firestore: ' + error.message
-      )
-    }
-  }
-
   // Refresh token function
   const refreshQuickBooksToken = async () => {
+    const { clientId, clientSecret, refreshToken } = useAuthStore.getState()
     if (!refreshToken) {
-      console.error('No refresh token available:', { refreshToken })
       throw new Error('No refresh token available')
     }
 
@@ -108,11 +66,11 @@ const QuickBooksManagementScreen = () => {
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-      client_id: clientId || '',
-      client_secret: clientSecret || '',
+      client_id: clientId,
+      client_secret: clientSecret,
     })
 
-    const newResponse = await fetch(tokenUrl, {
+    const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -120,104 +78,157 @@ const QuickBooksManagementScreen = () => {
       },
       body: body.toString(),
     })
-    const data = await newResponse.json()
+
+    const data = await response.json()
     if (data.access_token) {
-      setAccessToken(data.access_token)
-      setRefreshToken(data.refresh_token)
-      const expiresAt = Date.now() + data.expires_in * 1000
-      setTokenExpiresAt(expiresAt)
-      await saveTokensToFirestore({
+      const companyRef = doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV')
+      const companySnap = await getDoc(companyRef)
+      let updatedQuickBooksCompanyId = quickBooksCompanyId
+      if (companySnap.exists()) {
+        const companyData = companySnap.data()
+        updatedQuickBooksCompanyId =
+          companyData.quickBooksCompanyId || quickBooksCompanyId
+      }
+
+      setCredentials({
+        quickBooksCompanyId: updatedQuickBooksCompanyId,
+        clientId,
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
-        tokenExpiresAt: expiresAt,
-      })
-      console.log('Tokens refreshed:', {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        tokenExpiresAt: expiresAt,
+        tokenExpiresAt: Date.now() + data.expires_in * 1000,
       })
       return data.access_token
     } else {
-      console.error('Failed to refresh token:', data)
       throw new Error('Failed to refresh token: ' + JSON.stringify(data))
     }
   }
 
-  // Auth flow: using async/await for token exchange
-  useEffect(() => {
-    const loadAuth = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      setIsAuthLoaded(true)
+  // Revoke QuickBooks token
+  const revokeQuickBooksToken = async () => {
+    const { clientId, clientSecret, refreshToken } = useAuthStore.getState()
+    if (!refreshToken) {
+      throw new Error('No refresh token available')
     }
-    loadAuth()
 
-    if (!clientId || !clientSecret) {
-      console.error('Missing QuickBooks credentials from store:', {
-        clientId,
-        clientSecret,
-      })
+    const tokenUrl = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/revoke'
+    const authHeader = `Basic ${btoa(`${clientId}:${clientSecret}`)}`
+    const body = new URLSearchParams({
+      token: refreshToken,
+    })
+
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: authHeader,
+      },
+      body: body.toString(),
+    })
+
+    if (response.ok) {
+      useAuthStore.getState().clearCredentials()
       Alert.alert(
-        'Error',
-        'Missing QuickBooks credentials. Please check app configuration.'
+        'Success',
+        'QuickBooks session revoked. Please sign in again.'
       )
-      return
+    } else {
+      throw new Error('Failed to revoke token')
+    }
+  }
+
+  // Clear WebView cookies
+  const clearQuickBooksSession = async () => {
+    await WebBrowser.clearAll()
+    console.log('WebView cookies cleared')
+  }
+
+  // Automatic token refresh
+  useEffect(() => {
+    const checkTokenExpiration = () => {
+      const now = Date.now()
+      if (accessToken && tokenExpiresAt && now > tokenExpiresAt - 300000) {
+        console.log('Token nearing expiration, refreshing...')
+        refreshQuickBooksToken().catch(err => {
+          console.error('Failed to refresh token:', err)
+          Alert.alert('Error', 'Failed to refresh token: ' + err.message)
+        })
+      }
     }
 
+    const interval = setInterval(checkTokenExpiration, 60000)
+    checkTokenExpiration()
+
+    return () => clearInterval(interval)
+  }, [accessToken, tokenExpiresAt, quickBooksCompanyId, clientId])
+
+  // Token exchange after OAuth redirect
+  useEffect(() => {
+    console.log('AuthSession response:', response)
     if (response?.type === 'success') {
-      ;(async () => {
-        const { code } = response.params
-        console.log('Starting token exchange with code:', code)
-        const tokenUrl =
-          'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
-        const body = new URLSearchParams({
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        try {
-          const tokenResponse = await fetch(tokenUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              Accept: 'application/json',
-            },
-            body: body.toString(),
-          })
-          const data = await tokenResponse.json()
+      const { code } = response.params
+      console.log('Authorization code:', code)
+      const { clientId, clientSecret } = useAuthStore.getState()
+
+      const tokenUrl =
+        'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      })
+
+      fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: body.toString(),
+      })
+        .then(res => res.json())
+        .then(async data => {
           console.log('Token exchange response:', data)
           if (data.access_token) {
-            setAccessToken(data.access_token)
-            setRefreshToken(data.refresh_token)
-            const expiresAt = Date.now() + data.expires_in * 1000
-            setTokenExpiresAt(expiresAt)
-            await saveTokensToFirestore({
+            const companyRef = doc(
+              firestore,
+              'companyInfo',
+              'Vj0FigLyhZCyprQ8iGGV'
+            )
+            const companySnap = await getDoc(companyRef)
+            let updatedQuickBooksCompanyId = quickBooksCompanyId
+            if (companySnap.exists()) {
+              const companyData = companySnap.data()
+              updatedQuickBooksCompanyId =
+                companyData.quickBooksCompanyId || quickBooksCompanyId
+            }
+
+            setCredentials({
+              quickBooksCompanyId: updatedQuickBooksCompanyId,
+              clientId,
               accessToken: data.access_token,
               refreshToken: data.refresh_token,
-              tokenExpiresAt: expiresAt,
+              tokenExpiresAt: Date.now() + data.expires_in * 1000,
             })
-            console.log('Tokens received:', {
-              accessToken: data.access_token,
-              refreshToken: data.refresh_token,
-              tokenExpiresAt: expiresAt,
-            })
+            console.log('Access token received:', data.access_token)
+            console.log('Refresh token received:', data.refresh_token)
           } else {
-            console.error('No access_token in response:', data)
+            console.error('Token exchange response:', data)
             Alert.alert('Error', 'Failed to obtain access token.')
           }
-        } catch (error) {
-          console.error('Token exchange error:', error)
-          Alert.alert('Error', 'Token exchange failed: ' + error.message)
-        }
-      })()
+        })
+        .catch(err => {
+          console.error('Token exchange failed:', err)
+          Alert.alert('Error', 'Token exchange failed: ' + err.message)
+        })
     } else if (response?.type === 'error') {
-      console.error('OAuth error:', response)
+      console.error('Auth error:', response)
       Alert.alert('Error', 'Authentication failed: ' + response.error)
-    } else {
-      console.log('OAuth response:', response)
+    } else if (response?.type === 'cancel') {
+      console.log('OAuth flow canceled')
     }
-  }, [response, clientId, clientSecret])
+  }, [response, setCredentials, quickBooksCompanyId, clientId])
 
   // Customers Functions
   const fetchCustomersFromFirestore = async () => {
@@ -233,31 +244,8 @@ const QuickBooksManagementScreen = () => {
   }
 
   const fetchCustomersFromQuickBooks = async () => {
-    const now = Date.now()
     if (!quickBooksCompanyId || !accessToken) {
-      console.error('Missing credentials:', {
-        quickBooksCompanyId,
-        accessToken,
-      })
-      Alert.alert('Error', 'Missing credentials')
-      return
-    }
-    if (tokenExpiresAt && now > Number(tokenExpiresAt)) {
-      Alert.alert(
-        'Token Expired',
-        'Please refresh your token.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Refresh Token',
-            onPress: () => {
-              promptAsync()
-            },
-          },
-        ],
-        { cancelable: true }
-      )
-      return
+      return Alert.alert('Error', 'Missing credentials')
     }
     setLoadingCustomers(true)
     const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
@@ -269,14 +257,14 @@ const QuickBooksManagementScreen = () => {
     }
 
     try {
-      let res = await fetch(url, { method: 'GET', headers })
-      if (res.status === 401) {
+      let response = await fetch(url, { method: 'GET', headers })
+      if (response.status === 401) {
         const newToken = await refreshQuickBooksToken()
         headers.Authorization = `Bearer ${newToken}`
-        res = await fetch(url, { method: 'GET', headers })
+        response = await fetch(url, { method: 'GET', headers })
       }
-      if (!res.ok) throw new Error(await res.text())
-      const data = await res.json()
+      if (!response.ok) throw new Error(await response.text())
+      const data = await response.json()
       const customersData =
         data.QueryResponse?.Customer?.map(customer => ({
           id: customer.Id,
@@ -321,31 +309,8 @@ const QuickBooksManagementScreen = () => {
 
   // Items Functions
   const fetchItemsFromQB = async () => {
-    const now = Date.now()
     if (!quickBooksCompanyId || !accessToken) {
-      console.error('Missing credentials:', {
-        quickBooksCompanyId,
-        accessToken,
-      })
-      Alert.alert('Error', 'Missing credentials')
-      return
-    }
-    if (tokenExpiresAt && now > Number(tokenExpiresAt)) {
-      Alert.alert(
-        'Token Expired',
-        'Please refresh your token.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Refresh Token',
-            onPress: () => {
-              promptAsync()
-            },
-          },
-        ],
-        { cancelable: true }
-      )
-      return
+      return Alert.alert('Error', 'Missing credentials')
     }
     setLoadingItems(true)
     const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
@@ -356,14 +321,14 @@ const QuickBooksManagementScreen = () => {
       Accept: 'application/json',
     }
     try {
-      let res = await fetch(url, { method: 'GET', headers })
-      if (res.status === 401) {
+      let response = await fetch(url, { method: 'GET', headers })
+      if (response.status === 401) {
         const newToken = await refreshQuickBooksToken()
         headers.Authorization = `Bearer ${newToken}`
-        res = await fetch(url, { method: 'GET', headers })
+        response = await fetch(url, { method: 'GET', headers })
       }
-      if (!res.ok) throw new Error(await res.text())
-      const data = await res.json()
+      if (!response.ok) throw new Error(await response.text())
+      const data = await response.json()
       const itemsData =
         data.QueryResponse?.Item?.map(item => ({
           id: item.Id,
@@ -405,26 +370,63 @@ const QuickBooksManagementScreen = () => {
   const headerOptions = [
     {
       label: 'Refresh Token',
-      onPress: () => {
-        if (!isAuthLoaded) {
-          Alert.alert('Error', 'Auth data not yet loaded. Please wait.')
-          return
+      onPress: async () => {
+        try {
+          const companyRef = doc(
+            firestore,
+            'companyInfo',
+            'Vj0FigLyhZCyprQ8iGGV'
+          )
+          const companySnap = await getDoc(companyRef)
+          if (companySnap.exists()) {
+            const companyData = companySnap.data()
+            const updatedQuickBooksCompanyId =
+              companyData.quickBooksCompanyId || quickBooksCompanyId
+            useAuthStore.getState().setCredentials({
+              quickBooksCompanyId: updatedQuickBooksCompanyId,
+              clientId,
+              accessToken: null,
+              refreshToken: null,
+              tokenExpiresAt: null,
+            })
+          }
+          promptAsync()
+        } catch (error) {
+          console.error('Error fetching company data:', error)
+          Alert.alert('Error', 'Failed to fetch company data: ' + error.message)
         }
-        console.log('Refreshing token with:', quickBooksCompanyId)
-        promptAsync()
+      },
+    },
+    {
+      label: 'Sign Out',
+      onPress: async () => {
+        try {
+          await revokeQuickBooksToken()
+        } catch (error) {
+          console.error('Error revoking token:', error)
+          Alert.alert('Error', 'Failed to sign out: ' + error.message)
+        }
+      },
+    },
+    {
+      label: 'Clear Session',
+      onPress: async () => {
+        try {
+          await clearQuickBooksSession()
+          Alert.alert(
+            'Success',
+            'QuickBooks session cleared. Please sign in again.'
+          )
+        } catch (error) {
+          console.error('Error clearing session:', error)
+          Alert.alert('Error', 'Failed to clear session: ' + error.message)
+        }
       },
     },
     {
       label: 'Clear Credentials',
       onPress: () => {
-        setAccessToken(undefined)
-        setRefreshToken(undefined)
-        setTokenExpiresAt(undefined)
-        saveTokensToFirestore({
-          accessToken: null,
-          refreshToken: null,
-          tokenExpiresAt: null,
-        })
+        useAuthStore.getState().clearCredentials()
         Alert.alert('Success', 'QuickBooks credentials cleared.')
       },
     },
@@ -603,6 +605,7 @@ const styles = StyleSheet.create({
   },
   listItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
   listItemText: { fontSize: 16, color: '#2c3e50' },
+  oauthContainer: { width: '100%', alignItems: 'center', marginBottom: 20 },
   oauthButton: {
     width: '90%',
     backgroundColor: '#B9770E',
