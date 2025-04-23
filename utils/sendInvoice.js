@@ -86,8 +86,15 @@ const sendInvoiceToQuickBooks = async (invoiceData, accessToken) => {
   const requestBody = {
     AutoDocNumber: true,
     CustomerRef: { value: invoiceData.customerId },
+    BillEmail: { Address: invoiceData.customerEmail },
     TxnDate: invoiceData.invoiceDate,
     CurrencyRef: { value: 'USD' },
+    ShipAddr: {
+      Line1: invoiceData.shipAddress?.line1 || '',
+      City: invoiceData.shipAddress?.city || '',
+      Country: invoiceData.shipAddress?.country || '',
+      PostalCode: invoiceData.shipAddress?.postalCode || '',
+    },
     Line: lines,
     TotalAmt: totalAmt,
   }

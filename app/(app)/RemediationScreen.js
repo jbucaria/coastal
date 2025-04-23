@@ -532,7 +532,11 @@ const RemediationScreen = () => {
                         style={[styles.measurementInput, { width: 70 }]}
                         placeholder="Qty"
                         keyboardType="numeric"
-                        value={measurement.quantity.toString()}
+                        value={
+                          measurement.quantity !== undefined
+                            ? measurement.quantity.toString()
+                            : ''
+                        }
                         onChangeText={val => {
                           if (measurement.id === '1010000001') return // Prevent editing "Air mover" quantity
                           const numericValue = parseFloat(val) || 0

@@ -21,6 +21,10 @@ const _layout = () => {
       <Stack.Screen name="ButtonSampleScreen" />
       <Stack.Screen name="AddTicketScreen" />
       <Stack.Screen
+        name="EditRemediationScreen"
+        options={{ headerShown: true, headerTitle: 'Edit Remediation' }}
+      />
+      <Stack.Screen
         name="EditReportScreen"
         options={{
           headerShown: true, // override to show header
