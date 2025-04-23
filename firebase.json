@@ -2,6 +2,12 @@
   "hosting": {
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/oauth/callback",
+        "destination": "/oauth/callback/index.html"
+      }
+    ],
     "headers": [
       {
         "source": "/.well-known/apple-app-site-association",

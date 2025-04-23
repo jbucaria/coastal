@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 const useAuthStore = create(
   persist(
     (set, get) => ({
-      quickBooksCompanyId: '9341453053900639', // Hardcoded default
+      quickBooksCompanyId: null,
       clientId: null,
       clientSecret: null,
       accessToken: null,
@@ -28,7 +28,7 @@ const useAuthStore = create(
           updatedAt: new Date().toISOString(),
         }
         set(updatedCredentials)
-        console.log('setCredentials updated store:', updatedCredentials)
+
         // Persist to Firestore (exclude functions)
         await setDoc(
           doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV'),
@@ -38,7 +38,7 @@ const useAuthStore = create(
       },
       clearCredentials: async () => {
         const clearedCredentials = {
-          quickBooksCompanyId: '9341453053900639', // Preserve hardcoded value
+          quickBooksCompanyId: '9130351967520606', // Preserve hardcoded value
           clientId: 'BBH3sQV8BaGA4ZxmDTFSXOF94ErNGHh2Iu82TC6eogpXwMlYTe', // Preserve initial value
           clientSecret: 'J68Jzvy0X5BfcV2do84ef5dPKBeq4SQ1xcJh6NzF', // Preserve initial value
           accessToken: null,
@@ -47,7 +47,7 @@ const useAuthStore = create(
           updatedAt: new Date().toISOString(),
         }
         set(clearedCredentials)
-        console.log('clearCredentials updated store:', clearedCredentials)
+
         await setDoc(
           doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV'),
           clearedCredentials,
@@ -59,7 +59,7 @@ const useAuthStore = create(
         const companySnap = await getDoc(companyRef)
         if (companySnap.exists()) {
           const companyData = companySnap.data()
-          console.log('Fetched company data in initializeAuth:', companyData)
+
           set(state => {
             const updatedState = {
               quickBooksCompanyId:
@@ -71,13 +71,12 @@ const useAuthStore = create(
               tokenExpiresAt:
                 companyData.tokenExpiresAt ?? state.tokenExpiresAt,
             }
-            console.log('Updated state in initializeAuth:', updatedState)
+
             return updatedState
           })
         } else {
-          console.log('Company info document does not exist, setting defaults')
           const defaults = {
-            quickBooksCompanyId: '9341453053900639',
+            quickBooksCompanyId: '9130351967520606',
             clientId: 'BBH3sQV8BaGA4ZxmDTFSXOF94ErNGHh2Iu82TC6eogpXwMlYTe',
             clientSecret: 'J68Jzvy0X5BfcV2do84ef5dPKBeq4SQ1xcJh6NzF',
             accessToken: null,

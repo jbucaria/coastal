@@ -30,7 +30,7 @@ const AddTicketScreen = () => {
   const [startTime, setStartTime] = useState(null)
   const [endTime, setEndTime] = useState(null)
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false)
+  const [showStartTimePicPker, setShowStartTimePicker] = useState(false)
   const [showEndTimePicker, setShowEndTimePicker] = useState(false)
   const [headerHeight, setHeaderHeight] = useState(0)
   const marginBelowHeader = 8

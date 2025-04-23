@@ -86,16 +86,12 @@ export default function RootLayout() {
           const companySnap = await getDoc(companyRef)
           if (companySnap.exists()) {
             const companyData = companySnap.data()
-            console.log('Firestore company data:', companyData)
+
             // Only update fields that are not null to avoid overwriting existing credentials
             const filteredData = Object.fromEntries(
               Object.entries(companyData).filter(([_, value]) => value !== null)
             )
             await useAuthStore.getState().setCredentials(filteredData)
-            console.log(
-              'Store after setCredentials in _layout:',
-              useAuthStore.getState()
-            )
           } else {
             console.error('Company info document not found in Firestore')
           }

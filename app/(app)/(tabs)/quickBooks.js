@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import * as Linking from 'expo-linking'
 import {
   SafeAreaView,
   ScrollView,
@@ -17,17 +18,13 @@ import { collection, setDoc, doc, getDocs } from 'firebase/firestore'
 import * as AuthSession from 'expo-auth-session'
 import { HeaderWithOptions } from '@/components/HeaderWithOptions'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import useAuthStore from '@/store/useAuthStore'
 
 const redirectUri = 'https://coastalrestorationservice.com/oauth/callback'
 
 const discovery = {
   authorizationEndpoint: 'https://appcenter.intuit.com/connect/oauth2',
 }
-
-// Hardcoded QuickBooks credentials
-const CLIENT_ID = 'BBH3sQV8BaGA4ZxmDTFSXOF94ErNGHh2Iu82TC6eogpXwMlYTe'
-const CLIENT_SECRET = 'J68Jzvy0X5BfcV2do84ef5dPKBeq4SQ1xcJh6NzF'
-const QUICKBOOKS_COMPANY_ID = '9341454487817288' // Removed leading space
 
 const QuickBooksManagementScreen = () => {
   const [activeTab, setActiveTab] = useState('customers')
@@ -40,32 +37,50 @@ const QuickBooksManagementScreen = () => {
   const [headerHeight, setHeaderHeight] = useState(0)
   const [isAuthLoaded, setIsAuthLoaded] = useState(false)
 
-  // Local state for tokens (not initialized to null)
+  // Local state for tokens
   const [accessToken, setAccessToken] = useState()
   const [refreshToken, setRefreshToken] = useState()
   const [tokenExpiresAt, setTokenExpiresAt] = useState()
 
   const router = useRouter()
 
+  // Get credentials from useAuthStore
+  const { clientId, clientSecret, quickBooksCompanyId } =
+    useAuthStore.getState()
+
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
-      clientId: CLIENT_ID,
+      clientId: clientId || '',
       scopes: ['com.intuit.quickbooks.accounting'],
       redirectUri,
       responseType: 'code',
       state: 'quickbooks_auth',
+      prompt: 'login',
     },
     discovery
   )
+
+  // Add redirect URL logging
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', event => {
+      console.log('Received URL:', event.url)
+    })
+    return () => subscription.remove()
+  }, [])
+
+  useEffect(() => {
+    console.log('AuthSession response:', response)
+    // Rest of your code...
+  }, [response, quickBooksCompanyId, clientId])
 
   // Function to save tokens to Firestore
   const saveTokensToFirestore = async tokens => {
     try {
       const companyRef = doc(firestore, 'companyInfo', 'Vj0FigLyhZCyprQ8iGGV')
       const updatedCredentials = {
-        quickBooksCompanyId: QUICKBOOKS_COMPANY_ID,
-        clientId: CLIENT_ID,
-        clientSecret: CLIENT_SECRET,
+        quickBooksCompanyId: quickBooksCompanyId || '',
+        clientId: clientId || '',
+        clientSecret: clientSecret || '',
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         tokenExpiresAt: tokens.tokenExpiresAt,
@@ -93,8 +108,8 @@ const QuickBooksManagementScreen = () => {
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
+      client_id: clientId || '',
+      client_secret: clientSecret || '',
     })
 
     const newResponse = await fetch(tokenUrl, {
@@ -136,6 +151,18 @@ const QuickBooksManagementScreen = () => {
     }
     loadAuth()
 
+    if (!clientId || !clientSecret) {
+      console.error('Missing QuickBooks credentials from store:', {
+        clientId,
+        clientSecret,
+      })
+      Alert.alert(
+        'Error',
+        'Missing QuickBooks credentials. Please check app configuration.'
+      )
+      return
+    }
+
     if (response?.type === 'success') {
       ;(async () => {
         const { code } = response.params
@@ -146,8 +173,8 @@ const QuickBooksManagementScreen = () => {
           grant_type: 'authorization_code',
           code,
           redirect_uri: redirectUri,
-          client_id: CLIENT_ID,
-          client_secret: CLIENT_SECRET,
+          client_id: clientId,
+          client_secret: clientSecret,
         })
         try {
           const tokenResponse = await fetch(tokenUrl, {
@@ -190,7 +217,7 @@ const QuickBooksManagementScreen = () => {
     } else {
       console.log('OAuth response:', response)
     }
-  }, [response])
+  }, [response, clientId, clientSecret])
 
   // Customers Functions
   const fetchCustomersFromFirestore = async () => {
@@ -207,9 +234,9 @@ const QuickBooksManagementScreen = () => {
 
   const fetchCustomersFromQuickBooks = async () => {
     const now = Date.now()
-    if (!QUICKBOOKS_COMPANY_ID || !accessToken) {
+    if (!quickBooksCompanyId || !accessToken) {
       console.error('Missing credentials:', {
-        quickBooksCompanyId: QUICKBOOKS_COMPANY_ID,
+        quickBooksCompanyId,
         accessToken,
       })
       Alert.alert('Error', 'Missing credentials')
@@ -233,7 +260,7 @@ const QuickBooksManagementScreen = () => {
       return
     }
     setLoadingCustomers(true)
-    const url = `https://quickbooks.api.intuit.com/v3/company/${QUICKBOOKS_COMPANY_ID}/query?query=${encodeURIComponent(
+    const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
       'SELECT * FROM Customer STARTPOSITION 1 MAXRESULTS 100'
     )}&minorversion=4`
     const headers = {
@@ -295,9 +322,9 @@ const QuickBooksManagementScreen = () => {
   // Items Functions
   const fetchItemsFromQB = async () => {
     const now = Date.now()
-    if (!QUICKBOOKS_COMPANY_ID || !accessToken) {
+    if (!quickBooksCompanyId || !accessToken) {
       console.error('Missing credentials:', {
-        quickBooksCompanyId: QUICKBOOKS_COMPANY_ID,
+        quickBooksCompanyId,
         accessToken,
       })
       Alert.alert('Error', 'Missing credentials')
@@ -321,7 +348,7 @@ const QuickBooksManagementScreen = () => {
       return
     }
     setLoadingItems(true)
-    const url = `https://quickbooks.api.intuit.com/v3/company/${QUICKBOOKS_COMPANY_ID}/query?query=${encodeURIComponent(
+    const url = `https://quickbooks.api.intuit.com/v3/company/${quickBooksCompanyId}/query?query=${encodeURIComponent(
       'SELECT * FROM Item STARTPOSITION 1 MAXRESULTS 100'
     )}&minorversion=4`
     const headers = {
@@ -383,7 +410,7 @@ const QuickBooksManagementScreen = () => {
           Alert.alert('Error', 'Auth data not yet loaded. Please wait.')
           return
         }
-        console.log('Refreshing token with:', QUICKBOOKS_COMPANY_ID)
+        console.log('Refreshing token with:', quickBooksCompanyId)
         promptAsync()
       },
     },
